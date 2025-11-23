@@ -6493,8 +6493,10 @@ async function handleExpenseSubmit(e) {
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
         submitBtn.disabled = true;
 
-        // Save to storage
-        await saveExpenseToStorage(formData);
+        // Save to Firestore (real-time listener will auto-update the table)
+        const result = await saveExpenseToStorage(formData);
+        
+        console.log('✅ Expense saved, real-time listener will update table automatically');
 
         // Show success message
         showExpenseSuccessMessage();
@@ -6506,11 +6508,11 @@ async function handleExpenseSubmit(e) {
         submitBtn.innerHTML = originalText;
         submitBtn.disabled = false;
 
-        // Log success
-        console.log('Expense submitted successfully:', formData);
+        console.log('📝 Expense submitted successfully:', formData);
+        console.log('💡 Check "All Expenses" module - new expense should appear automatically');
 
     } catch (error) {
-        console.error('Error submitting expense:', error);
+        console.error('❌ Error submitting expense:', error);
         alert('Failed to submit expense. Please try again.');
         
         // Reset button
@@ -6585,35 +6587,93 @@ function validateExpenseForm(formData) {
     return true;
 }
 
-// Save Expense to Storage
+// Save Expense to Firestore
 async function saveExpenseToStorage(expenseData) {
-    return new Promise((resolve) => {
+    try {
+        console.log('💾 Saving expense to Firestore...', expenseData);
+        
+        // Import Firebase functions
+        const { db } = await import('./firebase-config.js');
+        const { collection, addDoc, serverTimestamp } = await import('./firebase-config.js');
+        
+        // Add expense to Firestore
+        const expensesCollection = collection(db, 'expenses');
+        const docRef = await addDoc(expensesCollection, {
+            ...expenseData,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+        
+        console.log('✅ Expense saved to Firestore with ID:', docRef.id);
+        
+        // Update stats
+        updateExpenseStats();
+        
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('❌ Error saving expense to Firestore:', error);
+        
+        // Fallback to localStorage
+        console.log('⚠️ Using localStorage fallback');
         let expenses = JSON.parse(localStorage.getItem('expenses') || '[]');
         expenses.push(expenseData);
         localStorage.setItem('expenses', JSON.stringify(expenses));
         
-        // Update total expenses count
         updateExpenseStats();
         
-        setTimeout(resolve, 500); // Simulate async operation
-    });
+        return { success: true, fallback: true };
+    }
 }
 
-// Load Expenses from Storage
-function loadExpensesFromStorage() {
-    const expenses = JSON.parse(localStorage.getItem('expenses') || '[]');
-    console.log(`Loaded ${expenses.length} expenses from storage`);
-    return expenses;
+// Load Expenses from Firestore
+async function loadExpensesFromStorage() {
+    try {
+        const { db } = await import('./firebase-config.js');
+        const { collection, getDocs, query, orderBy } = await import('./firebase-config.js');
+        
+        const expensesCollection = collection(db, 'expenses');
+        const q = query(expensesCollection, orderBy('createdAt', 'desc'));
+        const querySnapshot = await getDocs(q);
+        
+        const expenses = [];
+        querySnapshot.forEach((doc) => {
+            expenses.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        
+        console.log(`✅ Loaded ${expenses.length} expenses from Firestore`);
+        return expenses;
+    } catch (error) {
+        console.error('Error loading expenses from Firestore:', error);
+        
+        // Fallback to localStorage
+        const expenses = JSON.parse(localStorage.getItem('expenses') || '[]');
+        console.log(`⚠️ Loaded ${expenses.length} expenses from localStorage (fallback)`);
+        return expenses;
+    }
 }
 
 // Update Expense Statistics
-function updateExpenseStats() {
-    const expenses = loadExpensesFromStorage();
+async function updateExpenseStats() {
+    const expenses = await loadExpensesFromStorage();
     const totalExpenses = expenses.length;
-    const totalAmount = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+    const totalAmount = expenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
     
-    console.log(`Total Expenses: ${totalExpenses}`);
-    console.log(`Total Amount: KSh ${totalAmount.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`);
+    console.log(`📊 Total Expenses: ${totalExpenses}`);
+    console.log(`💰 Total Amount: KSh ${totalAmount.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`);
+    
+    // Update UI if elements exist
+    const totalExpensesEl = document.getElementById('totalExpensesCount');
+    const totalAmountEl = document.getElementById('totalExpensesAmount');
+    
+    if (totalExpensesEl) {
+        totalExpensesEl.textContent = totalExpenses;
+    }
+    if (totalAmountEl) {
+        totalAmountEl.textContent = `KSh ${totalAmount.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`;
+    }
 }
 
 // Handle Cancel Expense
@@ -6782,32 +6842,84 @@ function initializeAllExpensesModule() {
     setupExpenseModals();
 }
 
-// Load and Display Expenses
-function loadAndDisplayExpenses() {
-    const expenses = getAllExpenses();
-    filteredExpenses = expenses;
+// Load and Display Expenses with Real-time Updates
+async function loadAndDisplayExpenses() {
+    console.log('🔄 Setting up real-time expense listener...');
     
-    updateExpenseStatistics(expenses);
-    renderExpensesTable();
+    try {
+        const { db } = await import('./firebase-config.js');
+        const { collection, onSnapshot, query, orderBy } = await import('./firebase-config.js');
+        
+        const expensesCollection = collection(db, 'expenses');
+        const q = query(expensesCollection, orderBy('createdAt', 'desc'));
+        
+        // Set up real-time listener
+        onSnapshot(q, (snapshot) => {
+            const expenses = [];
+            snapshot.forEach((doc) => {
+                expenses.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            });
+            
+            console.log(`🔔 Real-time update: ${expenses.length} expenses synced`);
+            
+            // Update global expenses array
+            window.allExpenses = expenses;
+            filteredExpenses = expenses;
+            
+            // Update UI
+            updateExpenseStatistics(expenses);
+            renderExpensesTable();
+        });
+        
+        console.log('✅ Real-time expense listener setup complete');
+    } catch (error) {
+        console.error('Error setting up real-time listener:', error);
+        
+        // Fallback to loading from storage
+        const expenses = await loadExpensesFromStorage();
+        window.allExpenses = expenses;
+        filteredExpenses = expenses;
+        
+        updateExpenseStatistics(expenses);
+        renderExpensesTable();
+    }
 }
 
 // Update Statistics
 function updateExpenseStatistics(expenses = null) {
     const expenseList = expenses || getAllExpenses();
-    const stats = getExpenseStatistics();
+    const today = new Date();
+    const thisMonth = today.getMonth();
+    const thisYear = today.getFullYear();
+    
+    // Calculate totals from the provided expenses
+    const totalCount = expenseList.length;
+    const totalAmount = expenseList.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+    
+    // Calculate monthly expenses
+    const monthlyExpenses = expenseList.filter(exp => {
+        const expDate = new Date(exp.date);
+        return expDate.getMonth() === thisMonth && expDate.getFullYear() === thisYear;
+    });
+    const monthlyAmount = monthlyExpenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+    
+    console.log(`📊 Stats Update - Total: ${totalCount}, Amount: ${totalAmount}, Monthly: ${monthlyAmount}`);
     
     // Total expenses
-    document.getElementById('totalExpensesCount').textContent = stats.total.count;
+    document.getElementById('totalExpensesCount').textContent = totalCount;
     
     // Total amount
-    document.getElementById('totalExpensesAmount').textContent = formatCurrency(stats.total.amount);
+    document.getElementById('totalExpensesAmount').textContent = formatCurrency(totalAmount);
     
     // Monthly amount
-    document.getElementById('monthlyExpensesAmount').textContent = formatCurrency(stats.monthly.amount);
+    document.getElementById('monthlyExpensesAmount').textContent = formatCurrency(monthlyAmount);
     
     // Approved count
-    document.getElementById('approvedExpensesCount').textContent = 
-        expenseList.filter(exp => exp.status === 'approved' || exp.status === 'paid').length;
+    const approvedCount = expenseList.filter(exp => exp.status === 'approved' || exp.status === 'paid').length;
+    document.getElementById('approvedExpensesCount').textContent = approvedCount;
 }
 
 // Render Expenses Table
@@ -6907,6 +7019,24 @@ function setupExpenseFilters() {
     const applyBtn = document.getElementById('applyFiltersBtn');
     const clearBtn = document.getElementById('clearFiltersBtn');
     
+    // Real-time filter inputs
+    const filterCategory = document.getElementById('filterCategory');
+    const filterDepartment = document.getElementById('filterDepartment');
+    const filterStatus = document.getElementById('filterStatus');
+    const filterStartDate = document.getElementById('filterStartDate');
+    const filterEndDate = document.getElementById('filterEndDate');
+    
+    // Apply filters on any change
+    const applyFiltersRealtime = () => {
+        applyExpenseFilters();
+    };
+    
+    if (filterCategory) filterCategory.addEventListener('change', applyFiltersRealtime);
+    if (filterDepartment) filterDepartment.addEventListener('change', applyFiltersRealtime);
+    if (filterStatus) filterStatus.addEventListener('change', applyFiltersRealtime);
+    if (filterStartDate) filterStartDate.addEventListener('change', applyFiltersRealtime);
+    if (filterEndDate) filterEndDate.addEventListener('change', applyFiltersRealtime);
+    
     if (applyBtn) {
         applyBtn.addEventListener('click', applyExpenseFilters);
     }
@@ -6936,18 +7066,20 @@ function applyExpenseFilters() {
 
 // Clear Filters
 function clearExpenseFilters() {
+    // Clear all filter inputs
     document.getElementById('filterCategory').value = '';
     document.getElementById('filterDepartment').value = '';
     document.getElementById('filterStatus').value = '';
     document.getElementById('filterStartDate').value = '';
     document.getElementById('filterEndDate').value = '';
     
+    // Reset filters and show all expenses
     currentExpenseFilters = {};
-    filteredExpenses = getAllExpenses();
+    filteredExpenses = window.allExpenses || [];
     currentExpensePage = 1;
     renderExpensesTable();
     
-    console.log('Filters cleared');
+    console.log('✅ Filters cleared - showing all expenses');
 }
 
 // Setup Search
@@ -7046,12 +7178,50 @@ function setupExpensePagination() {
 // Setup Action Buttons
 function setupExpenseActions() {
     const exportBtn = document.getElementById('exportExpensesBtn');
+    const exportMenu = document.getElementById('exportMenu');
+    const exportCSVBtn = document.getElementById('exportCSVBtn');
+    const exportPDFBtn = document.getElementById('exportPDFBtn');
     const addNewBtn = document.getElementById('addNewExpenseBtn');
     const addFirstBtn = document.getElementById('addFirstExpenseBtn');
     
-    if (exportBtn) {
-        exportBtn.addEventListener('click', () => {
+    console.log('Export button:', exportBtn);
+    console.log('Export menu:', exportMenu);
+    
+    // Toggle export dropdown
+    if (exportBtn && exportMenu) {
+        exportBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Export button clicked');
+            const isShowing = exportMenu.classList.contains('show');
+            console.log('Current state:', isShowing ? 'showing' : 'hidden');
+            exportMenu.classList.toggle('show');
+            console.log('New state:', exportMenu.classList.contains('show') ? 'showing' : 'hidden');
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!exportBtn.contains(e.target) && !exportMenu.contains(e.target)) {
+                exportMenu.classList.remove('show');
+            }
+        });
+    }
+    
+    if (exportCSVBtn) {
+        exportCSVBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            console.log('CSV export clicked');
             exportExpensesToCSV(filteredExpenses);
+            exportMenu.classList.remove('show');
+        });
+    }
+    
+    if (exportPDFBtn) {
+        exportPDFBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            console.log('PDF export clicked');
+            exportExpensesToPDF(filteredExpenses);
+            exportMenu.classList.remove('show');
         });
     }
     
@@ -7100,128 +7270,250 @@ function navigateToAddExpense() {
     });
 }
 
+// Export Expenses to CSV
+function exportExpensesToCSV(expenses) {
+    if (!expenses || expenses.length === 0) {
+        alert('No expenses to export');
+        return;
+    }
+    
+    const headers = ['ID', 'Date', 'Category', 'Description', 'Amount', 'Department', 'Payment Method', 'Status'];
+    const rows = expenses.map(exp => [
+        exp.id,
+        formatDate(exp.date),
+        EXPENSE_CATEGORIES[exp.category] || exp.category,
+        exp.description,
+        exp.amount,
+        exp.department,
+        PAYMENT_METHODS[exp.paymentMethod] || exp.paymentMethod,
+        exp.status
+    ]);
+    
+    let csvContent = headers.join(',') + '\n';
+    rows.forEach(row => {
+        csvContent += row.map(cell => `"${cell}"`).join(',') + '\n';
+    });
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `expenses_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    
+    console.log('✅ Exported', expenses.length, 'expenses to CSV');
+}
+
+// Export Expenses to PDF
+function exportExpensesToPDF(expenses) {
+    if (!expenses || expenses.length === 0) {
+        alert('No expenses to export');
+        return;
+    }
+    
+    const printWindow = window.open('', '', 'width=800,height=600');
+    const totalAmount = expenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+    
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Expenses Report</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    font-family: Arial, sans-serif;
+                    padding: 40px;
+                    background: #fff;
+                    color: #000;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 30px;
+                    border-bottom: 3px solid #2563eb;
+                    padding-bottom: 20px;
+                }
+                .header h1 {
+                    font-size: 28px;
+                    color: #2563eb;
+                    margin-bottom: 10px;
+                }
+                .header p {
+                    font-size: 14px;
+                    color: #666;
+                }
+                .summary {
+                    display: flex;
+                    justify-content: space-around;
+                    margin-bottom: 30px;
+                    padding: 20px;
+                    background: #f8fafc;
+                    border-radius: 8px;
+                }
+                .summary-item { text-align: center; }
+                .summary-label {
+                    font-size: 12px;
+                    color: #666;
+                    text-transform: uppercase;
+                    margin-bottom: 5px;
+                }
+                .summary-value {
+                    font-size: 20px;
+                    font-weight: bold;
+                    color: #000;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 30px;
+                }
+                th {
+                    background: #2563eb;
+                    color: white;
+                    padding: 12px 8px;
+                    text-align: left;
+                    font-size: 12px;
+                    text-transform: uppercase;
+                }
+                td {
+                    padding: 10px 8px;
+                    border-bottom: 1px solid #e5e7eb;
+                    font-size: 12px;
+                }
+                tr:hover { background: #f8fafc; }
+                .status {
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    font-size: 11px;
+                    font-weight: bold;
+                }
+                .status.pending { background: #fef3c7; color: #f59e0b; }
+                .status.approved { background: #d1fae5; color: #10b981; }
+                .status.paid { background: #dbeafe; color: #2563eb; }
+                .status.rejected { background: #fee2e2; color: #ef4444; }
+                .amount { font-weight: bold; color: #ef4444; }
+                .footer {
+                    text-align: center;
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 2px solid #e5e7eb;
+                    font-size: 12px;
+                    color: #666;
+                }
+                @media print {
+                    body { padding: 20px; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Expenses Report</h1>
+                <p>Generated on ${new Date().toLocaleDateString('en-KE', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            </div>
+            <div class="summary">
+                <div class="summary-item">
+                    <div class="summary-label">Total Expenses</div>
+                    <div class="summary-value">${expenses.length}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Total Amount</div>
+                    <div class="summary-value">KSh ${totalAmount.toLocaleString('en-KE', { minimumFractionDigits: 2 })}</div>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Category</th>
+                        <th>Description</th>
+                        <th>Department</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${expenses.map(exp => `
+                        <tr>
+                            <td>${formatDate(exp.date)}</td>
+                            <td>${EXPENSE_CATEGORIES[exp.category] || exp.category}</td>
+                            <td>${exp.description}</td>
+                            <td>${exp.department.toUpperCase()}</td>
+                            <td class="amount">KSh ${parseFloat(exp.amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</td>
+                            <td><span class="status ${exp.status}">${exp.status.toUpperCase()}</span></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            <div class="footer">
+                <p>RxFlow Hospital Management System - Expenses Report</p>
+                <p>This is a system-generated report</p>
+            </div>
+        </body>
+        </html>
+    `);
+    
+    printWindow.document.close();
+    setTimeout(() => { printWindow.print(); }, 250);
+    console.log('✅ Generated PDF for', expenses.length, 'expenses');
+}
+
+// Get Expense by ID from real-time data
+function getExpenseById(expenseId) {
+    const expenses = window.allExpenses || [];
+    return expenses.find(exp => exp.id === expenseId);
+}
+
 // View Expense Details
 function viewExpenseDetails(expenseId) {
     const expense = getExpenseById(expenseId);
-    if (!expense) return;
+    if (!expense) {
+        console.log('❌ Expense not found:', expenseId);
+        return;
+    }
     
     const modal = document.getElementById('viewExpenseModal');
     const modalBody = document.getElementById('viewExpenseModalBody');
     
     modalBody.innerHTML = `
-        <div class="expense-detail-section">
-            <h3 class="detail-section-title">Expense Information</h3>
-            <div class="detail-grid">
-                <div class="detail-item">
-                    <span class="detail-label">Expense ID</span>
-                    <span class="detail-value">${expense.id}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Date</span>
-                    <span class="detail-value">${formatDate(expense.date)}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Category</span>
-                    <span class="detail-value">${EXPENSE_CATEGORIES[expense.category] || expense.category}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Subcategory</span>
-                    <span class="detail-value">${expense.subcategory || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Amount</span>
-                    <span class="detail-value amount">${formatCurrency(expense.amount)}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Status</span>
-                    <span class="detail-value">
-                        <span class="status-badge ${expense.status}">${expense.status.toUpperCase()}</span>
-                    </span>
-                </div>
+        <div class="expense-detail-simple">
+            <div class="detail-row">
+                <span class="detail-label">ID:</span>
+                <span class="detail-value">${expense.id}</span>
             </div>
-        </div>
-        
-        <div class="expense-detail-section">
-            <h3 class="detail-section-title">Description</h3>
-            <p class="detail-value">${expense.description}</p>
-        </div>
-        
-        <div class="expense-detail-section">
-            <h3 class="detail-section-title">Payment Information</h3>
-            <div class="detail-grid">
-                <div class="detail-item">
-                    <span class="detail-label">Payment Method</span>
-                    <span class="detail-value">${PAYMENT_METHODS[expense.paymentMethod] || expense.paymentMethod}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Department</span>
-                    <span class="detail-value">${expense.department.toUpperCase()}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Authorized By</span>
-                    <span class="detail-value">${expense.authorizedBy || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Recurring</span>
-                    <span class="detail-value">${expense.recurring === 'no' ? 'No' : expense.recurring.toUpperCase()}</span>
-                </div>
+            <div class="detail-row">
+                <span class="detail-label">Date:</span>
+                <span class="detail-value">${formatDate(expense.date)}</span>
             </div>
-        </div>
-        
-        <div class="expense-detail-section">
-            <h3 class="detail-section-title">Vendor/Supplier Information</h3>
-            <div class="detail-grid">
-                <div class="detail-item">
-                    <span class="detail-label">Vendor Name</span>
-                    <span class="detail-value">${expense.vendorName || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Vendor Contact</span>
-                    <span class="detail-value">${expense.vendorContact || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Invoice Number</span>
-                    <span class="detail-value">${expense.invoiceNumber || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">PO Number</span>
-                    <span class="detail-value">${expense.purchaseOrderNumber || '-'}</span>
-                </div>
+            <div class="detail-row">
+                <span class="detail-label">Category:</span>
+                <span class="detail-value">${EXPENSE_CATEGORIES[expense.category] || expense.category}</span>
             </div>
-        </div>
-        
-        ${expense.notes ? `
-            <div class="expense-detail-section">
-                <h3 class="detail-section-title">Additional Notes</h3>
-                <p class="detail-value">${expense.notes}</p>
+            <div class="detail-row">
+                <span class="detail-label">Description:</span>
+                <span class="detail-value">${expense.description}</span>
             </div>
-        ` : ''}
-        
-        <div class="expense-detail-section">
-            <h3 class="detail-section-title">Record Information</h3>
-            <div class="detail-grid">
-                <div class="detail-item">
-                    <span class="detail-label">Recorded By</span>
-                    <span class="detail-value">${expense.recordedBy || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Recorded At</span>
-                    <span class="detail-value">${new Date(expense.timestamp).toLocaleString()}</span>
-                </div>
+            <div class="detail-row">
+                <span class="detail-label">Amount:</span>
+                <span class="detail-value amount">${formatCurrency(expense.amount)}</span>
             </div>
-        </div>
+            <div class="detail-row">
+                <span class="detail-label">Payment:</span>
+                <span class="detail-value">${PAYMENT_METHODS[expense.paymentMethod] || expense.paymentMethod}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Department:</span>
+                <span class="detail-value">${expense.department.toUpperCase()}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Status:</span>
+                <span class="detail-value">
+                    <span class="status-badge ${expense.status}">${expense.status.toUpperCase()}</span>
+                </span>
+            </div>
     `;
     
     modal.classList.add('active');
-}
-
-// Setup Expense Modals
-function setupExpenseModals() {
-    // Print button
-    const printBtn = document.getElementById('printExpenseBtn');
-    if (printBtn) {
-        printBtn.addEventListener('click', printCurrentExpense);
-    }
 }
 
 // Close View Expense Modal
@@ -7231,19 +7523,82 @@ function closeViewExpenseModal() {
 }
 
 // Edit Expense
+let currentEditExpenseId = null;
+
 function editExpense(expenseId) {
     const expense = getExpenseById(expenseId);
     if (!expense) return;
     
-    // For now, just show an alert. This can be expanded later
-    alert(`Edit functionality for expense ${expenseId} will be implemented soon.`);
-    console.log('Edit expense:', expense);
+    currentEditExpenseId = expenseId;
+    const modal = document.getElementById('editExpenseModal');
+    const modalBody = document.getElementById('editExpenseModalBody');
+    
+    modalBody.innerHTML = `
+        <div class="form-simple">
+            <div class="form-group">
+                <label>Amount</label>
+                <input type="number" id="editAmount" class="form-control" value="${expense.amount}" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="editDescription" class="form-control" rows="3">${expense.description}</textarea>
+            </div>
+            <div class="form-group">
+                <label>Status</label>
+                <select id="editStatus" class="form-control">
+                    <option value="pending" ${expense.status === 'pending' ? 'selected' : ''}>Pending</option>
+                    <option value="approved" ${expense.status === 'approved' ? 'selected' : ''}>Approved</option>
+                    <option value="paid" ${expense.status === 'paid' ? 'selected' : ''}>Paid</option>
+                    <option value="rejected" ${expense.status === 'rejected' ? 'selected' : ''}>Rejected</option>
+                </select>
+            </div>
+        </div>
+    `;
+    
+    modal.classList.add('active');
+}
+
+// Save Expense Changes
+async function saveExpenseChanges() {
+    if (!currentEditExpenseId) return;
+    
+    const amount = parseFloat(document.getElementById('editAmount').value);
+    const description = document.getElementById('editDescription').value.trim();
+    const status = document.getElementById('editStatus').value;
+    
+    if (!amount || !description) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    try {
+        const { db } = await import('./firebase-config.js');
+        const { doc, updateDoc } = await import('./firebase-config.js');
+        
+        const expenseRef = doc(db, 'expenses', currentEditExpenseId);
+        await updateDoc(expenseRef, {
+            amount: amount,
+            description: description,
+            status: status,
+            updatedAt: new Date().toISOString()
+        });
+        
+        console.log('✅ Expense updated successfully');
+        closeEditExpenseModal();
+        
+        // Show success message
+        alert('Expense updated successfully!');
+    } catch (error) {
+        console.error('Error updating expense:', error);
+        alert('Failed to update expense. Please try again.');
+    }
 }
 
 // Close Edit Expense Modal
 function closeEditExpenseModal() {
     const modal = document.getElementById('editExpenseModal');
     modal.classList.remove('active');
+    currentEditExpenseId = null;
 }
 
 // Delete Expense
@@ -7274,31 +7629,32 @@ function closeDeleteExpenseModal() {
 }
 
 // Confirm Delete
-const confirmDeleteBtn = document.getElementById('confirmDeleteExpenseBtn');
-if (confirmDeleteBtn) {
-    confirmDeleteBtn.addEventListener('click', function() {
-        if (expenseToDelete) {
-            const result = deleteExpenseById(expenseToDelete);
-            if (result) {
-                closeDeleteExpenseModal();
-                loadAndDisplayExpenses();
-                console.log(`Expense ${expenseToDelete} deleted successfully`);
-            }
-        }
-    });
+async function confirmDeleteExpense() {
+    if (!expenseToDelete) return;
+    
+    const result = await deleteExpenseById(expenseToDelete);
+    if (result) {
+        closeDeleteExpenseModal();
+        console.log(`✅ Expense ${expenseToDelete} deleted successfully`);
+    }
 }
 
-// Delete Expense by ID (wrapper for existing function)
-function deleteExpenseById(expenseId) {
-    let expenses = getAllExpenses();
-    const initialLength = expenses.length;
-    expenses = expenses.filter(exp => exp.id !== expenseId);
-    
-    if (expenses.length < initialLength) {
-        localStorage.setItem('expenses', JSON.stringify(expenses));
+// Delete Expense by ID from Firestore
+async function deleteExpenseById(expenseId) {
+    try {
+        const { db } = await import('./firebase-config.js');
+        const { doc, deleteDoc } = await import('./firebase-config.js');
+        
+        const expenseRef = doc(db, 'expenses', expenseId);
+        await deleteDoc(expenseRef);
+        
+        console.log('✅ Expense deleted successfully');
         return true;
+    } catch (error) {
+        console.error('Error deleting expense:', error);
+        alert('Failed to delete expense. Please try again.');
+        return false;
     }
-    return false;
 }
 
 // Print Current Expense
@@ -7311,8 +7667,10 @@ window.viewExpenseDetails = viewExpenseDetails;
 window.closeViewExpenseModal = closeViewExpenseModal;
 window.editExpense = editExpense;
 window.closeEditExpenseModal = closeEditExpenseModal;
+window.saveExpenseChanges = saveExpenseChanges;
 window.deleteExpense = deleteExpense;
 window.closeDeleteExpenseModal = closeDeleteExpenseModal;
+window.confirmDeleteExpense = confirmDeleteExpense;
 window.navigateToAddExpense = navigateToAddExpense;
 
 // ===================================
