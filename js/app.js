@@ -38,6 +38,55 @@ if (savedSidebarState === 'collapsed') {
 // Profile Dropdown
 const profileBtn = document.getElementById('profileBtn');
 const profileDropdown = document.getElementById('profileDropdown');
+const profileNameElement = document.getElementById('profileName');
+
+// Load user profile from Firebase Auth
+async function loadUserProfile() {
+    try {
+        // Import Firebase Auth
+        const { getAuth, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+        const { getFirestore, doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        const { getApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+        
+        const app = getApp();
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        // Listen to auth state changes
+        onAuthStateChanged(auth, async (user) => {
+            if (user && profileNameElement) {
+                // Try to get user data from Firestore first
+                try {
+                    const userDoc = await getDoc(doc(db, 'users', user.uid));
+                    if (userDoc.exists()) {
+                        const userData = userDoc.data();
+                        const displayName = userData.displayName || userData.name || user.displayName || user.email.split('@')[0];
+                        profileNameElement.textContent = displayName;
+                    } else {
+                        // Fallback to Firebase Auth display name or email
+                        profileNameElement.textContent = user.displayName || user.email.split('@')[0];
+                    }
+                } catch (error) {
+                    console.error('Error fetching user data:', error);
+                    // Fallback to Firebase Auth data
+                    profileNameElement.textContent = user.displayName || user.email.split('@')[0];
+                }
+            } else if (profileNameElement) {
+                profileNameElement.textContent = 'User';
+            }
+        });
+    } catch (error) {
+        console.error('Error loading user profile:', error);
+        // Fallback to localStorage/sessionStorage
+        const user = getCurrentUser();
+        if (user && profileNameElement) {
+            profileNameElement.textContent = user.displayName || user.email || 'User';
+        }
+    }
+}
+
+// Initialize profile on load
+loadUserProfile();
 
 profileBtn.addEventListener('click', (e) => {
     e.stopPropagation();
