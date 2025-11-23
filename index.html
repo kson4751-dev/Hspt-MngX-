@@ -1626,9 +1626,9 @@
         </div>
 
         <!-- Lab Reports Module -->
-        <div class="module" id="lab-reports-module" style="display: none;">
+        <div class="module" id="lab-reports-module">
             <div class="module-header">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="module-header-content">
                     <div>
                         <h1 class="module-title">Lab Reports</h1>
                         <p class="module-description">View and manage laboratory test results and reports</p>
@@ -1704,23 +1704,23 @@
                         <i class="fas fa-flask"></i>
                         Laboratory Reports
                     </h2>
-                    <div class="section-actions">
-                        <input type="search" class="search-input" placeholder="Search by patient ID or name..." id="labReportsSearchInput" oninput="filterLabReports()">
-                        <select class="form-control" id="labReportsTimeFilter" style="width: 150px;" onchange="filterLabReports()">
+                    <div class="section-actions lab-reports-actions">
+                        <input type="search" class="search-input" placeholder="Search patient..." id="labReportsSearchInput" oninput="filterLabReports()">
+                        <select class="form-control filter-select" id="labReportsTimeFilter" onchange="filterLabReports()">
                             <option value="all">All Time</option>
                             <option value="today">Today</option>
                             <option value="yesterday">Yesterday</option>
                             <option value="week">This Week</option>
                             <option value="month">This Month</option>
                         </select>
-                        <select class="form-control" id="labReportsStatusFilter" style="width: 150px;" onchange="filterLabReports()">
+                        <select class="form-control filter-select" id="labReportsStatusFilter" onchange="filterLabReports()">
                             <option value="">All Reports</option>
                             <option value="new">New</option>
                             <option value="reviewed">Reviewed</option>
                         </select>
                         <button class="btn btn-sm btn-primary" onclick="refreshLabReports()">
                             <i class="fas fa-sync-alt"></i>
-                            Refresh
+                            <span class="btn-text">Refresh</span>
                         </button>
                     </div>
                 </div>
@@ -1865,6 +1865,122 @@
             <div class="module-header">
                 <h1 class="module-title">Ward & Nursing</h1>
                 <p class="module-description">Inpatient management, bed allocation, patient care, medication administration, and vital monitoring</p>
+            </div>
+
+            <div class="module-content">
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            <i class="fas fa-bed"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Total Patients</span>
+                            <span class="stat-value" id="wardTotalPatientsCount">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                            <i class="fas fa-user-check"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Admitted Today</span>
+                            <span class="stat-value" id="wardAdmittedTodayCount">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                            <i class="fas fa-sign-out-alt"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Discharged Today</span>
+                            <span class="stat-value" id="wardDischargedTodayCount">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                            <i class="fas fa-hospital-user"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Occupied Beds</span>
+                            <span class="stat-value" id="wardOccupiedBedsCount">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Nursing Station Queue -->
+                <div class="lab-queue-section">
+                    <div class="section-header">
+                        <h2 class="section-title">
+                            <i class="fas fa-user-nurse"></i>
+                            Nursing Station Queue
+                        </h2>
+                        <button class="btn btn-sm btn-primary" onclick="refreshWardQueue()">
+                            <i class="fas fa-sync-alt"></i>
+                            Refresh
+                        </button>
+                    </div>
+                    
+                    <div class="lab-queue-horizontal">
+                        <div class="lab-queue-scroll" id="wardNursingQueue">
+                            <div class="empty-state">
+                                <i class="fas fa-inbox"></i>
+                                <p>No pending admissions from doctors</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ward Patients Table -->
+                <div class="lab-requests-section">
+                    <div class="section-header">
+                        <h2 class="section-title">
+                            <i class="fas fa-bed"></i>
+                            Ward Patients
+                        </h2>
+                        <div class="section-actions">
+                            <input type="search" class="search-input" placeholder="Search by patient ID or name..." id="wardSearchInput">
+                            <select class="form-control" id="wardStatusFilter" style="width: 150px;">
+                                <option value="">All Status</option>
+                                <option value="admitted">Admitted</option>
+                                <option value="discharged">Discharged</option>
+                                <option value="critical">Critical</option>
+                                <option value="stable">Stable</option>
+                            </select>
+                            <button class="btn btn-sm btn-success" onclick="refreshWardPatients()">
+                                <i class="fas fa-sync-alt"></i>
+                                Refresh
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="records-table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Patient ID</th>
+                                    <th>Patient Name</th>
+                                    <th>Age/Gender</th>
+                                    <th>Bed No.</th>
+                                    <th>Admission Date</th>
+                                    <th>Diagnosis</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="wardPatientsBody">
+                                <tr class="empty-row">
+                                    <td colspan="8">
+                                        <div class="empty-state">
+                                            <i class="fas fa-bed"></i>
+                                            <p>No patients in ward</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -4761,10 +4877,10 @@
                                 </label>
 
                                 <label class="permission-item">
-                                    <input type="checkbox" name="modulePermission" value="nursing">
+                                    <input type="checkbox" name="modulePermission" value="ward-nursing">
                                     <div class="permission-content">
-                                        <i class="fas fa-user-nurse"></i>
-                                        <span>Nursing</span>
+                                        <i class="fas fa-bed"></i>
+                                        <span>Ward & Nursing</span>
                                     </div>
                                 </label>
 
@@ -4773,14 +4889,6 @@
                                     <div class="permission-content">
                                         <i class="fas fa-flask"></i>
                                         <span>Laboratory</span>
-                                    </div>
-                                </label>
-
-                                <label class="permission-item">
-                                    <input type="checkbox" name="modulePermission" value="ward">
-                                    <div class="permission-content">
-                                        <i class="fas fa-bed"></i>
-                                        <span>Ward</span>
                                     </div>
                                 </label>
 
@@ -6443,6 +6551,388 @@
         </div>
     </div>
 
+    <!-- Ward Patient Details Modal -->
+    <div class="modal" id="wardPatientModal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-user-injured"></i>
+                    <span id="wardPatientModalTitle">Patient Details</span>
+                </h2>
+                <button class="modal-close" onclick="closeWardPatientModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Patient Info -->
+                <div class="patient-info-section">
+                    <h3><i class="fas fa-user"></i> Patient Information</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">Patient ID:</span>
+                            <span class="info-value" id="wardPatientId">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Name:</span>
+                            <span class="info-value" id="wardPatientName">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Age/Gender:</span>
+                            <span class="info-value" id="wardPatientAgeGender">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Bed Number:</span>
+                            <span class="info-value" id="wardPatientBed">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Admission Date:</span>
+                            <span class="info-value" id="wardPatientAdmissionDate">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Status:</span>
+                            <span class="info-value" id="wardPatientStatus">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Medical Info -->
+                <div class="patient-info-section">
+                    <h3><i class="fas fa-stethoscope"></i> Medical Information</h3>
+                    <div class="info-grid">
+                        <div class="info-item" style="grid-column: 1 / -1;">
+                            <span class="info-label">Diagnosis:</span>
+                            <span class="info-value" id="wardPatientDiagnosis">-</span>
+                        </div>
+                        <div class="info-item" style="grid-column: 1 / -1;">
+                            <span class="info-label">Referring Doctor:</span>
+                            <span class="info-value" id="wardPatientDoctor">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Doctor's Report -->
+                <div class="patient-info-section" id="doctorReportSection">
+                    <h3><i class="fas fa-user-md"></i> Doctor's Report</h3>
+                    <div class="report-content" id="wardDoctorReport">
+                        <p class="text-muted">No doctor's report available</p>
+                    </div>
+                </div>
+
+                <!-- Nurse's Report -->
+                <div class="patient-info-section" id="nurseReportSection">
+                    <h3><i class="fas fa-user-nurse"></i> Nurse's Report</h3>
+                    <div class="report-content" id="wardNurseReport">
+                        <p class="text-muted">No nurse's report available</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeWardPatientModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Nurse Report Modal -->
+    <div class="modal" id="addNurseReportModal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-user-nurse"></i>
+                    Add Nurse Report
+                </h2>
+                <button class="modal-close" onclick="closeNurseReportModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="patient-summary-bar">
+                    <div class="summary-item">
+                        <strong>Patient:</strong> <span id="nurseReportPatientName">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>ID:</strong> <span id="nurseReportPatientId">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Bed:</strong> <span id="nurseReportBedNo">-</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Vital Signs</label>
+                    <div class="vitals-grid">
+                        <div class="form-group">
+                            <label>BP (mmHg)</label>
+                            <input type="text" class="form-control" id="nurseVitalsBP" placeholder="120/80">
+                        </div>
+                        <div class="form-group">
+                            <label>Pulse (bpm)</label>
+                            <input type="number" class="form-control" id="nurseVitalsPulse" placeholder="72">
+                        </div>
+                        <div class="form-group">
+                            <label>Temp (°C)</label>
+                            <input type="number" step="0.1" class="form-control" id="nurseVitalsTemp" placeholder="37.0">
+                        </div>
+                        <div class="form-group">
+                            <label>SpO2 (%)</label>
+                            <input type="number" class="form-control" id="nurseVitalsSpO2" placeholder="98">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Patient Condition <span class="required">*</span></label>
+                    <select class="form-control" id="nursePatientCondition" required>
+                        <option value="">Select condition...</option>
+                        <option value="stable">Stable</option>
+                        <option value="improving">Improving</option>
+                        <option value="critical">Critical</option>
+                        <option value="deteriorating">Deteriorating</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Medications Administered</label>
+                    <textarea class="form-control" id="nurseMedicationsGiven" rows="3" placeholder="List medications administered..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Nursing Notes <span class="required">*</span></label>
+                    <textarea class="form-control" id="nurseReportNotes" rows="5" placeholder="Enter detailed nursing observations and care provided..." required></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Next Follow-up Actions</label>
+                    <textarea class="form-control" id="nurseFollowupActions" rows="3" placeholder="Any follow-up actions required..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeNurseReportModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveNurseReport()">
+                    <i class="fas fa-save"></i> Save Report
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Doctor Report Modal -->
+    <div class="modal" id="addDoctorReportModal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-user-md"></i>
+                    Add Doctor's Report
+                </h2>
+                <button class="modal-close" onclick="closeDoctorReportModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="patient-summary-bar">
+                    <div class="summary-item">
+                        <strong>Patient:</strong> <span id="doctorReportPatientName">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>ID:</strong> <span id="doctorReportPatientId">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Bed:</strong> <span id="doctorReportBedNo">-</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Current Diagnosis <span class="required">*</span></label>
+                    <input type="text" class="form-control" id="doctorDiagnosis" placeholder="Enter diagnosis..." required>
+                </div>
+
+                <div class="form-group">
+                    <label>Patient Progress</label>
+                    <select class="form-control" id="doctorPatientProgress">
+                        <option value="">Select progress...</option>
+                        <option value="excellent">Excellent Progress</option>
+                        <option value="good">Good Progress</option>
+                        <option value="satisfactory">Satisfactory</option>
+                        <option value="poor">Poor Progress</option>
+                        <option value="deteriorating">Deteriorating</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Treatment Plan <span class="required">*</span></label>
+                    <textarea class="form-control" id="doctorTreatmentPlan" rows="4" placeholder="Describe the treatment plan..." required></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Clinical Findings</label>
+                    <textarea class="form-control" id="doctorClinicalFindings" rows="4" placeholder="Enter clinical examination findings..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Additional Orders</label>
+                    <textarea class="form-control" id="doctorAdditionalOrders" rows="3" placeholder="Any additional orders or investigations..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Prognosis</label>
+                    <textarea class="form-control" id="doctorPrognosis" rows="2" placeholder="Expected outcome and prognosis..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDoctorReportModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveDoctorReport()">
+                    <i class="fas fa-save"></i> Save Report
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Discharge Patient Modal -->
+    <div class="modal" id="dischargePatientModal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Discharge Patient
+                </h2>
+                <button class="modal-close" onclick="closeDischargeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="patient-summary-bar">
+                    <div class="summary-item">
+                        <strong>Patient:</strong> <span id="dischargePatientName">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>ID:</strong> <span id="dischargePatientId">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Bed:</strong> <span id="dischargeBedNo">-</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Discharge Date & Time <span class="required">*</span></label>
+                    <input type="datetime-local" class="form-control" id="dischargeDateTime" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Discharge Type <span class="required">*</span></label>
+                    <select class="form-control" id="dischargeType" required>
+                        <option value="">Select discharge type...</option>
+                        <option value="recovered">Recovered</option>
+                        <option value="improved">Improved</option>
+                        <option value="against-advice">Against Medical Advice</option>
+                        <option value="transfer">Transfer to Another Facility</option>
+                        <option value="deceased">Deceased</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Discharge Summary <span class="required">*</span></label>
+                    <textarea class="form-control" id="dischargeSummary" rows="5" placeholder="Enter discharge summary, final diagnosis, and treatment given..." required></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Follow-up Instructions</label>
+                    <textarea class="form-control" id="dischargeFollowup" rows="3" placeholder="Follow-up appointment details and home care instructions..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Medications on Discharge</label>
+                    <textarea class="form-control" id="dischargeMedications" rows="3" placeholder="List medications to continue at home..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Precautions & Advice</label>
+                    <textarea class="form-control" id="dischargePrecautions" rows="3" placeholder="Special precautions and advice for patient..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDischargeModal()">Cancel</button>
+                <button class="btn btn-success" onclick="confirmDischargePatient()">
+                    <i class="fas fa-check"></i> Discharge Patient
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Discharge Report Print Modal -->
+    <div class="modal" id="dischargeReportModal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-file-medical"></i>
+                    Discharge Report
+                </h2>
+                <button class="modal-close" onclick="closeDischargeReportModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="dischargeReportContent" style="padding: 20px; background: white;">
+                    <!-- Report content will be generated here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDischargeReportModal()">Close</button>
+                <button class="btn btn-primary" onclick="printDischargeReport()">
+                    <i class="fas fa-print"></i> Print Report
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admit Patient from Queue Modal -->
+    <div class="modal" id="admitPatientModal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-hospital-user"></i>
+                    Admit Patient to Ward
+                </h2>
+                <button class="modal-close" onclick="closeAdmitPatientModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="patient-summary-bar">
+                    <div class="summary-item">
+                        <strong>Patient:</strong> <span id="admitPatientName">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>ID:</strong> <span id="admitPatientId">-</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Bed Number <span class="required">*</span></label>
+                    <input type="text" class="form-control" id="admitBedNumber" placeholder="e.g., B-101" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Ward/Room</label>
+                    <select class="form-control" id="admitWardRoom">
+                        <option value="">Select ward/room...</option>
+                        <option value="general">General Ward</option>
+                        <option value="icu">ICU</option>
+                        <option value="private">Private Room</option>
+                        <option value="semi-private">Semi-Private</option>
+                        <option value="isolation">Isolation</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Initial Condition</label>
+                    <select class="form-control" id="admitInitialCondition">
+                        <option value="stable">Stable</option>
+                        <option value="critical">Critical</option>
+                        <option value="serious">Serious</option>
+                        <option value="fair">Fair</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Special Instructions</label>
+                    <textarea class="form-control" id="admitSpecialInstructions" rows="3" placeholder="Any special care instructions..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeAdmitPatientModal()">Cancel</button>
+                <button class="btn btn-success" onclick="confirmAdmitPatient()">
+                    <i class="fas fa-check"></i> Admit Patient
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase Configuration -->
     <script type="module" src="js/firebase-config.js"></script>
     <script type="module" src="js/firebase-helpers.js"></script>
@@ -6453,6 +6943,7 @@
     <script type="module" src="js/pharmacy-sales.js"></script>
     <script type="module" src="js/prescription-queue.js"></script>
     <script type="module" src="js/billing.js"></script>
+    <script type="module" src="js/ward-nursing.js"></script>
     <script src="js/expense.js"></script>
     <script src="js/inventory.js"></script>
     <script src="js/app.js"></script>
@@ -6460,6 +6951,7 @@
     <!-- Initialize Billing Module -->
     <script type="module">
         import { initBillingModule, initViewBillsModule } from './js/billing.js';
+        import { initWardNursingModule } from './js/ward-nursing.js';
         
         // Initialize when billing module is shown
         document.addEventListener('DOMContentLoaded', () => {
@@ -6469,6 +6961,7 @@
                     if (mutation.attributeName === 'class') {
                         const billingModule = document.getElementById('billing-module');
                         const billingViewModule = document.getElementById('billing-view-module');
+                        const wardNursingModule = document.getElementById('ward-nursing-module');
                         
                         if (billingModule && billingModule.classList.contains('active')) {
                             initBillingModule();
@@ -6476,6 +6969,10 @@
                         
                         if (billingViewModule && billingViewModule.classList.contains('active')) {
                             initViewBillsModule();
+                        }
+                        
+                        if (wardNursingModule && wardNursingModule.classList.contains('active')) {
+                            initWardNursingModule();
                         }
                     }
                 });

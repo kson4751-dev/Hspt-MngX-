@@ -19,7 +19,7 @@ A comprehensive, clean, and modern hospital management system built with HTML, C
 ### ✨ Core Features
 - **🔐 Secure Authentication** with Firebase Auth and role-based access control
 - **👥 Multi-user functionality** with 8 specialized roles
-- **📊 14 specialized modules** for complete hospital operations
+- **📊 13 specialized modules** for complete hospital operations
 - **🎨 Clean, minimalist design** using Montserrat font
 - **🌓 Fast theme switching** between light and dark modes
 - **📱 Responsive layout** with collapsible sidebar
@@ -35,7 +35,7 @@ A comprehensive, clean, and modern hospital management system built with HTML, C
   
 - **Sidebar Navigation:**
   - Collapsible sidebar with smooth animations
-  - 14 modules with intuitive icons
+  - 13 modules with intuitive icons
   - Emergency module highlighted in red
   - Active state indicators
   - Responsive mobile menu
@@ -45,16 +45,15 @@ A comprehensive, clean, and modern hospital management system built with HTML, C
 2. **Reception** - Patient registration and check-in
 3. **Triage** - Patient assessment and prioritization
 4. **Doctor** - Medical consultations and records
-5. **Nursing** - Patient care management
+5. **Ward & Nursing** - Inpatient management, bed allocation, patient care, and vital monitoring
 6. **Laboratory** - Test orders and results
-7. **Ward** - Inpatient management
-8. **Pharmacy** - Medication dispensing
-9. **Billing** - Financial transactions
-10. **Inventory** - Stock management
-11. **Expenses** - Cost tracking
-12. **Admin Panel** - System administration
-13. **Settings** - User preferences
-14. **Emergency** - Critical care management
+7. **Pharmacy** - Medication dispensing
+8. **Billing** - Financial transactions
+9. **Inventory** - Stock management
+10. **Expenses** - Cost tracking
+11. **Admin Panel** - System administration
+12. **Settings** - User preferences
+13. **Emergency** - Critical care management
 
 ## 🔐 Role-Based Access Control
 

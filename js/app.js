@@ -4484,14 +4484,23 @@ let labReportsUnsubscribe = null; // Store unsubscribe function
 
 // Open Lab Reports Module from Doctor
 function openLabReportsModule() {
-    // Hide doctor module
-    document.getElementById('doctor-module').style.display = 'none';
+    // Use the navigation system properly
+    const navItems = document.querySelectorAll('.nav-item');
+    const modules = document.querySelectorAll('.module');
+    
+    // Hide all modules
+    modules.forEach(mod => mod.classList.remove('active'));
+    navItems.forEach(nav => nav.classList.remove('active'));
+    
     // Show lab reports module
-    document.getElementById('lab-reports-module').style.display = 'block';
+    const labReportsModule = document.getElementById('lab-reports-module');
+    if (labReportsModule) {
+        labReportsModule.classList.add('active');
+    }
     
     // Set return module
     labReportsReturnModule = 'doctor';
-    document.getElementById('labReportsBackText').textContent = 'Back to Doctor Module';
+    document.getElementById('labReportsBackText').textContent = 'Back to Doctor';
     
     // Load lab reports if not already subscribed
     if (!labReportsUnsubscribe) {
@@ -4501,14 +4510,23 @@ function openLabReportsModule() {
 
 // Open Lab Reports Module from Laboratory
 function openLabReportsModuleFromLab() {
-    // Hide laboratory module
-    document.getElementById('laboratory-module').style.display = 'none';
+    // Use the navigation system properly
+    const navItems = document.querySelectorAll('.nav-item');
+    const modules = document.querySelectorAll('.module');
+    
+    // Hide all modules
+    modules.forEach(mod => mod.classList.remove('active'));
+    navItems.forEach(nav => nav.classList.remove('active'));
+    
     // Show lab reports module
-    document.getElementById('lab-reports-module').style.display = 'block';
+    const labReportsModule = document.getElementById('lab-reports-module');
+    if (labReportsModule) {
+        labReportsModule.classList.add('active');
+    }
     
     // Set return module
     labReportsReturnModule = 'laboratory';
-    document.getElementById('labReportsBackText').textContent = 'Back to Laboratory Module';
+    document.getElementById('labReportsBackText').textContent = 'Back to Laboratory';
     
     // Load lab reports if not already subscribed
     if (!labReportsUnsubscribe) {
@@ -4518,15 +4536,41 @@ function openLabReportsModuleFromLab() {
 
 // Close Lab Reports Module
 function closeLabReportsModule() {
-    // Hide lab reports module
-    document.getElementById('lab-reports-module').style.display = 'none';
+    const modules = document.querySelectorAll('.module');
+    const navItems = document.querySelectorAll('.nav-item');
     
-    // Show the correct return module
+    // Hide lab reports module
+    const labReportsModule = document.getElementById('lab-reports-module');
+    if (labReportsModule) {
+        labReportsModule.classList.remove('active');
+    }
+    
+    // Show and activate the correct return module
     if (labReportsReturnModule === 'laboratory') {
-        document.getElementById('laboratory-module').style.display = 'block';
+        const labModule = document.getElementById('laboratory-module');
+        const labNavItem = document.querySelector('.nav-item[data-module="laboratory"]');
+        
+        if (labModule) {
+            modules.forEach(mod => mod.classList.remove('active'));
+            labModule.classList.add('active');
+        }
+        if (labNavItem) {
+            navItems.forEach(nav => nav.classList.remove('active'));
+            labNavItem.classList.add('active');
+        }
     } else {
         // Default to doctor module
-        document.getElementById('doctor-module').style.display = 'block';
+        const doctorModule = document.getElementById('doctor-module');
+        const doctorNavItem = document.querySelector('.nav-item[data-module="doctor"]');
+        
+        if (doctorModule) {
+            modules.forEach(mod => mod.classList.remove('active'));
+            doctorModule.classList.add('active');
+        }
+        if (doctorNavItem) {
+            navItems.forEach(nav => nav.classList.remove('active'));
+            doctorNavItem.classList.add('active');
+        }
     }
 }
 
@@ -4659,7 +4703,7 @@ function renderDoctorLabReports() {
             <tr ${isNew ? 'style="background-color: #fffbeb;"' : ''}>
                 <td>
                     <strong>${displayId}</strong>
-                    ${isNew ? '<span class="badge" style="margin-left: 5px; background: #f59e0b;">NEW</span>' : ''}
+                    ${isNew ? '<span class="status-badge warning" style="margin-left: 5px; position: static;">NEW</span>' : ''}
                 </td>
                 <td>${completionTimeStr}<br><small>${completionDateStr}</small></td>
                 <td>${report.patientId}</td>
@@ -5249,30 +5293,76 @@ async function sendToPharmacy() {
     }
 }
 
-function sendToNurse() {
+async function sendToNurse() {
     if (!validateRxData()) return;
     
     const rxData = collectRxData();
-    rxData.action = 'nurse';
+    rxData.action = 'ward-nursing';
     
-    console.log('Sending to Nurse:', rxData);
+    console.log('Sending to Ward & Nursing:', rxData);
     
-    // TODO: Integrate with Firebase
-    alert(`Treatment plan sent to Nursing Station!\n\nPatient: ${currentRxReport.patientName}\n\nThe nurse will follow up with the patient.`);
+    try {
+        // Import Firebase functions
+        const { db, collection, addDoc, serverTimestamp } = await import('./firebase-config.js');
+        
+        // Send to ward queue for nursing care
+        await addDoc(collection(db, 'wardQueue'), {
+            patientId: currentRxReport.patientId,
+            patientName: currentRxReport.patientName,
+            age: currentRxReport.age,
+            gender: currentRxReport.gender,
+            diagnosis: rxData.diagnosis || currentRxReport.chiefComplaint,
+            referringDoctor: rxData.doctorName || 'Doctor',
+            treatmentPlan: rxData.treatmentPlan || '',
+            medications: rxData.medications || [],
+            priority: 'normal',
+            status: 'pending',
+            timestamp: serverTimestamp(),
+            type: 'nursing-care'
+        });
+        
+        alert(`Treatment plan sent to Ward & Nursing Station!\n\nPatient: ${currentRxReport.patientName}\n\nThe nursing staff will follow up with the patient.`);
+    } catch (error) {
+        console.error('Error sending to ward:', error);
+        alert('Error sending to Ward & Nursing. Please try again.');
+    }
     
     closeRxTreatmentModal();
 }
 
-function referToWard() {
+async function referToWardNursing() {
     if (!validateRxData()) return;
     
     const rxData = collectRxData();
-    rxData.action = 'ward';
+    rxData.action = 'ward-nursing';
     
-    console.log('Referring to Ward:', rxData);
+    console.log('Referring to Ward & Nursing:', rxData);
     
-    // TODO: Integrate with Firebase
-    alert(`Patient referred to Ward for admission!\n\nPatient: ${currentRxReport.patientName}\n\nThe ward will prepare for patient admission.`);
+    try {
+        // Import Firebase functions
+        const { db, collection, addDoc, serverTimestamp } = await import('./firebase-config.js');
+        
+        // Send to ward queue for admission
+        await addDoc(collection(db, 'wardQueue'), {
+            patientId: currentRxReport.patientId,
+            patientName: currentRxReport.patientName,
+            age: currentRxReport.age,
+            gender: currentRxReport.gender,
+            diagnosis: rxData.diagnosis || currentRxReport.chiefComplaint,
+            referringDoctor: rxData.doctorName || 'Doctor',
+            treatmentPlan: rxData.treatmentPlan || '',
+            medications: rxData.medications || [],
+            priority: 'urgent',
+            status: 'pending',
+            timestamp: serverTimestamp(),
+            type: 'admission'
+        });
+        
+        alert(`Patient referred to Ward & Nursing for admission!\n\nPatient: ${currentRxReport.patientName}\n\nThe ward & nursing team will prepare for patient admission.`);
+    } catch (error) {
+        console.error('Error referring to ward:', error);
+        alert('Error referring to Ward & Nursing. Please try again.');
+    }
     
     closeRxTreatmentModal();
 }
