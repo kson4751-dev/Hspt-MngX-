@@ -1090,6 +1090,12 @@ if (newPatientForm) {
                 policyHolder: formData.get('policyHolder'),
                 expiryDate: formData.get('policyExpiryDate')
             },
+            consultationFee: {
+                charged: formData.get('chargeConsultationFee') === 'on',
+                type: formData.get('consultationFeeType') || 'standard',
+                amount: formData.get('consultationFeeAmount') || '0',
+                notes: formData.get('consultationFeeNotes') || ''
+            },
             consent: formData.get('patientConsent'),
             status: 'active',
             registrationDate: new Date().toISOString(),
@@ -1102,7 +1108,18 @@ if (newPatientForm) {
         const saved = await savePatientToFirebase(patientData);
         
         if (saved) {
-            alert('Patient registered successfully!\n\nPatient ID: ' + patientData.patientId + '\nPatient: ' + patientData.firstName + ' ' + patientData.lastName);
+            // If consultation fee is charged, send to billing
+            if (patientData.consultationFee.charged) {
+                const feeData = {
+                    amount: patientData.consultationFee.amount,
+                    notes: patientData.consultationFee.notes,
+                    type: patientData.consultationFee.type
+                };
+                sendConsultationFeeToBilling(patientData, feeData);
+            }
+            
+            alert('Patient registered successfully!\n\nPatient ID: ' + patientData.patientId + '\nPatient: ' + patientData.firstName + ' ' + patientData.lastName + 
+                  (patientData.consultationFee.charged ? '\n\nConsultation fee of KSh ' + patientData.consultationFee.amount + ' sent to billing.' : ''));
             newPatientForm.reset();
         } else {
             alert('Error registering patient. Please try again.');
@@ -8245,6 +8262,149 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, 600);
 });
+
+// ===================================
+// Consultation Fee Toggle Handler
+// ===================================
+document.addEventListener('DOMContentLoaded', function() {
+    const chargeConsultationFeeCheckbox = document.getElementById('chargeConsultationFee');
+    const consultationFeeDetails = document.getElementById('consultationFeeDetails');
+    const consultationFeeType = document.getElementById('consultationFeeType');
+    const consultationFeeAmount = document.getElementById('consultationFeeAmount');
+    
+    if (chargeConsultationFeeCheckbox) {
+        // Toggle consultation fee details visibility
+        chargeConsultationFeeCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                consultationFeeDetails.style.display = 'block';
+                // Make amount field required when fee is charged
+                consultationFeeAmount.required = true;
+            } else {
+                consultationFeeDetails.style.display = 'none';
+                consultationFeeAmount.required = false;
+            }
+        });
+    }
+    
+    if (consultationFeeType) {
+        // Handle fee type change
+        consultationFeeType.addEventListener('change', function() {
+            if (this.value === 'standard') {
+                consultationFeeAmount.value = '500';
+                consultationFeeAmount.readOnly = true;
+                consultationFeeAmount.style.backgroundColor = 'var(--bg-color)';
+                consultationFeeAmount.style.opacity = '0.7';
+            } else if (this.value === 'custom') {
+                consultationFeeAmount.value = '';
+                consultationFeeAmount.readOnly = false;
+                consultationFeeAmount.style.backgroundColor = 'var(--bg-color)';
+                consultationFeeAmount.style.opacity = '1';
+                consultationFeeAmount.focus();
+            }
+        });
+    }
+});
+
+// Function to send consultation fee to billing
+function sendConsultationFeeToBilling(patientData, feeData) {
+    try {
+        // Create billing charge object
+        const billingCharge = {
+            patientId: patientData.patientId,
+            patientName: `${patientData.firstName} ${patientData.lastName}`,
+            chargeType: 'Consultation Fee',
+            amount: parseFloat(feeData.amount),
+            notes: feeData.notes || 'Registration consultation fee',
+            status: 'Pending',
+            createdAt: new Date().toISOString(),
+            createdBy: 'Reception',
+            paymentRequired: true
+        };
+        
+        // Store in localStorage for billing module to pick up
+        const existingCharges = JSON.parse(localStorage.getItem('pendingBillingCharges') || '[]');
+        existingCharges.push(billingCharge);
+        localStorage.setItem('pendingBillingCharges', JSON.stringify(existingCharges));
+        
+        console.log('Consultation fee sent to billing:', billingCharge);
+        
+        // Show notification
+        showNotification('Consultation fee of KSh ' + feeData.amount + ' added to billing', 'success');
+        
+        return true;
+    } catch (error) {
+        console.error('Error sending fee to billing:', error);
+        showNotification('Failed to add consultation fee to billing', 'error');
+        return false;
+    }
+}
+
+// Helper function to show notifications
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.style.cssText = `
+        position: fixed;
+        top: 90px;
+        right: 20px;
+        background-color: ${type === 'success' ? 'var(--success-color)' : type === 'error' ? 'var(--danger-color)' : 'var(--primary-color)'};
+        color: white;
+        padding: 16px 24px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        z-index: 10001;
+        animation: slideInRight 0.3s ease-out;
+        max-width: 400px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+    `;
+    notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+        ${message}
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Remove after 4 seconds
+    setTimeout(() => {
+        notification.style.animation = 'slideOutRight 0.3s ease-out';
+        setTimeout(() => notification.remove(), 300);
+    }, 4000);
+}
+
+// Add animation styles if not already present
+if (!document.getElementById('notification-animations')) {
+    const style = document.createElement('style');
+    style.id = 'notification-animations';
+    style.textContent = `
+        @keyframes slideInRight {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        @keyframes slideOutRight {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+
+
 
 
 
