@@ -5326,44 +5326,22 @@ body {
     overflow: hidden;
 }
 
-#billing-module .stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, var(--primary-color) 0%, rgba(155, 89, 182, 0.8) 100%);
-    transform: scaleX(0);
-    transition: transform 0.3s ease;
-}
-
-#billing-module .stat-card:hover::before {
-    transform: scaleX(1);
-}
-
 #billing-module .stat-card:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 12px 32px rgba(52, 152, 219, 0.15);
-    border-color: rgba(52, 152, 219, 0.2);
+    /* No animations on hover */
 }
 
 #billing-module .stat-icon {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-    transition: all 0.3s ease;
 }
 
 #billing-module .stat-card:hover .stat-icon {
-    transform: scale(1.05) rotate(5deg);
+    /* No animations on hover */
 }
 
 #billing-module .stat-details h3 {
     font-size: 28px;
     font-weight: 800;
-    background: linear-gradient(135deg, var(--primary-color) 0%, rgba(155, 89, 182, 0.8) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--primary-color);
 }
 
 .billing-section {
@@ -5397,7 +5375,7 @@ body {
     left: 0;
     width: 60px;
     height: 3px;
-    background: linear-gradient(90deg, var(--primary-color) 0%, rgba(155, 89, 182, 0.8) 100%);
+    background: var(--primary-color);
 }
 
 .billing-section .section-header i {
@@ -5408,7 +5386,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, rgba(52, 152, 219, 0.1) 0%, rgba(155, 89, 182, 0.08) 100%);
+    background: rgba(37, 99, 235, 0.1);
     border-radius: 10px;
 }
 
@@ -5651,8 +5629,8 @@ body.dark-theme .search-input-wrapper .form-input {
 }
 
 .bill-item-section:hover {
-    border-color: rgba(52, 152, 219, 0.3);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    border-color: rgba(37, 99, 235, 0.3);
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08);
 }
 
 .bill-item-header {
