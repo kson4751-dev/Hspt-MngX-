@@ -115,10 +115,23 @@
                     </a>
                 </div>
             </div>
-            <a href="#billing" class="nav-item" data-module="billing">
-                <i class="fas fa-file-invoice-dollar"></i>
-                <span class="nav-text">Billing</span>
-            </a>
+            <div class="nav-item-group">
+                <a href="#billing" class="nav-item" data-module="billing">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                    <span class="nav-text">Billing</span>
+                    <i class="fas fa-chevron-down dropdown-icon"></i>
+                </a>
+                <div class="nav-dropdown">
+                    <a href="#create-bill" class="nav-dropdown-item" data-module="billing" data-submodule="billing">
+                        <i class="fas fa-plus-circle"></i>
+                        <span class="nav-text">Create Bill</span>
+                    </a>
+                    <a href="#view-bills" class="nav-dropdown-item" data-module="billing" data-submodule="billing-view">
+                        <i class="fas fa-eye"></i>
+                        <span class="nav-text">View Bills</span>
+                    </a>
+                </div>
+            </div>
             <div class="nav-item-group">
                 <a href="#inventory" class="nav-item" data-module="inventory">
                     <i class="fas fa-boxes"></i>
@@ -2863,8 +2876,450 @@
         <!-- Billing Module -->
         <div class="module" id="billing-module">
             <div class="module-header">
-                <h1 class="module-title">Billing</h1>
-                <p class="module-description">Patient invoicing, payment processing, and financial transactions</p>
+                <div>
+                    <h1 class="module-title">Billing & Payments</h1>
+                    <p class="module-description">Patient invoicing, payment processing, and receipt generation</p>
+                </div>
+                <button class="btn btn-primary" onclick="showModule('billing-view')">
+                    <i class="fas fa-file-invoice-dollar"></i> View All Bills
+                </button>
+            </div>
+
+            <!-- Billing Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: rgba(52, 152, 219, 0.1);">
+                        <i class="fas fa-money-bill-wave" style="color: #3498db;"></i>
+                    </div>
+                    <div class="stat-details">
+                        <h3 id="todayRevenue">KSh 0.00</h3>
+                        <p>Today's Revenue</p>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: rgba(46, 204, 113, 0.1);">
+                        <i class="fas fa-check-circle" style="color: #2ecc71;"></i>
+                    </div>
+                    <div class="stat-details">
+                        <h3 id="todayPayments">0</h3>
+                        <p>Payments Today</p>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: rgba(241, 196, 15, 0.1);">
+                        <i class="fas fa-hourglass-half" style="color: #f1c40f;"></i>
+                    </div>
+                    <div class="stat-details">
+                        <h3 id="pendingBills">0</h3>
+                        <p>Pending Bills</p>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: rgba(155, 89, 182, 0.1);">
+                        <i class="fas fa-calendar-check" style="color: #9b59b6;"></i>
+                    </div>
+                    <div class="stat-details">
+                        <h3 id="monthRevenue">KSh 0.00</h3>
+                        <p>This Month</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Patient Selection Section -->
+            <div class="billing-section">
+                <div class="section-header">
+                    <i class="fas fa-user-search"></i>
+                    <h4>Patient Selection</h4>
+                </div>
+                
+                <!-- Selection Method Toggle -->
+                <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+                    <button class="btn btn-primary" id="searchPatientBtn" onclick="toggleBillingMode('search')" style="flex: 1;">
+                        <i class="fas fa-search"></i> Search Existing Patient
+                    </button>
+                    <button class="btn btn-secondary" id="manualBillBtn" onclick="toggleBillingMode('manual')" style="flex: 1;">
+                        <i class="fas fa-edit"></i> Manual Entry
+                    </button>
+                </div>
+                
+                <!-- Patient Search -->
+                <div id="patientSearchMode" class="patient-search-container">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="patientSearchInput" class="form-input" placeholder="Search by Patient Number, Name, or Phone...">
+                    </div>
+                    <div id="patientSearchResults" class="patient-search-results"></div>
+                </div>
+                
+                <!-- Manual Patient Entry -->
+                <div id="manualPatientMode" class="manual-patient-entry" style="display: none;">
+                    <p style="margin: 0 0 16px 0; padding: 12px; background: rgba(52, 152, 219, 0.1); border-radius: 8px; font-size: 13px; color: var(--text-primary); border-left: 4px solid var(--primary-color);">
+                        <i class="fas fa-info-circle" style="color: var(--primary-color);"></i>
+                        <strong>Walk-in Patient:</strong> Enter basic patient information for billing. Patient number will be auto-generated if not provided.
+                    </p>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">\n                        <div class="form-group">
+                            <label>Patient Number</label>
+                            <input type="text" id="manualPatientNumber" class="form-input" placeholder="e.g., P001 (auto-generated if empty)">
+                        </div>
+                        <div class="form-group">
+                            <label>Full Name *</label>
+                            <input type="text" id="manualPatientName" class="form-input" placeholder="Enter patient name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Age</label>
+                            <input type="number" id="manualPatientAge" class="form-input" placeholder="Age" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Gender</label>
+                            <select id="manualPatientGender" class="form-select">
+                                <option value="">Select Gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="useManualPatient()" style="margin-top: 16px;">
+                        <i class="fas fa-check"></i> Use This Information
+                    </button>
+                </div>
+            </div>
+
+            <!-- Selected Patient Info -->
+            <div id="selectedPatientSection" class="billing-section" style="display: none;">
+                <div class="section-header">
+                    <i class="fas fa-user-check"></i>
+                    <h4>Patient Information</h4>
+                </div>
+                <div class="patient-info-card">
+                    <div class="patient-info-row">
+                        <div class="info-item">
+                            <label>Patient Number:</label>
+                            <span id="displayPatientNumber">-</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Full Name:</label>
+                            <span id="displayPatientName">-</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Age:</label>
+                            <span id="displayPatientAge">-</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Gender:</label>
+                            <span id="displayPatientGender">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Billing Form -->
+            <div id="billingFormSection" class="billing-section" style="display: none;">
+                <div class="section-header">
+                    <i class="fas fa-file-invoice"></i>
+                    <h4>Bill Items</h4>
+                </div>
+
+                <form id="billingForm">
+                    <!-- Consultation Fee -->
+                    <div class="bill-item-section">
+                        <div class="bill-item-header">
+                            <h5><i class="fas fa-stethoscope"></i> Consultation Fee</h5>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="consultationFeeToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div id="consultationFeeContent" class="bill-item-content" style="display: none;">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Fee Amount (KSh)</label>
+                                    <input type="number" id="consultationAmount" class="form-input" value="500" min="0" step="0.01">
+                                </div>
+                                <div class="form-group">
+                                    <label>Payment Status</label>
+                                    <select id="consultationStatus" class="form-input">
+                                        <option value="paid">Paid</option>
+                                        <option value="pending">Pending</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Additional Services -->
+                    <div class="bill-item-section">
+                        <div class="bill-item-header">
+                            <h5><i class="fas fa-plus-circle"></i> Additional Services</h5>
+                            <button type="button" class="btn btn-sm btn-primary" id="addServiceBtn">
+                                <i class="fas fa-plus"></i> Add Service
+                            </button>
+                        </div>
+                        <div id="additionalServicesContent" class="bill-item-content">
+                            <div id="servicesContainer"></div>
+                        </div>
+                    </div>
+
+                    <!-- Pharmacy Payment -->
+                    <div class="bill-item-section">
+                        <div class="bill-item-header">
+                            <h5><i class="fas fa-pills"></i> Pharmacy Payment</h5>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="pharmacyPaymentToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div id="pharmacyPaymentContent" class="bill-item-content" style="display: none;">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Prescription Number</label>
+                                    <input type="text" id="pharmacyPrescriptionNumber" class="form-input" placeholder="Enter prescription number">
+                                </div>
+                                <div class="form-group">
+                                    <label>Amount (KSh)</label>
+                                    <input type="number" id="pharmacyAmount" class="form-input" value="0" min="0" step="0.01">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bill Summary -->
+                    <div class="bill-summary-section">
+                        <h5><i class="fas fa-calculator"></i> Bill Summary</h5>
+                        <div class="bill-summary-content">
+                            <div class="summary-row">
+                                <span>Consultation Fee:</span>
+                                <span id="summaryConsultation">KSh 0.00</span>
+                            </div>
+                            <div class="summary-row">
+                                <span>Additional Services:</span>
+                                <span id="summaryServices">KSh 0.00</span>
+                            </div>
+                            <div class="summary-row">
+                                <span>Pharmacy Payment:</span>
+                                <span id="summaryPharmacy">KSh 0.00</span>
+                            </div>
+                            <div class="summary-row summary-total">
+                                <span>Total Amount:</span>
+                                <span id="summaryTotal">KSh 0.00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Payment Method -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="paymentMethod">Payment Method <span class="required">*</span></label>
+                            <select id="paymentMethod" class="form-input" required>
+                                <option value="">-- Select Payment Method --</option>
+                                <option value="cash">Cash</option>
+                                <option value="mpesa">M-Pesa</option>
+                                <option value="card">Card</option>
+                                <option value="bank-transfer">Bank Transfer</option>
+                                <option value="insurance">Insurance</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="paymentReference">Reference Number</label>
+                            <input type="text" id="paymentReference" class="form-input" placeholder="Transaction reference (optional)">
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="form-group">
+                        <label for="billingNotes">Notes (Optional)</label>
+                        <textarea id="billingNotes" class="form-input" rows="3" placeholder="Additional notes or comments..."></textarea>
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="clearBillingBtn">
+                            <i class="fas fa-times"></i> Clear
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-receipt"></i> Generate Receipt & Save
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Recent Billings Section -->
+            <div class="billing-section">
+                <div class="section-header">
+                    <i class="fas fa-history"></i>
+                    <h4>Recent Transactions</h4>
+                    <button class="btn btn-secondary btn-sm" onclick="showModule('billing-view')" style="margin-left: auto;">
+                        <i class="fas fa-list"></i> View All
+                    </button>
+                </div>
+                <div class="recent-billings-container">
+                    <div class="table-responsive">
+                        <table class="recent-billings-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Receipt #</th>
+                                    <th>Patient</th>
+                                    <th>Amount</th>
+                                    <th>Method</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentBillingsTableBody">
+                                <tr class="empty-state">
+                                    <td colspan="7">
+                                        <div class="empty-state-content">
+                                            <i class="fas fa-file-invoice"></i>
+                                            <p>No recent transactions</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View All Bills Sub-module -->
+        <div class="module" id="billing-view-module">
+            <div class="module-header">
+                <div>
+                    <h1 class="module-title">All Bills & Receipts</h1>
+                    <p class="module-description">View, search, and manage all billing transactions</p>
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <div class="dropdown" style="position: relative;">
+                        <button class="btn btn-secondary" id="exportDropdownBtn">
+                            <i class="fas fa-file-export"></i> Export
+                            <i class="fas fa-chevron-down" style="margin-left: 8px; font-size: 10px;"></i>
+                        </button>
+                        <div class="dropdown-menu" id="exportDropdown" style="display: none;">
+                            <button class="dropdown-item" onclick="exportBillsAsPDF()">
+                                <i class="fas fa-file-pdf"></i> Export as PDF
+                            </button>
+                            <button class="dropdown-item" onclick="exportBillsAsExcel()">
+                                <i class="fas fa-file-excel"></i> Export as Excel
+                            </button>
+                            <button class="dropdown-item" onclick="exportBillsAsCSV()">
+                                <i class="fas fa-file-csv"></i> Export as CSV
+                            </button>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="showModule('billing')">
+                        <i class="fas fa-plus"></i> New Bill
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="billing-controls">
+                <div class="billing-search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="billSearchInput" class="form-input" placeholder="Search by patient name, number, or receipt number...">
+                </div>
+                <div class="billing-filters">
+                    <select id="filterPaymentStatus" class="filter-select">
+                        <option value="">All Status</option>
+                        <option value="paid">Paid</option>
+                        <option value="pending">Pending</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                    <select id="filterPaymentMethod" class="filter-select">
+                        <option value="">All Methods</option>
+                        <option value="cash">Cash</option>
+                        <option value="mpesa">M-Pesa</option>
+                        <option value="card">Card</option>
+                        <option value="bank-transfer">Bank Transfer</option>
+                        <option value="insurance">Insurance</option>
+                    </select>
+                    <input type="date" id="filterDate" class="filter-select">
+                    <button class="btn btn-secondary btn-sm" id="clearBillFiltersBtn">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
+                </div>
+            </div>
+
+            <!-- Bills Table -->
+            <div class="table-container">
+                <table class="billing-table">
+                    <thead>
+                        <tr>
+                            <th>Receipt #</th>
+                            <th>Date & Time</th>
+                            <th>Patient Number</th>
+                            <th>Patient Name</th>
+                            <th>Services</th>
+                            <th>Total Amount</th>
+                            <th>Payment Method</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="billingTableBody">
+                        <tr class="empty-state">
+                            <td colspan="9">
+                                <div class="empty-state-content">
+                                    <i class="fas fa-file-invoice"></i>
+                                    <p>No billing records found</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination-container">
+                <div class="pagination-info">
+                    Showing <span id="billShowingStart">0</span> to <span id="billShowingEnd">0</span> of <span id="billTotalItems">0</span> bills
+                </div>
+                <div class="pagination-controls">
+                    <button class="btn btn-secondary btn-sm" id="billPrevBtn" onclick="billPrevPage()" disabled>
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </button>
+                    <span class="pagination-pages" id="billPaginationPages"></span>
+                    <button class="btn btn-secondary btn-sm" id="billNextBtn" onclick="billNextPage()" disabled>
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                <div class="pagination-size">
+                    <label>Show:</label>
+                    <select id="billPageSize" class="page-size-select" onchange="changeBillPageSize(this.value)">
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Receipt Modal -->
+        <div class="modal" id="receiptModal" style="display: none;">
+            <div class="modal-content receipt-modal">
+                <div class="modal-header">
+                    <h3><i class="fas fa-receipt"></i> Payment Receipt</h3>
+                    <button class="modal-close" onclick="closeReceiptModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div id="receiptContent" class="receipt-content">
+                        <!-- Receipt will be generated here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeReceiptModal()">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                    <button class="btn btn-primary" onclick="printReceipt()">
+                        <i class="fas fa-print"></i> Print Receipt
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -5456,9 +5911,41 @@
     <script type="module" src="js/pharmacy-pos.js"></script>
     <script type="module" src="js/pharmacy-sales.js"></script>
     <script type="module" src="js/prescription-queue.js"></script>
+    <script type="module" src="js/billing.js"></script>
     <script src="js/expense.js"></script>
     <script src="js/inventory.js"></script>
     <script src="js/app.js"></script>
+    
+    <!-- Initialize Billing Module -->
+    <script type="module">
+        import { initBillingModule, initViewBillsModule } from './js/billing.js';
+        
+        // Initialize when billing module is shown
+        document.addEventListener('DOMContentLoaded', () => {
+            // Watch for module changes
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.attributeName === 'class') {
+                        const billingModule = document.getElementById('billing-module');
+                        const billingViewModule = document.getElementById('billing-view-module');
+                        
+                        if (billingModule && billingModule.classList.contains('active')) {
+                            initBillingModule();
+                        }
+                        
+                        if (billingViewModule && billingViewModule.classList.contains('active')) {
+                            initViewBillsModule();
+                        }
+                    }
+                });
+            });
+            
+            // Observe all modules
+            document.querySelectorAll('.module').forEach(module => {
+                observer.observe(module, { attributes: true });
+            });
+        });
+    </script>
 </body>
 </html>
 
