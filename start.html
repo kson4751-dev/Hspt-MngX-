@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RxFlow - Quick Start</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 50px;
+            max-width: 800px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 36px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 18px;
+        }
+        
+        .info-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        
+        .info-box h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .info-box p {
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+        
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .step {
+            background: white;
+            border: 2px solid #e5e7eb;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 10px;
+        }
+        
+        .step h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        
+        .step p, .step ul {
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .step ul {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+        
+        .step li {
+            margin: 5px 0;
+        }
+        
+        code {
+            background: #f8f9fa;
+            padding: 2px 8px;
+            border-radius: 4px;
+            color: #e83e8c;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        
+        .warning strong {
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏥 RxFlow Setup Guide</h1>
+        <p class="subtitle">Hospital Management System - Quick Start</p>
+        
+        <div class="btn-group">
+            <a href="login.html" class="btn btn-primary">🚀 Go to Login Page</a>
+            <a href="index.html" class="btn btn-secondary">📊 Dashboard (Requires Login)</a>
+        </div>
+        
+        <div class="info-box">
+            <h3>✨ What's New?</h3>
+            <p>A complete login system with Firebase authentication and role-based access control has been implemented!</p>
+        </div>
+        
+        <h2 style="margin: 30px 0 20px 0; color: #333;">Setup Steps</h2>
+        
+        <div class="step">
+            <h4>Step 1: Firebase Setup (If Not Done)</h4>
+            <p>Your Firebase configuration is already in place. If you need to update it:</p>
+            <ul>
+                <li>Check <code>login.html</code> for Firebase config</li>
+                <li>Ensure Firebase Authentication is enabled</li>
+                <li>Enable Email/Password sign-in method</li>
+            </ul>
+        </div>
+        
+        <div class="step">
+            <h4>Step 2: Create Your First User</h4>
+            <p>In Firebase Console:</p>
+            <ul>
+                <li>Go to <strong>Authentication → Users → Add User</strong></li>
+                <li>Create admin user: <code>admin@rxflow.com</code></li>
+                <li>Set a password (e.g., <code>Admin@123</code>)</li>
+                <li>Copy the generated UID</li>
+            </ul>
+        </div>
+        
+        <div class="step">
+            <h4>Step 3: Add User Role in Firestore</h4>
+            <p>In Firebase Console → Firestore:</p>
+            <ul>
+                <li>Create collection: <code>users</code></li>
+                <li>Add document with ID = UID from step 2</li>
+                <li>Add fields:
+                    <ul style="margin-left: 20px;">
+                        <li><code>email</code>: "admin@rxflow.com"</li>
+                        <li><code>displayName</code>: "System Administrator"</li>
+                        <li><code>role</code>: "admin"</li>
+                        <li><code>permissions</code>: []</li>
+                        <li><code>active</code>: true</li>
+                        <li><code>createdAt</code>: [current timestamp]</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="step">
+            <h4>Step 4: Test Login</h4>
+            <ul>
+                <li>Click "Go to Login Page" button above</li>
+                <li>Enter your admin credentials</li>
+                <li>You should be redirected to the dashboard</li>
+                <li>All modules will be visible for admin role</li>
+            </ul>
+        </div>
+        
+        <div class="step">
+            <h4>Step 5: Create Role-Specific Users</h4>
+            <p>Create additional users for testing different roles:</p>
+            <ul>
+                <li><strong>Pharmacist:</strong> <code>pharmacist@rxflow.com</code> - Access to pharmacy modules only</li>
+                <li><strong>Doctor:</strong> <code>doctor@rxflow.com</code> - Medical modules access</li>
+                <li><strong>Receptionist:</strong> <code>receptionist@rxflow.com</code> - Reception and billing</li>
+            </ul>
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ Important:</strong> Make sure to create the user document in Firestore with the correct role. Without it, users won't be able to login properly.
+        </div>
+        
+        <h2 style="margin: 30px 0 20px 0; color: #333;">Available User Roles</h2>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0;">
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea;">
+                <strong style="color: #667eea;">Admin</strong>
+                <p style="font-size: 14px; color: #666; margin-top: 5px;">Full system access</p>
+            </div>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #10b981;">
+                <strong style="color: #10b981;">Doctor</strong>
+                <p style="font-size: 14px; color: #666; margin-top: 5px;">Medical modules</p>
+            </div>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #8b5cf6;">
+                <strong style="color: #8b5cf6;">Pharmacist</strong>
+                <p style="font-size: 14px; color: #666; margin-top: 5px;">Pharmacy operations</p>
+            </div>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                <strong style="color: #f59e0b;">Receptionist</strong>
+                <p style="font-size: 14px; color: #666; margin-top: 5px;">Front desk & billing</p>
+            </div>
+        </div>
+        
+        <div class="info-box" style="margin-top: 30px;">
+            <h3>📚 Documentation</h3>
+            <p>For detailed setup instructions, see:</p>
+            <ul style="margin-left: 20px; margin-top: 10px;">
+                <li><code>USER_SETUP_GUIDE.md</code> - Complete user creation guide</li>
+                <li><code>LOGIN_IMPLEMENTATION.md</code> - Technical documentation</li>
+            </ul>
+        </div>
+        
+        <div style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #e5e7eb; text-align: center; color: #666;">
+            <p>Ready to start? Click the button below!</p>
+            <a href="login.html" class="btn btn-primary" style="margin-top: 20px;">🔐 Go to Login</a>
+        </div>
+    </div>
+</body>
+</html>

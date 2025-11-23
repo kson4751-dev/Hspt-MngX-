@@ -189,8 +189,17 @@ messagesBtn.addEventListener('click', () => {
 const logoutBtn = document.getElementById('logoutBtn');
 logoutBtn.addEventListener('click', (e) => {
     e.preventDefault();
-    console.log('Logout clicked');
-    // Add Firebase logout logic here
+    if (confirm('Are you sure you want to logout?')) {
+        // Call logout function from auth.js
+        if (typeof logout === 'function') {
+            logout();
+        } else {
+            // Fallback if auth.js is not loaded
+            localStorage.clear();
+            sessionStorage.clear();
+            window.location.href = 'login.html';
+        }
+    }
 });
 
 // Window Resize Handler

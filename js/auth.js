@@ -21,7 +21,11 @@ const MODULE_PERMISSIONS = {
     nursing: ['admin', 'nurse'],
     laboratory: ['admin', 'lab_technician', 'doctor'],
     ward: ['admin', 'nurse', 'doctor'],
-    pharmacy: ['admin', 'pharmacist', 'doctor'],
+    pharmacy: ['admin', 'pharmacist'],
+    'pharmacy-inventory': ['admin', 'pharmacist'],
+    'pharmacy-pos': ['admin', 'pharmacist'],
+    'pharmacy-sales': ['admin', 'pharmacist'],
+    'prescription-queue': ['admin', 'pharmacist', 'doctor'],
     billing: ['admin', 'billing', 'receptionist'],
     inventory: ['admin', 'inventory_manager', 'pharmacist'],
     expenses: ['admin', 'billing'],
@@ -30,60 +34,145 @@ const MODULE_PERMISSIONS = {
     emergency: ['admin', 'doctor', 'nurse']
 };
 
-// Current user (mock data for development)
-let currentUser = {
-    uid: 'user123',
-    email: 'john.doe@rxflow.com',
-    displayName: 'John Doe',
-    role: 'admin', // Change this to test different roles
-    profileImage: 'https://via.placeholder.com/40'
-};
+// Current user
+let currentUser = null;
+
+// Check if user is authenticated
+function isAuthenticated() {
+    const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
+    const userRole = localStorage.getItem('userRole') || sessionStorage.getItem('userRole');
+    return !!(userId && userRole);
+}
+
+// Get current user data
+function getCurrentUser() {
+    if (!isAuthenticated()) {
+        return null;
+    }
+
+    if (!currentUser) {
+        const storageType = localStorage.getItem('userId') ? localStorage : sessionStorage;
+        currentUser = {
+            uid: storageType.getItem('userId'),
+            email: storageType.getItem('userEmail'),
+            displayName: storageType.getItem('userName') || 'User',
+            role: storageType.getItem('userRole'),
+            permissions: JSON.parse(storageType.getItem('userPermissions') || '[]')
+        };
+    }
+
+    return currentUser;
+}
 
 // Check if user has access to a module
 function hasAccess(moduleName) {
-    if (!currentUser || !currentUser.role) {
+    const user = getCurrentUser();
+    if (!user || !user.role) {
         return false;
     }
     
     const allowedRoles = MODULE_PERMISSIONS[moduleName];
-    return allowedRoles && allowedRoles.includes(currentUser.role);
+    return allowedRoles && allowedRoles.includes(user.role);
 }
 
-// Filter navigation based on user role
-function filterNavigationByRole() {
+// Redirect to login if not authenticated
+function requireAuth() {
+    if (!isAuthenticated()) {
+        window.location.href = 'login.html';
+        return false;
+    }
+    return true;
+}
+
+// Logout function
+function logout() {
+    // Clear all stored user data
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userPermissions');
+    
+    sessionStorage.removeItem('userId');
+    sessionStorage.removeItem('userEmail');
+    sessionStorage.removeItem('userName');
+    sessionStorage.removeItem('userRole');
+    sessionStorage.removeItem('userPermissions');
+    
+    currentUser = null;
+    
+    // Redirect to login
+    window.location.href = 'login.html';
+}
+
+// Make logout function globally accessible
+window.logout = logout;
+
+// Initialize auth on page load
+document.addEventListener('DOMContentLoaded', () => {
+    // Check if we're on the login page
+    const isLoginPage = window.location.pathname.includes('login.html');
+    
+    if (!isLoginPage) {
+        // Require authentication for all other pages
+        if (!requireAuth()) {
+            return;
+        }
+        
+        // Update UI with user info
+        const user = getCurrentUser();
+        if (user) {
+            // Update profile name
+            const profileNameEl = document.querySelector('.profile-name');
+            if (profileNameEl) {
+                profileNameEl.textContent = user.displayName;
+            }
+            
+            // Filter sidebar modules based on permissions
+            filterModulesByPermissions(user.role);
+        }
+        
+        // Setup logout button
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (confirm('Are you sure you want to logout?')) {
+                    logout();
+                }
+            });
+        }
+    }
+});
+
+// Filter modules based on user permissions
+function filterModulesByPermissions(userRole) {
     const navItems = document.querySelectorAll('.nav-item');
     
     navItems.forEach(item => {
         const module = item.getAttribute('data-module');
         
-        if (!hasAccess(module)) {
+        if (module && !hasAccess(module)) {
             item.style.display = 'none';
-        } else {
-            item.style.display = 'flex';
         }
     });
 }
 
-// Update user profile display
-function updateUserProfile() {
-    if (currentUser) {
-        const profileName = document.querySelector('.profile-name');
-        const profileImg = document.querySelector('.profile-img');
-        
-        if (profileName) {
-            profileName.textContent = currentUser.displayName;
-        }
-        
-        if (profileImg && currentUser.profileImage) {
-            profileImg.src = currentUser.profileImage;
-        }
-    }
+// Get role display name
+function getRoleDisplayName(role) {
+    const roleNames = {
+        'admin': 'Administrator',
+        'doctor': 'Doctor',
+        'nurse': 'Nurse',
+        'receptionist': 'Receptionist',
+        'pharmacist': 'Pharmacist',
+        'lab_technician': 'Lab Technician',
+        'billing': 'Billing Officer',
+        'inventory_manager': 'Inventory Manager'
+    };
+    
+    return roleNames[role] || 'User';
 }
-
-// Login function (mock implementation)
-async function login(email, password) {
-    try {
-        // TODO: Implement Firebase authentication
         console.log('Login attempt:', email);
         
         // Mock successful login

@@ -4333,6 +4333,291 @@
                 <h1 class="module-title">Admin Panel</h1>
                 <p class="module-description">User management, role assignments, system configuration, and access control</p>
             </div>
+
+            <div class="module-content">
+                <!-- Admin Navigation Tabs -->
+                <div class="admin-tabs">
+                    <button class="admin-tab active" data-tab="users">
+                        <i class="fas fa-users"></i> User Management
+                    </button>
+                    <button class="admin-tab" data-tab="system">
+                        <i class="fas fa-cog"></i> System Settings
+                    </button>
+                    <button class="admin-tab" data-tab="logs">
+                        <i class="fas fa-clipboard-list"></i> Activity Logs
+                    </button>
+                </div>
+
+                <!-- User Management Tab -->
+                <div class="admin-tab-content active" id="users-tab">
+                    <div class="content-section">
+                        <div class="section-header">
+                            <h2>User Management</h2>
+                            <button class="btn btn-primary" id="createUserBtn">
+                                <i class="fas fa-user-plus"></i> Create New User
+                            </button>
+                        </div>
+
+                        <!-- Users List -->
+                        <div class="users-table-container">
+                            <table class="data-table" id="usersTable">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Role</th>
+                                        <th>Module Access</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTableBody">
+                                    <tr>
+                                        <td colspan="7" class="text-center">Loading users...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Settings Tab -->
+                <div class="admin-tab-content" id="system-tab">
+                    <div class="content-section">
+                        <h2>System Settings</h2>
+                        <p>System configuration options coming soon...</p>
+                    </div>
+                </div>
+
+                <!-- Activity Logs Tab -->
+                <div class="admin-tab-content" id="logs-tab">
+                    <div class="content-section">
+                        <h2>Activity Logs</h2>
+                        <p>Activity logs coming soon...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create/Edit User Modal -->
+        <div class="modal" id="userModal">
+            <div class="modal-overlay" onclick="closeUserModal()"></div>
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h3 class="modal-title" id="userModalTitle">
+                        <i class="fas fa-user-plus"></i> Create New User
+                    </h3>
+                    <button class="modal-close" onclick="closeUserModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="userForm">
+                        <input type="hidden" id="editUserId">
+                        
+                        <!-- Basic Information -->
+                        <div class="form-section">
+                            <h4 class="form-section-title">Basic Information</h4>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="userDisplayName">Full Name *</label>
+                                    <input type="text" class="form-control" id="userDisplayName" required 
+                                           placeholder="Enter full name">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="userEmail">Email Address *</label>
+                                    <input type="email" class="form-control" id="userEmail" required 
+                                           placeholder="user@rxflow.com">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="userPassword">Password *</label>
+                                    <input type="password" class="form-control" id="userPassword" 
+                                           placeholder="Minimum 6 characters" minlength="6">
+                                    <small class="form-text">Leave blank when editing to keep current password</small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="userPhone">Phone Number</label>
+                                    <input type="tel" class="form-control" id="userPhone" 
+                                           placeholder="+1234567890">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="userRole">Primary Role *</label>
+                                    <select class="form-control" id="userRole" required>
+                                        <option value="">Select role...</option>
+                                        <option value="admin">Administrator</option>
+                                        <option value="doctor">Doctor</option>
+                                        <option value="nurse">Nurse</option>
+                                        <option value="pharmacist">Pharmacist</option>
+                                        <option value="receptionist">Receptionist</option>
+                                        <option value="lab_technician">Lab Technician</option>
+                                        <option value="billing">Billing Officer</option>
+                                        <option value="inventory_manager">Inventory Manager</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="userDepartment">Department</label>
+                                    <input type="text" class="form-control" id="userDepartment" 
+                                           placeholder="e.g., Emergency, Pharmacy">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="userActive" checked> 
+                                    <span>Active User</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Module Access Permissions -->
+                        <div class="form-section">
+                            <h4 class="form-section-title">Module Access Permissions</h4>
+                            <p class="form-text">Select which modules this user can access</p>
+                            
+                            <div class="permissions-grid">
+                                <label class="permission-item">
+                                    <input type="checkbox" name="modulePermission" value="dashboard">
+                                    <div class="permission-content">
+                                        <i class="fas fa-chart-line"></i>
+                                        <span>Dashboard</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item">
+                                    <input type="checkbox" name="modulePermission" value="reception">
+                                    <div class="permission-content">
+                                        <i class="fas fa-door-open"></i>
+                                        <span>Reception</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item">
+                                    <input type="checkbox" name="modulePermission" value="triage">
+                                    <div class="permission-content">
+                                        <i class="fas fa-user-check"></i>
+                                        <span>Triage</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item">
+                                    <input type="checkbox" name="modulePermission" value="doctor">
+                                    <div class="permission-content">
+                                        <i class="fas fa-user-md"></i>
+                                        <span>Doctor</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item">
+                                    <input type="checkbox" name="modulePermission" value="nursing">
+                                    <div class="permission-content">
+                                        <i class="fas fa-user-nurse"></i>
+                                        <span>Nursing</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item">
+                                    <input type="checkbox" name="modulePermission" value="laboratory">
+                                    <div class="permission-content">
+                                        <i class="fas fa-flask"></i>
+                                        <span>Laboratory</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item">
+                                    <input type="checkbox" name="modulePermission" value="ward">
+                                    <div class="permission-content">
+                                        <i class="fas fa-bed"></i>
+                                        <span>Ward</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item">
+                                    <input type="checkbox" name="modulePermission" value="pharmacy">
+                                    <div class="permission-content">
+                                        <i class="fas fa-pills"></i>
+                                        <span>Pharmacy</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item">
+                                    <input type="checkbox" name="modulePermission" value="billing">
+                                    <div class="permission-content">
+                                        <i class="fas fa-file-invoice-dollar"></i>
+                                        <span>Billing</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item">
+                                    <input type="checkbox" name="modulePermission" value="inventory">
+                                    <div class="permission-content">
+                                        <i class="fas fa-boxes"></i>
+                                        <span>Inventory</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item">
+                                    <input type="checkbox" name="modulePermission" value="expenses">
+                                    <div class="permission-content">
+                                        <i class="fas fa-money-bill-wave"></i>
+                                        <span>Expenses</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item">
+                                    <input type="checkbox" name="modulePermission" value="admin">
+                                    <div class="permission-content">
+                                        <i class="fas fa-user-shield"></i>
+                                        <span>Admin Panel</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item">
+                                    <input type="checkbox" name="modulePermission" value="settings">
+                                    <div class="permission-content">
+                                        <i class="fas fa-cog"></i>
+                                        <span>Settings</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item">
+                                    <input type="checkbox" name="modulePermission" value="emergency">
+                                    <div class="permission-content">
+                                        <i class="fas fa-ambulance"></i>
+                                        <span>Emergency</span>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div class="permission-actions">
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllPermissions()">
+                                    <i class="fas fa-check-double"></i> Select All
+                                </button>
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="clearAllPermissions()">
+                                    <i class="fas fa-times"></i> Clear All
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" onclick="closeUserModal()">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="saveUserBtn">
+                                <i class="fas fa-save"></i> Create User
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
 
         <!-- Settings Module -->
@@ -5920,6 +6205,7 @@
     <script type="module" src="js/firebase-config.js"></script>
     <script type="module" src="js/firebase-helpers.js"></script>
     <script type="module" src="js/auth.js"></script>
+    <script type="module" src="js/admin.js"></script>
     <script type="module" src="js/pharmacy-inventory.js"></script>
     <script type="module" src="js/pharmacy-pos.js"></script>
     <script type="module" src="js/pharmacy-sales.js"></script>

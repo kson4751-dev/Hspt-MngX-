@@ -10266,4 +10266,380 @@ body.dark-theme .patient-search-results::-webkit-scrollbar-thumb {
     background: var(--primary-color);
 }
 
+/* ==========================================
+   ADMIN MODULE STYLES
+   ========================================== */
+
+/* Admin Tabs */
+.admin-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 0;
+}
+
+.admin-tab {
+    padding: 15px 25px;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--text-secondary);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.admin-tab:hover {
+    color: var(--primary-color);
+    background: rgba(37, 99, 235, 0.05);
+}
+
+.admin-tab.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+
+.admin-tab i {
+    font-size: 18px;
+}
+
+/* Tab Content */
+.admin-tab-content {
+    display: none;
+}
+
+.admin-tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+/* Content Section */
+.content-section {
+    background: var(--sidebar-bg);
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: var(--shadow);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+}
+
+.section-header h2 {
+    font-size: 24px;
+    color: var(--text-primary);
+}
+
+/* Users Table */
+.users-table-container {
+    overflow-x: auto;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.data-table thead {
+    background: var(--bg-color);
+}
+
+.data-table th {
+    padding: 15px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.data-table td {
+    padding: 15px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+.data-table tbody tr:hover {
+    background: rgba(37, 99, 235, 0.05);
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+}
+
+/* Badges */
+.badge {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.badge-success {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success-color);
+}
+
+.badge-danger {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+}
+
+.badge-primary {
+    background: rgba(37, 99, 235, 0.1);
+    color: var(--primary-color);
+}
+
+/* Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-icon {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    background: rgba(37, 99, 235, 0.1);
+    color: var(--primary-color);
+}
+
+.btn-icon:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn-edit {
+    background: rgba(37, 99, 235, 0.1);
+    color: var(--primary-color);
+}
+
+.btn-edit:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.btn-delete {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+}
+
+.btn-delete:hover {
+    background: var(--danger-color);
+    color: white;
+}
+
+/* Permissions Grid */
+.permissions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.permission-item {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--bg-color);
+}
+
+.permission-item:hover {
+    border-color: var(--primary-color);
+    background: rgba(37, 99, 235, 0.05);
+}
+
+.permission-item input[type="checkbox"] {
+    margin-right: 12px;
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-color);
+}
+
+.permission-item input[type="checkbox"]:checked ~ .permission-content {
+    color: var(--primary-color);
+}
+
+.permission-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.permission-content i {
+    font-size: 20px;
+    color: var(--primary-color);
+}
+
+.permission-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+/* Form Section */
+.form-section {
+    margin-bottom: 30px;
+    padding-bottom: 30px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.form-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.form-section-title {
+    font-size: 18px;
+    color: var(--text-primary);
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.form-text {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-bottom: 15px;
+}
+
+/* Notification Styles */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: -400px;
+    min-width: 300px;
+    max-width: 400px;
+    padding: 15px 20px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 10000;
+    transition: right 0.3s ease;
+}
+
+.notification.show {
+    right: 20px;
+}
+
+.notification i {
+    font-size: 24px;
+}
+
+.notification-success {
+    border-left: 4px solid var(--success-color);
+}
+
+.notification-success i {
+    color: var(--success-color);
+}
+
+.notification-error {
+    border-left: 4px solid var(--danger-color);
+}
+
+.notification-error i {
+    color: var(--danger-color);
+}
+
+.notification-info {
+    border-left: 4px solid var(--primary-color);
+}
+
+.notification-info i {
+    color: var(--primary-color);
+}
+
+/* Text Utilities */
+.text-center {
+    text-align: center;
+}
+
+.text-error {
+    color: var(--danger-color);
+}
+
+/* Responsive Admin Module */
+@media (max-width: 768px) {
+    .admin-tabs {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+    }
+
+    .admin-tab {
+        padding: 12px 20px;
+        font-size: 14px;
+        white-space: nowrap;
+    }
+
+    .content-section {
+        padding: 20px;
+    }
+
+    .section-header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: flex-start;
+    }
+
+    .section-header h2 {
+        font-size: 20px;
+    }
+
+    .permissions-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .data-table {
+        font-size: 13px;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 10px;
+    }
+
+    .user-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+}
+
+/* Animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
 

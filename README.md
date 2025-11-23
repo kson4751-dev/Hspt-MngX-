@@ -2,15 +2,28 @@
 
 A comprehensive, clean, and modern hospital management system built with HTML, CSS, JavaScript, and Firebase.
 
+## 🆕 Latest Updates
+
+### ✅ Authentication System (November 2025)
+- **Professional Login Page** - Clean split-screen design with branding
+- **Real-time Firebase Authentication** - Secure email/password login
+- **Role-Based Access Control** - 8 user roles with granular permissions
+- **Session Management** - Remember me functionality
+- **Auth Guards** - Protected routes and module access
+- **Multi-user System** - Separate access for different departments
+
+**Quick Start:** Open `start.html` for setup instructions or `login.html` to login
+
 ## Features
 
 ### ✨ Core Features
-- **Multi-user functionality** with role-based access control
-- **14 specialized modules** for complete hospital operations
-- **Clean, minimalist design** using Montserrat font
-- **Fast theme switching** between light and dark modes
-- **Responsive layout** with collapsible sidebar
-- **Firebase integration** for authentication and data management
+- **🔐 Secure Authentication** with Firebase Auth and role-based access control
+- **👥 Multi-user functionality** with 8 specialized roles
+- **📊 14 specialized modules** for complete hospital operations
+- **🎨 Clean, minimalist design** using Montserrat font
+- **🌓 Fast theme switching** between light and dark modes
+- **📱 Responsive layout** with collapsible sidebar
+- **☁️ Firebase integration** for authentication and data management
 
 ### 🎨 User Interface
 - **Top Bar Components:**
@@ -55,49 +68,74 @@ The system supports the following user roles:
 - **Billing Staff** - Financial operations
 - **Inventory Manager** - Stock management
 
-## 🚀 Getting Started
+## 🚀 Quick Start
 
-### Prerequisites
+### Option 1: Quick Setup Guide
+1. Open `start.html` in your browser for a visual setup guide
+2. Follow the step-by-step instructions
+3. Create your first admin user
+4. Login at `login.html`
+
+### Option 2: Manual Setup
+
+#### Prerequisites
 - A modern web browser (Chrome, Firefox, Safari, Edge)
-- A Firebase account (for backend services)
-- A local web server or live server extension
+- Firebase account (already configured)
+- Local web server (VS Code Live Server recommended)
 
-### Installation
+#### Step 1: Create First User
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Navigate to Authentication → Users → Add User
+3. Create admin user:
+   - Email: `admin@rxflow.com`
+   - Password: `Admin@123` (or your choice)
+4. Copy the generated UID
 
-1. **Clone or download the project**
-   ```bash
-   cd c:\Users\user\Desktop\rx
+#### Step 2: Set User Role in Firestore
+1. In Firebase Console → Firestore Database
+2. Create collection: `users`
+3. Add document with ID = UID from Step 1
+4. Add fields:
+   ```
+   email: "admin@rxflow.com"
+   displayName: "System Administrator"
+   role: "admin"
+   permissions: []
+   active: true
+   createdAt: [current timestamp]
    ```
 
-2. **Set up Firebase**
-   - Go to [Firebase Console](https://console.firebase.google.com/)
-   - Create a new project
-   - Enable Authentication (Email/Password)
-   - Create a Firestore database
-   - Get your Firebase configuration
+#### Step 3: Login
+1. Open `login.html` in browser
+2. Enter credentials from Step 1
+3. You'll be redirected to dashboard with full access
 
-3. **Configure Firebase**
-   - Open `js/firebase-config.js`
-   - Replace the placeholder values with your Firebase credentials:
-   ```javascript
-   const firebaseConfig = {
-       apiKey: "YOUR_API_KEY",
-       authDomain: "YOUR_AUTH_DOMAIN",
-       projectId: "YOUR_PROJECT_ID",
-       storageBucket: "YOUR_STORAGE_BUCKET",
-       messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-       appId: "YOUR_APP_ID"
-   };
-   ```
+### Detailed Documentation
+- **`USER_SETUP_GUIDE.md`** - Complete user creation and role setup
+- **`LOGIN_IMPLEMENTATION.md`** - Technical authentication details
+- **`FIREBASE_SETUP.md`** - Firebase configuration guide
 
-4. **Enable Firebase modules**
-   - Uncomment the import statements in `js/firebase-config.js`
-   - The Firebase SDK is loaded from CDN
+## 🔑 Default Test Users
 
-5. **Run the application**
-   - Open `index.html` in your browser
-   - Or use a local server:
-   ```bash
+After creating users in Firebase, you can set up:
+
+| Role | Email | Recommended Password | Access |
+|------|-------|---------------------|---------|
+| Admin | admin@rxflow.com | Admin@123 | All modules |
+| Pharmacist | pharmacist@rxflow.com | Pharma@123 | Pharmacy modules only |
+| Doctor | doctor@rxflow.com | Doctor@123 | Medical modules |
+| Receptionist | receptionist@rxflow.com | Reception@123 | Front desk & billing |
+
+## 🏃 Running the Application
+
+### Using VS Code Live Server
+1. Install Live Server extension
+2. Right-click `start.html` or `login.html`
+3. Select "Open with Live Server"
+
+### Using Python
+```bash
+python -m http.server 8000
    # Using Python
    python -m http.server 8000
    
