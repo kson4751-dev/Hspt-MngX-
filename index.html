@@ -4385,16 +4385,243 @@
                 <!-- System Settings Tab -->
                 <div class="admin-tab-content" id="system-tab">
                     <div class="content-section">
-                        <h2>System Settings</h2>
-                        <p>System configuration options coming soon...</p>
+                        <div class="section-header">
+                            <h2>System Settings</h2>
+                            <button class="btn btn-primary" id="saveSettingsBtn">
+                                <i class="fas fa-save"></i> Save Settings
+                            </button>
+                        </div>
+
+                        <div class="settings-grid">
+                            <!-- General Settings -->
+                            <div class="settings-card">
+                                <div class="settings-card-header">
+                                    <i class="fas fa-hospital"></i>
+                                    <h3>General Settings</h3>
+                                </div>
+                                <div class="settings-card-body">
+                                    <div class="form-group">
+                                        <label for="hospitalName">Hospital Name</label>
+                                        <input type="text" class="form-control" id="hospitalName" placeholder="RxFlow Hospital">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="hospitalAddress">Hospital Address</label>
+                                        <textarea class="form-control" id="hospitalAddress" rows="2" placeholder="Enter hospital address"></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="hospitalPhone">Contact Phone</label>
+                                        <input type="tel" class="form-control" id="hospitalPhone" placeholder="+1234567890">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="hospitalEmail">Contact Email</label>
+                                        <input type="email" class="form-control" id="hospitalEmail" placeholder="info@rxflow.com">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Security Settings -->
+                            <div class="settings-card">
+                                <div class="settings-card-header">
+                                    <i class="fas fa-shield-alt"></i>
+                                    <h3>Security Settings</h3>
+                                </div>
+                                <div class="settings-card-body">
+                                    <div class="form-group">
+                                        <label for="sessionTimeout">Session Timeout (minutes)</label>
+                                        <input type="number" class="form-control" id="sessionTimeout" min="5" max="120" value="30">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="passwordMinLength">Minimum Password Length</label>
+                                        <input type="number" class="form-control" id="passwordMinLength" min="6" max="20" value="8">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>
+                                            <input type="checkbox" id="requireEmailVerification">
+                                            <span>Require Email Verification</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>
+                                            <input type="checkbox" id="enableTwoFactor">
+                                            <span>Enable Two-Factor Authentication</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Notification Settings -->
+                            <div class="settings-card">
+                                <div class="settings-card-header">
+                                    <i class="fas fa-bell"></i>
+                                    <h3>Notification Settings</h3>
+                                </div>
+                                <div class="settings-card-body">
+                                    <div class="form-group">
+                                        <label>
+                                            <input type="checkbox" id="emailNotifications" checked>
+                                            <span>Email Notifications</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>
+                                            <input type="checkbox" id="smsNotifications">
+                                            <span>SMS Notifications</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>
+                                            <input type="checkbox" id="lowStockAlerts" checked>
+                                            <span>Low Stock Alerts</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>
+                                            <input type="checkbox" id="expiryAlerts" checked>
+                                            <span>Medicine Expiry Alerts</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Billing Settings -->
+                            <div class="settings-card">
+                                <div class="settings-card-header">
+                                    <i class="fas fa-file-invoice-dollar"></i>
+                                    <h3>Billing Settings</h3>
+                                </div>
+                                <div class="settings-card-body">
+                                    <div class="form-group">
+                                        <label for="currency">Currency</label>
+                                        <select class="form-control" id="currency">
+                                            <option value="USD">USD - US Dollar</option>
+                                            <option value="EUR">EUR - Euro</option>
+                                            <option value="GBP">GBP - British Pound</option>
+                                            <option value="INR">INR - Indian Rupee</option>
+                                            <option value="KES">KES - Kenyan Shilling</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="taxRate">Tax Rate (%)</label>
+                                        <input type="number" class="form-control" id="taxRate" min="0" max="100" step="0.1" value="0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>
+                                            <input type="checkbox" id="autoGenerateBills" checked>
+                                            <span>Auto-generate Bills</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>
+                                            <input type="checkbox" id="allowPartialPayments" checked>
+                                            <span>Allow Partial Payments</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Appointment Settings -->
+                            <div class="settings-card">
+                                <div class="settings-card-header">
+                                    <i class="fas fa-calendar-check"></i>
+                                    <h3>Appointment Settings</h3>
+                                </div>
+                                <div class="settings-card-body">
+                                    <div class="form-group">
+                                        <label for="appointmentDuration">Default Duration (minutes)</label>
+                                        <input type="number" class="form-control" id="appointmentDuration" min="5" max="120" value="30">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="workingHoursStart">Working Hours Start</label>
+                                        <input type="time" class="form-control" id="workingHoursStart" value="08:00">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="workingHoursEnd">Working Hours End</label>
+                                        <input type="time" class="form-control" id="workingHoursEnd" value="18:00">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>
+                                            <input type="checkbox" id="allowOnlineBooking">
+                                            <span>Allow Online Booking</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Backup Settings -->
+                            <div class="settings-card">
+                                <div class="settings-card-header">
+                                    <i class="fas fa-database"></i>
+                                    <h3>Backup & Data</h3>
+                                </div>
+                                <div class="settings-card-body">
+                                    <div class="form-group">
+                                        <label for="backupFrequency">Backup Frequency</label>
+                                        <select class="form-control" id="backupFrequency">
+                                            <option value="daily">Daily</option>
+                                            <option value="weekly">Weekly</option>
+                                            <option value="monthly">Monthly</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="dataRetention">Data Retention (months)</label>
+                                        <input type="number" class="form-control" id="dataRetention" min="1" max="120" value="24">
+                                    </div>
+                                    <div class="form-group">
+                                        <button class="btn btn-secondary btn-block" id="backupNowBtn">
+                                            <i class="fas fa-download"></i> Backup Now
+                                        </button>
+                                    </div>
+                                    <div class="form-group">
+                                        <button class="btn btn-secondary btn-block" id="exportDataBtn">
+                                            <i class="fas fa-file-export"></i> Export Data
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Activity Logs Tab -->
                 <div class="admin-tab-content" id="logs-tab">
                     <div class="content-section">
-                        <h2>Activity Logs</h2>
-                        <p>Activity logs coming soon...</p>
+                        <div class="section-header">
+                            <h2>Activity Logs</h2>
+                            <div class="log-filters">
+                                <select class="form-control" id="logTypeFilter">
+                                    <option value="">All Activities</option>
+                                    <option value="user">User Activities</option>
+                                    <option value="login">Login/Logout</option>
+                                    <option value="patient">Patient Records</option>
+                                    <option value="billing">Billing</option>
+                                    <option value="pharmacy">Pharmacy</option>
+                                    <option value="system">System</option>
+                                </select>
+                                <input type="date" class="form-control" id="logDateFilter">
+                                <button class="btn btn-secondary" id="clearLogFilters">
+                                    <i class="fas fa-times"></i> Clear
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="logs-container">
+                            <div class="logs-timeline" id="logsTimeline">
+                                <div class="log-item">
+                                    <div class="log-icon log-icon-info">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                    </div>
+                                    <div class="log-content">
+                                        <p>Loading activity logs...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="logs-pagination" id="logsPagination">
+                            <button class="btn btn-secondary" id="loadMoreLogs">
+                                <i class="fas fa-chevron-down"></i> Load More
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

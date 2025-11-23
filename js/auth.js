@@ -85,7 +85,33 @@ function requireAuth() {
 }
 
 // Logout function
-function logout() {
+async function logout() {
+    const currentUserId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
+    const currentUserName = localStorage.getItem('userName') || sessionStorage.getItem('userName');
+    
+    // Log logout activity before clearing data
+    if (currentUserId) {
+        try {
+            // Import Firestore functions dynamically
+            const { getFirestore, collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+            const { getApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+            
+            const app = getApp();
+            const db = getFirestore(app);
+            
+            await addDoc(collection(db, 'activity_logs'), {
+                type: 'logout',
+                action: 'User logged out',
+                description: `${currentUserName || 'User'} logged out`,
+                userId: currentUserId,
+                userName: currentUserName || 'User',
+                timestamp: serverTimestamp()
+            });
+        } catch (error) {
+            console.error('Error logging logout activity:', error);
+        }
+    }
+    
     // Clear all stored user data
     localStorage.removeItem('userId');
     localStorage.removeItem('userEmail');

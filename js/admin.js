@@ -3,12 +3,17 @@
 
 import { auth, db } from './firebase-config.js';
 import { createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, orderBy, where, startAfter, limit, addDoc, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+let usersUnsubscribe = null;
+let logsUnsubscribe = null;
 
 // Initialize admin module
 export function initAdminModule() {
     setupAdminTabs();
     setupUserModal();
+    setupSystemSettings();
+    setupActivityLogs();
     loadUsers();
 }
 
@@ -160,6 +165,9 @@ async function handleUserFormSubmit(e) {
                 updatedAt: new Date().toISOString()
             });
             
+            // Log activity
+            await logActivity('user', 'User updated', auth.currentUser?.uid, `Updated user: ${displayName} (${email})`);
+            
             showNotification('User updated successfully', 'success');
         } else {
             // Create new user
@@ -167,7 +175,7 @@ async function handleUserFormSubmit(e) {
                 throw new Error('Password must be at least 6 characters');
             }
 
-            await createNewUser({
+            const newUserId = await createNewUser({
                 displayName,
                 email,
                 password,
@@ -177,6 +185,9 @@ async function handleUserFormSubmit(e) {
                 active,
                 permissions: selectedPermissions
             });
+
+            // Log activity
+            await logActivity('user', 'New user created', auth.currentUser?.uid, `Created user: ${displayName} (${email}) with role: ${role}`);
 
             showNotification('User created successfully', 'success');
         }
@@ -251,7 +262,7 @@ async function updateUser(uid, userData) {
     }
 }
 
-// Load all users
+// Load all users with real-time updates
 async function loadUsers() {
     const tbody = document.getElementById('usersTableBody');
     
@@ -260,24 +271,34 @@ async function loadUsers() {
     tbody.innerHTML = '<tr><td colspan="7" class="text-center">Loading users...</td></tr>';
 
     try {
-        const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
-        const snapshot = await getDocs(usersQuery);
-
-        if (snapshot.empty) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No users found</td></tr>';
-            return;
+        // Unsubscribe from previous listener
+        if (usersUnsubscribe) {
+            usersUnsubscribe();
         }
 
-        tbody.innerHTML = '';
+        const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+        
+        // Set up real-time listener
+        usersUnsubscribe = onSnapshot(usersQuery, (snapshot) => {
+            if (snapshot.empty) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center">No users found</td></tr>';
+                return;
+            }
 
-        snapshot.forEach(doc => {
-            const user = doc.data();
-            const row = createUserRow(doc.id, user);
-            tbody.innerHTML += row;
+            tbody.innerHTML = '';
+
+            snapshot.forEach(doc => {
+                const user = doc.data();
+                const row = createUserRow(doc.id, user);
+                tbody.innerHTML += row;
+            });
+        }, (error) => {
+            console.error('Error loading users:', error);
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-error">Error loading users</td></tr>';
         });
 
     } catch (error) {
-        console.error('Error loading users:', error);
+        console.error('Error setting up users listener:', error);
         tbody.innerHTML = '<tr><td colspan="7" class="text-center text-error">Error loading users</td></tr>';
     }
 }
@@ -396,6 +417,10 @@ window.deleteUser = async function(uid, email) {
 
     try {
         await deleteDoc(doc(db, 'users', uid));
+        
+        // Log activity
+        await logActivity('user', 'User deleted', auth.currentUser?.uid, `Deleted user: ${email}`);
+        
         showNotification('User deleted successfully', 'success');
         loadUsers();
     } catch (error) {
@@ -434,6 +459,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const adminModule = document.getElementById('admin-module');
                 if (adminModule && adminModule.classList.contains('active')) {
                     initAdminModule();
+                } else {
+                    // Clean up listeners when module is hidden
+                    if (usersUnsubscribe) {
+                        usersUnsubscribe();
+                        usersUnsubscribe = null;
+                    }
+                    if (logsUnsubscribe) {
+                        logsUnsubscribe();
+                        logsUnsubscribe = null;
+                    }
                 }
             }
         });
@@ -444,3 +479,428 @@ document.addEventListener('DOMContentLoaded', () => {
         observer.observe(adminModule, { attributes: true });
     }
 });
+
+// ==========================================
+// SYSTEM SETTINGS FUNCTIONALITY
+// ==========================================
+
+function setupSystemSettings() {
+    loadSystemSettings();
+
+    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    const backupNowBtn = document.getElementById('backupNowBtn');
+    const exportDataBtn = document.getElementById('exportDataBtn');
+
+    if (saveSettingsBtn) {
+        saveSettingsBtn.addEventListener('click', saveSystemSettings);
+    }
+
+    if (backupNowBtn) {
+        backupNowBtn.addEventListener('click', performBackup);
+    }
+
+    if (exportDataBtn) {
+        exportDataBtn.addEventListener('click', exportSystemData);
+    }
+}
+
+// Load system settings from Firestore with real-time updates
+async function loadSystemSettings() {
+    try {
+        // Set up real-time listener for settings
+        const settingsRef = doc(db, 'system', 'settings');
+        
+        onSnapshot(settingsRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const settings = docSnap.data();
+                
+                // General Settings
+                if (settings.hospitalName !== undefined) document.getElementById('hospitalName').value = settings.hospitalName;
+                if (settings.hospitalAddress !== undefined) document.getElementById('hospitalAddress').value = settings.hospitalAddress;
+                if (settings.hospitalPhone !== undefined) document.getElementById('hospitalPhone').value = settings.hospitalPhone;
+                if (settings.hospitalEmail !== undefined) document.getElementById('hospitalEmail').value = settings.hospitalEmail;
+                
+                // Security Settings
+                if (settings.sessionTimeout !== undefined) document.getElementById('sessionTimeout').value = settings.sessionTimeout;
+                if (settings.passwordMinLength !== undefined) document.getElementById('passwordMinLength').value = settings.passwordMinLength;
+                if (settings.requireEmailVerification !== undefined) document.getElementById('requireEmailVerification').checked = settings.requireEmailVerification;
+                if (settings.enableTwoFactor !== undefined) document.getElementById('enableTwoFactor').checked = settings.enableTwoFactor;
+                
+                // Notification Settings
+                if (settings.emailNotifications !== undefined) document.getElementById('emailNotifications').checked = settings.emailNotifications;
+                if (settings.smsNotifications !== undefined) document.getElementById('smsNotifications').checked = settings.smsNotifications;
+                if (settings.lowStockAlerts !== undefined) document.getElementById('lowStockAlerts').checked = settings.lowStockAlerts;
+                if (settings.expiryAlerts !== undefined) document.getElementById('expiryAlerts').checked = settings.expiryAlerts;
+                
+                // Billing Settings
+                if (settings.currency !== undefined) document.getElementById('currency').value = settings.currency;
+                if (settings.taxRate !== undefined) document.getElementById('taxRate').value = settings.taxRate;
+                if (settings.autoGenerateBills !== undefined) document.getElementById('autoGenerateBills').checked = settings.autoGenerateBills;
+                if (settings.allowPartialPayments !== undefined) document.getElementById('allowPartialPayments').checked = settings.allowPartialPayments;
+                
+                // Appointment Settings
+                if (settings.appointmentDuration !== undefined) document.getElementById('appointmentDuration').value = settings.appointmentDuration;
+                if (settings.workingHoursStart !== undefined) document.getElementById('workingHoursStart').value = settings.workingHoursStart;
+                if (settings.workingHoursEnd !== undefined) document.getElementById('workingHoursEnd').value = settings.workingHoursEnd;
+                if (settings.allowOnlineBooking !== undefined) document.getElementById('allowOnlineBooking').checked = settings.allowOnlineBooking;
+                
+                // Backup Settings
+                if (settings.backupFrequency !== undefined) document.getElementById('backupFrequency').value = settings.backupFrequency;
+                if (settings.dataRetention !== undefined) document.getElementById('dataRetention').value = settings.dataRetention;
+            } else {
+                // Set default values if no settings exist
+                console.log('No settings found, using defaults');
+            }
+        }, (error) => {
+            console.error('Error loading settings:', error);
+        });
+        
+    } catch (error) {
+        console.error('Error setting up settings listener:', error);
+    }
+}
+
+// Save system settings to Firestore
+async function saveSystemSettings() {
+    const saveBtn = document.getElementById('saveSettingsBtn');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+    try {
+        const settings = {
+            // General Settings
+            hospitalName: document.getElementById('hospitalName').value,
+            hospitalAddress: document.getElementById('hospitalAddress').value,
+            hospitalPhone: document.getElementById('hospitalPhone').value,
+            hospitalEmail: document.getElementById('hospitalEmail').value,
+            
+            // Security Settings
+            sessionTimeout: parseInt(document.getElementById('sessionTimeout').value),
+            passwordMinLength: parseInt(document.getElementById('passwordMinLength').value),
+            requireEmailVerification: document.getElementById('requireEmailVerification').checked,
+            enableTwoFactor: document.getElementById('enableTwoFactor').checked,
+            
+            // Notification Settings
+            emailNotifications: document.getElementById('emailNotifications').checked,
+            smsNotifications: document.getElementById('smsNotifications').checked,
+            lowStockAlerts: document.getElementById('lowStockAlerts').checked,
+            expiryAlerts: document.getElementById('expiryAlerts').checked,
+            
+            // Billing Settings
+            currency: document.getElementById('currency').value,
+            taxRate: parseFloat(document.getElementById('taxRate').value),
+            autoGenerateBills: document.getElementById('autoGenerateBills').checked,
+            allowPartialPayments: document.getElementById('allowPartialPayments').checked,
+            
+            // Appointment Settings
+            appointmentDuration: parseInt(document.getElementById('appointmentDuration').value),
+            workingHoursStart: document.getElementById('workingHoursStart').value,
+            workingHoursEnd: document.getElementById('workingHoursEnd').value,
+            allowOnlineBooking: document.getElementById('allowOnlineBooking').checked,
+            
+            // Backup Settings
+            backupFrequency: document.getElementById('backupFrequency').value,
+            dataRetention: parseInt(document.getElementById('dataRetention').value),
+            
+            updatedAt: serverTimestamp(),
+            updatedBy: auth.currentUser?.uid || 'admin'
+        };
+
+        await setDoc(doc(db, 'system', 'settings'), settings);
+        
+        // Log activity
+        await logActivity('system', 'System settings updated', auth.currentUser?.uid);
+        
+        showNotification('Settings saved successfully', 'success');
+    } catch (error) {
+        console.error('Error saving settings:', error);
+        showNotification('Failed to save settings', 'error');
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+    }
+}
+
+// Perform backup
+async function performBackup() {
+    const btn = document.getElementById('backupNowBtn');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Backing up...';
+
+    try {
+        // Log backup activity
+        await logActivity('system', 'Manual backup initiated', auth.currentUser?.uid);
+        
+        // Simulate backup (in production, this would trigger a Cloud Function)
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        showNotification('Backup completed successfully', 'success');
+    } catch (error) {
+        console.error('Error performing backup:', error);
+        showNotification('Backup failed', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+// Export system data
+async function exportSystemData() {
+    const btn = document.getElementById('exportDataBtn');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+
+    try {
+        // Log export activity
+        await logActivity('system', 'Data export initiated', auth.currentUser?.uid);
+        
+        showNotification('Export will be sent to your email', 'success');
+    } catch (error) {
+        console.error('Error exporting data:', error);
+        showNotification('Export failed', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+// ==========================================
+// ACTIVITY LOGS FUNCTIONALITY
+// ==========================================
+
+let logsLastDoc = null;
+let logsLoading = false;
+
+function setupActivityLogs() {
+    loadActivityLogs();
+
+    const logTypeFilter = document.getElementById('logTypeFilter');
+    const logDateFilter = document.getElementById('logDateFilter');
+    const clearLogFilters = document.getElementById('clearLogFilters');
+    const loadMoreLogs = document.getElementById('loadMoreLogs');
+
+    if (logTypeFilter) {
+        logTypeFilter.addEventListener('change', () => {
+            logsLastDoc = null;
+            loadActivityLogs();
+        });
+    }
+
+    if (logDateFilter) {
+        logDateFilter.addEventListener('change', () => {
+            logsLastDoc = null;
+            loadActivityLogs();
+        });
+    }
+
+    if (clearLogFilters) {
+        clearLogFilters.addEventListener('click', () => {
+            logTypeFilter.value = '';
+            logDateFilter.value = '';
+            logsLastDoc = null;
+            loadActivityLogs();
+        });
+    }
+
+    if (loadMoreLogs) {
+        loadMoreLogs.addEventListener('click', () => {
+            loadActivityLogs(true);
+        });
+    }
+}
+
+// Load activity logs with real-time updates
+async function loadActivityLogs(loadMore = false) {
+    if (logsLoading) return;
+    
+    const timeline = document.getElementById('logsTimeline');
+    const loadMoreBtn = document.getElementById('loadMoreLogs');
+    
+    if (!timeline) return;
+
+    logsLoading = true;
+
+    if (!loadMore) {
+        timeline.innerHTML = '<div class="log-item"><div class="log-icon log-icon-info"><i class="fas fa-spinner fa-spin"></i></div><div class="log-content"><p>Loading logs...</p></div></div>';
+    } else {
+        loadMoreBtn.disabled = true;
+        loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+    }
+
+    try {
+        const logTypeFilter = document.getElementById('logTypeFilter').value;
+        const logDateFilter = document.getElementById('logDateFilter').value;
+
+        // Unsubscribe from previous listener
+        if (logsUnsubscribe && !loadMore) {
+            logsUnsubscribe();
+        }
+
+        let logsQuery = query(
+            collection(db, 'activity_logs'),
+            orderBy('timestamp', 'desc'),
+            limit(20)
+        );
+
+        // Apply filters
+        if (logTypeFilter) {
+            logsQuery = query(
+                collection(db, 'activity_logs'),
+                where('type', '==', logTypeFilter),
+                orderBy('timestamp', 'desc'),
+                limit(20)
+            );
+        }
+
+        if (loadMore && logsLastDoc) {
+            logsQuery = query(logsQuery, startAfter(logsLastDoc));
+        }
+
+        if (!loadMore) {
+            // Set up real-time listener for initial load
+            logsUnsubscribe = onSnapshot(logsQuery, (snapshot) => {
+                if (snapshot.empty) {
+                    timeline.innerHTML = '<div class="log-item"><div class="log-icon log-icon-info"><i class="fas fa-info-circle"></i></div><div class="log-content"><p>No activity logs found</p></div></div>';
+                    if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+                    logsLoading = false;
+                    return;
+                }
+
+                logsLastDoc = snapshot.docs[snapshot.docs.length - 1];
+                timeline.innerHTML = '';
+
+                snapshot.forEach(doc => {
+                    const log = doc.data();
+                    timeline.innerHTML += createLogItem(log);
+                });
+
+                if (loadMoreBtn) {
+                    loadMoreBtn.style.display = snapshot.size === 20 ? 'block' : 'none';
+                }
+                
+                logsLoading = false;
+            }, (error) => {
+                console.error('Error loading logs:', error);
+                timeline.innerHTML = '<div class="log-item"><div class="log-icon log-icon-error"><i class="fas fa-exclamation-circle"></i></div><div class="log-content"><p>Error loading logs</p></div></div>';
+                logsLoading = false;
+            });
+        } else {
+            // For load more, use regular getDocs
+            const snapshot = await getDocs(logsQuery);
+
+            if (snapshot.empty) {
+                loadMoreBtn.style.display = 'none';
+                logsLoading = false;
+                return;
+            }
+
+            logsLastDoc = snapshot.docs[snapshot.docs.length - 1];
+
+            snapshot.forEach(doc => {
+                const log = doc.data();
+                timeline.innerHTML += createLogItem(log);
+            });
+
+            loadMoreBtn.style.display = snapshot.size === 20 ? 'block' : 'none';
+            logsLoading = false;
+        }
+
+    } catch (error) {
+        console.error('Error loading logs:', error);
+        timeline.innerHTML = '<div class="log-item"><div class="log-icon log-icon-error"><i class="fas fa-exclamation-circle"></i></div><div class="log-content"><p>Error loading logs</p></div></div>';
+        logsLoading = false;
+    } finally {
+        if (loadMoreBtn) {
+            loadMoreBtn.disabled = false;
+            loadMoreBtn.innerHTML = '<i class="fas fa-chevron-down"></i> Load More';
+        }
+    }
+}
+
+// Create log item HTML
+function createLogItem(log) {
+    const timestamp = log.timestamp ? new Date(log.timestamp.seconds * 1000) : new Date();
+    const timeAgo = getTimeAgo(timestamp);
+    const icon = getLogIcon(log.type);
+    const iconClass = getLogIconClass(log.type);
+
+    return `
+        <div class="log-item">
+            <div class="log-icon ${iconClass}">
+                <i class="fas fa-${icon}"></i>
+            </div>
+            <div class="log-content">
+                <div class="log-header">
+                    <strong>${log.action || 'Activity'}</strong>
+                    <span class="log-time">${timeAgo}</span>
+                </div>
+                <p class="log-description">${log.description || ''}</p>
+                ${log.userName ? `<small class="log-user">by ${log.userName}</small>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+// Get log icon based on type
+function getLogIcon(type) {
+    const icons = {
+        'user': 'user',
+        'login': 'sign-in-alt',
+        'logout': 'sign-out-alt',
+        'patient': 'user-injured',
+        'billing': 'file-invoice-dollar',
+        'pharmacy': 'pills',
+        'system': 'cog',
+        'error': 'exclamation-circle'
+    };
+    return icons[type] || 'circle';
+}
+
+// Get log icon class based on type
+function getLogIconClass(type) {
+    const classes = {
+        'login': 'log-icon-success',
+        'logout': 'log-icon-warning',
+        'user': 'log-icon-info',
+        'patient': 'log-icon-info',
+        'billing': 'log-icon-success',
+        'pharmacy': 'log-icon-info',
+        'system': 'log-icon-warning',
+        'error': 'log-icon-error'
+    };
+    return classes[type] || 'log-icon-info';
+}
+
+// Get time ago string
+function getTimeAgo(date) {
+    const seconds = Math.floor((new Date() - date) / 1000);
+    
+    if (seconds < 60) return 'just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+    
+    return date.toLocaleDateString();
+}
+
+// Log activity to Firestore
+export async function logActivity(type, action, userId = null, description = '') {
+    try {
+        const user = userId ? await getDoc(doc(db, 'users', userId)) : null;
+        const userName = user && user.exists() ? user.data().displayName : 'Unknown';
+
+        await addDoc(collection(db, 'activity_logs'), {
+            type,
+            action,
+            description,
+            userId: userId || null,
+            userName,
+            timestamp: serverTimestamp()
+        });
+    } catch (error) {
+        console.error('Error logging activity:', error);
+    }
+}

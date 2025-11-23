@@ -139,7 +139,7 @@
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-        import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
         // Firebase configuration
         const firebaseConfig = {
@@ -261,6 +261,20 @@
                     storageType.setItem('userName', userData.displayName || user.displayName || 'User');
                     storageType.setItem('userEmail', user.email);
                     storageType.setItem('userId', user.uid);
+
+                    // Log login activity
+                    try {
+                        await addDoc(collection(db, 'activity_logs'), {
+                            type: 'login',
+                            action: 'User logged in',
+                            description: `${userData.displayName || user.email} logged in successfully`,
+                            userId: user.uid,
+                            userName: userData.displayName || user.email,
+                            timestamp: serverTimestamp()
+                        });
+                    } catch (logError) {
+                        console.error('Error logging activity:', logError);
+                    }
 
                     // Show success message
                     showSuccess('Login successful! Redirecting...');
