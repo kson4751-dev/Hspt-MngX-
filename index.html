@@ -25,16 +25,43 @@
         
         <div class="top-bar-right">
             <button class="theme-toggle" id="themeToggle">
-                <i class="fas fa-moon"></i>
+                <svg class="theme-icon sun-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="10" cy="10" r="3.5" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M10 1.5V3.5M10 16.5V18.5M18.5 10H16.5M3.5 10H1.5M15.5 4.5L14.2 5.8M5.8 14.2L4.5 15.5M15.5 15.5L14.2 14.2M5.8 5.8L4.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <svg class="theme-icon moon-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M17.5 11.18C17.3178 12.2054 16.8808 13.1683 16.2293 13.9812C15.5778 14.7941 14.7326 15.4313 13.7718 15.8373C12.811 16.2432 11.7655 16.4053 10.7254 16.3095C9.68531 16.2137 8.68494 15.8628 7.81471 15.2884C6.94447 14.714 6.22975 13.9336 5.73385 13.0158C5.23795 12.098 4.97633 11.0714 4.97215 10.0275C4.96797 8.98366 5.22134 7.9552 5.70883 7.03329C6.19632 6.11137 6.90423 5.32524 7.76999 4.74366C6.95427 4.92731 6.19063 5.29244 5.53566 5.81349C4.88068 6.33453 4.35059 7.00003 3.98667 7.75959C3.62276 8.51915 3.43456 9.35276 3.43657 10.1968C3.43858 11.0408 3.63078 11.8735 3.9988 12.6313C4.36682 13.3891 4.90064 14.0523 5.55875 14.5702C6.21685 15.0881 6.98272 15.4493 7.79996 15.6285C8.61721 15.8078 9.46538 15.8007 10.2794 15.6078C11.0933 15.4149 11.8534 15.0408 12.5032 14.5124C13.1531 13.9839 13.6767 13.3139 14.0365 12.5533" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
             </button>
-            <button class="icon-button" id="notificationsBtn">
-                <i class="fas fa-bell"></i>
-                <span class="badge">3</span>
-            </button>
-            <button class="icon-button" id="messagesBtn">
-                <i class="fas fa-envelope"></i>
-                <span class="badge">5</span>
-            </button>
+            <div class="notification-menu">
+                <button class="icon-button notification-icon-btn" id="notificationsBtn">
+                    <svg class="notification-bell" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M15 6.66667C15 5.34058 14.4732 4.06881 13.5355 3.13113C12.5979 2.19345 11.3261 1.66667 10 1.66667C8.67392 1.66667 7.40215 2.19345 6.46447 3.13113C5.52678 4.06881 5 5.34058 5 6.66667C5 12.5 2.5 14.1667 2.5 14.1667H17.5C17.5 14.1667 15 12.5 15 6.66667Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M11.4417 17.5C11.2952 17.7526 11.0849 17.9622 10.8319 18.1079C10.5789 18.2537 10.292 18.3304 10 18.3304C9.70802 18.3304 9.42115 18.2537 9.16814 18.1079C8.91513 17.9622 8.70484 17.7526 8.55835 17.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span class="notification-badge" id="notificationBadge"></span>
+                </button>
+                <div class="notification-dropdown" id="notificationDropdown">
+                    <div class="notification-header">
+                        <h4>Notifications</h4>
+                        <button class="mark-all-read" id="markAllReadBtn">Mark all as read</button>
+                    </div>
+                    <div class="notification-list" id="notificationList">
+                        <!-- Notifications will be dynamically loaded here -->
+                    </div>
+                    <div class="notification-footer">
+                        <a href="#" id="viewAllNotifications">View all notifications</a>
+                    </div>
+                </div>
+            </div>
+            <div class="messages-menu">
+                <button class="icon-button messages-icon-btn" id="messagesBtn">
+                    <svg class="messages-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M17.5 9.58333C17.5029 10.6832 17.2459 11.7683 16.75 12.75C16.162 13.9264 15.2581 14.916 14.1395 15.6077C13.021 16.2995 11.7319 16.6662 10.4167 16.6667C9.31678 16.6695 8.23176 16.4126 7.25 15.9167L2.5 17.5L4.08333 12.75C3.58744 11.7683 3.33047 10.6832 3.33333 9.58333C3.33384 8.26812 3.70051 6.97904 4.39227 5.86045C5.08402 4.74187 6.07355 3.838 7.25 3.25C8.23176 2.75411 9.31678 2.49713 10.4167 2.5H10.8333C12.5703 2.59582 14.2109 3.32896 15.4409 4.55907C16.671 5.78917 17.4042 7.42971 17.5 9.16667V9.58333Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span class="messages-badge" id="messagesBadge"></span>
+                </button>
+            </div>
             <div class="profile-menu">
                 <button class="profile-button" id="profileBtn">
                     <img src="https://via.placeholder.com/40" alt="Profile" class="profile-img">

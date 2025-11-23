@@ -3,26 +3,19 @@
 // Theme Toggle
 const themeToggle = document.getElementById('themeToggle');
 const body = document.body;
-const themeIcon = themeToggle.querySelector('i');
 
 // Load saved theme
 const savedTheme = localStorage.getItem('theme') || 'light';
 if (savedTheme === 'dark') {
     body.classList.add('dark-theme');
-    themeIcon.classList.remove('fa-moon');
-    themeIcon.classList.add('fa-sun');
 }
 
 themeToggle.addEventListener('click', () => {
     body.classList.toggle('dark-theme');
     
     if (body.classList.contains('dark-theme')) {
-        themeIcon.classList.remove('fa-moon');
-        themeIcon.classList.add('fa-sun');
         localStorage.setItem('theme', 'dark');
     } else {
-        themeIcon.classList.remove('fa-sun');
-        themeIcon.classList.add('fa-moon');
         localStorage.setItem('theme', 'light');
     }
 });
@@ -49,6 +42,12 @@ const profileDropdown = document.getElementById('profileDropdown');
 profileBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     profileDropdown.classList.toggle('active');
+    
+    // Close notification dropdown if open
+    const notificationDropdown = document.getElementById('notificationDropdown');
+    if (notificationDropdown) {
+        notificationDropdown.classList.remove('active');
+    }
 });
 
 // Close dropdown when clicking outside
@@ -173,10 +172,148 @@ if (window.innerWidth <= 768) {
 
 // Notifications Button
 const notificationsBtn = document.getElementById('notificationsBtn');
-notificationsBtn.addEventListener('click', () => {
-    console.log('Notifications clicked');
-    // Add notification panel logic here
+const notificationDropdown = document.getElementById('notificationDropdown');
+const notificationList = document.getElementById('notificationList');
+const notificationBadge = document.getElementById('notificationBadge');
+const markAllReadBtn = document.getElementById('markAllReadBtn');
+
+// Notifications array - will be populated from Firebase
+let notifications = [];
+let notificationsModule = null;
+
+// Import and initialize notifications module
+async function initializeNotifications() {
+    try {
+        notificationsModule = await import('./notifications.js');
+        notificationsModule.initNotifications();
+        console.log('✅ Notifications module initialized');
+    } catch (error) {
+        console.error('Error initializing notifications module:', error);
+    }
+}
+
+// Update notification UI (called by notifications.js)
+window.updateNotificationUI = function(notificationsData) {
+    notifications = notificationsData.map(n => ({
+        id: n.id,
+        type: n.type,
+        icon: n.icon,
+        title: n.title,
+        message: n.message,
+        time: notificationsModule ? notificationsModule.formatNotificationTime(n.timestamp) : 'Just now',
+        read: n.read || false,
+        timestamp: n.timestamp
+    }));
+    
+    renderNotifications();
+};
+
+// Render notifications
+function renderNotifications() {
+    const unreadCount = notifications.filter(n => !n.read).length;
+    
+    // Update badge - show red dot only if there are unread notifications
+    if (unreadCount > 0) {
+        notificationBadge.style.display = 'block';
+    } else {
+        notificationBadge.style.display = 'none';
+    }
+    
+    // Render list
+    if (notifications.length === 0) {
+        notificationList.innerHTML = `
+            <div class="notification-empty">
+                <i class="fas fa-bell-slash"></i>
+                <p>No notifications yet</p>
+            </div>
+        `;
+    } else {
+        notificationList.innerHTML = notifications.map(notification => `
+            <div class="notification-item ${!notification.read ? 'unread' : ''}" data-id="${notification.id}">
+                <div class="notification-icon ${notification.type}">
+                    <i class="fas ${notification.icon}"></i>
+                </div>
+                <div class="notification-content">
+                    <div class="notification-title">${notification.title}</div>
+                    <div class="notification-message">${notification.message}</div>
+                    <div class="notification-time">${notification.time}</div>
+                </div>
+            </div>
+        `).join('');
+        
+        // Add click handlers to notification items
+        document.querySelectorAll('.notification-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const id = item.getAttribute('data-id');
+                markNotificationAsRead(id);
+            });
+        });
+    }
+}
+
+// Mark notification as read
+async function markNotificationAsRead(id) {
+    if (notificationsModule) {
+        await notificationsModule.markNotificationAsRead(id);
+        // UI will update automatically via real-time listener
+    }
+}
+
+// Mark all as read
+markAllReadBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (notificationsModule) {
+        await notificationsModule.markAllNotificationsAsRead();
+        // UI will update automatically via real-time listener
+    }
 });
+
+// Toggle notification dropdown
+notificationsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    notificationDropdown.classList.toggle('active');
+    profileDropdown.classList.remove('active'); // Close profile dropdown if open
+    
+    // Render notifications when opened
+    if (notificationDropdown.classList.contains('active')) {
+        renderNotifications();
+    }
+});
+
+// Close notification dropdown when clicking outside
+document.addEventListener('click', (e) => {
+    if (!notificationsBtn.contains(e.target) && !notificationDropdown.contains(e.target)) {
+        notificationDropdown.classList.remove('active');
+    }
+});
+
+// Initialize notifications on page load
+initializeNotifications();
+
+// Global function to add new notification (wrapper for Firebase function)
+window.addNotification = async function(type, title, message, icon = null) {
+    const storageType = localStorage.getItem('userId') ? localStorage : sessionStorage;
+    const userId = storageType.getItem('userId');
+    
+    if (!userId) {
+        console.warn('No user ID found. Cannot add notification.');
+        return;
+    }
+    
+    if (notificationsModule) {
+        await notificationsModule.addNotification(userId, type, title, message, icon);
+    }
+};
+
+// Global function to clear all notifications
+window.clearAllNotifications = async function() {
+    if (notificationsModule) {
+        const result = await notificationsModule.clearAllNotifications();
+        if (result.success) {
+            console.log('All notifications cleared');
+        }
+    }
+};
 
 // Messages Button
 const messagesBtn = document.getElementById('messagesBtn');
@@ -1377,6 +1514,19 @@ async function savePatientToFirebase(patientData) {
             
             // Track activity
             trackPatientRegistration(`${patientData.firstName} ${patientData.lastName}`);
+            
+            // Send notification about new patient registration
+            if (window.createPatientNotification) {
+                const storageType = localStorage.getItem('userId') ? localStorage : sessionStorage;
+                const userId = storageType.getItem('userId');
+                if (userId) {
+                    window.createPatientNotification(
+                        userId,
+                        `${patientData.firstName} ${patientData.lastName}`,
+                        'registered'
+                    );
+                }
+            }
             
             return true;
         } else {
