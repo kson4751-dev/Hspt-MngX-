@@ -6217,12 +6217,47 @@ body.dark-theme .recent-billings-table tbody tr:not(.empty-state):hover {
 /* Billing Table */
 .billing-table {
     width: 100%;
-    min-width: 1000px;
+    min-width: 1200px;
+    border-collapse: collapse;
+    table-layout: auto;
+    white-space: nowrap;
+}
+
+/* Billing view module table container with slim scrollbar */
+#billing-view-module .table-container {
+    overflow-x: auto;
+    overflow-y: visible;
+    margin-bottom: 24px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+}
+
+#billing-view-module .table-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+#billing-view-module .table-container::-webkit-scrollbar-track {
+    background: var(--bg-color);
+    border-radius: 3px;
+}
+
+#billing-view-module .table-container::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+#billing-view-module .table-container::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
 }
 
 .billing-table thead {
     background: var(--bg-color);
     border-bottom: 2px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
 
 .billing-table th {
@@ -6232,6 +6267,7 @@ body.dark-theme .recent-billings-table tbody tr:not(.empty-state):hover {
     color: var(--text-secondary);
     font-size: 13px;
     text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .billing-table tbody tr {
@@ -6247,7 +6283,31 @@ body.dark-theme .recent-billings-table tbody tr:not(.empty-state):hover {
     padding: 14px 12px;
     color: var(--text-primary);
     font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
 }
+
+/* Specific column widths */
+.billing-table th:nth-child(1),
+.billing-table td:nth-child(1) { min-width: 120px; } /* Receipt # */
+.billing-table th:nth-child(2),
+.billing-table td:nth-child(2) { min-width: 150px; } /* Date & Time */
+.billing-table th:nth-child(3),
+.billing-table td:nth-child(3) { min-width: 120px; } /* Patient Number */
+.billing-table th:nth-child(4),
+.billing-table td:nth-child(4) { min-width: 150px; } /* Patient Name */
+.billing-table th:nth-child(5),
+.billing-table td:nth-child(5) { min-width: 150px; } /* Services */
+.billing-table th:nth-child(6),
+.billing-table td:nth-child(6) { min-width: 120px; } /* Total Amount */
+.billing-table th:nth-child(7),
+.billing-table td:nth-child(7) { min-width: 120px; } /* Payment Method */
+.billing-table th:nth-child(8),
+.billing-table td:nth-child(8) { min-width: 100px; } /* Status */
+.billing-table th:nth-child(9),
+.billing-table td:nth-child(9) { min-width: 120px; } /* Actions */
 
 .status-badge {
     display: inline-flex;

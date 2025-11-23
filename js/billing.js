@@ -18,11 +18,19 @@ let allBills = [];
 let currentBillPage = 1;
 let billPageSize = 25;
 let filteredBills = [];
+let isInitialized = false;
+let billsListenerUnsubscribe = null;
 
 /**
  * Initialize Billing Module
  */
 export async function initBillingModule() {
+    // Prevent multiple initializations
+    if (isInitialized) {
+        console.log('Billing Module already initialized, skipping...');
+        return;
+    }
+    
     console.log('Initializing Billing Module...');
     
     // Load patients for search
@@ -35,12 +43,15 @@ export async function initBillingModule() {
     setupServiceButtons();
     setupModeToggle();
     
-    // Setup real-time listener for bills
-    setupBillsRealtimeListener();
+    // Setup real-time listener for bills (only once)
+    if (!billsListenerUnsubscribe) {
+        billsListenerUnsubscribe = setupBillsRealtimeListener();
+    }
     
     // Load stats
     updateBillingStats();
     
+    isInitialized = true;
     console.log('Billing Module initialized successfully');
 }
 
@@ -49,6 +60,7 @@ export async function initBillingModule() {
  */
 async function loadPatients() {
     try {
+        console.log('Loading patients from Firestore...');
         // Load from new patients collection
         const patientsCollection = collection(db, 'patients');
         const querySnapshot = await getDocs(patientsCollection);
@@ -56,21 +68,30 @@ async function loadPatients() {
         allPatients = [];
         querySnapshot.forEach((doc) => {
             const data = doc.data();
-            allPatients.push({
+            const patient = {
                 id: doc.id,
-                patientNumber: data.patientNumber,
+                patientNumber: data.patientNumber || data.patientId || doc.id,
                 fullName: data.fullName || `${data.firstName || ''} ${data.lastName || ''}`.trim(),
+                firstName: data.firstName || '',
+                lastName: data.lastName || '',
                 age: data.age,
                 gender: data.gender,
-                phone: data.phone || data.phoneNumber,
+                phone: data.phone || data.phoneNumber || data.contact,
                 consultationFeePaid: data.consultationFeePaid || false
-            });
+            };
+            allPatients.push(patient);
+            console.log('Loaded patient:', patient.patientNumber, patient.fullName);
         });
         
-        console.log(`Loaded ${allPatients.length} patients`);
+        console.log(`✅ Loaded ${allPatients.length} patients successfully`);
+        
+        // If no patients, show helpful message
+        if (allPatients.length === 0) {
+            console.warn('No patients found in database');
+        }
     } catch (error) {
         console.error('Error loading patients:', error);
-        showNotification('Error loading patients', 'error');
+        showNotification('Error loading patients: ' + error.message, 'error');
     }
 }
 
@@ -78,18 +99,56 @@ async function loadPatients() {
  * Setup patient search functionality
  */
 function setupPatientSearch() {
-    const searchInput = document.getElementById('patientSearchInput');
-    const resultsContainer = document.getElementById('patientSearchResults');
+    const searchInput = document.getElementById('billingPatientSearchInput');
+    const resultsContainer = document.getElementById('billingPatientSearchResults');
     
     if (!searchInput) return;
     
     let searchTimeout;
+    
+    // Show all patients when input is focused (if empty)
+    searchInput.addEventListener('focus', () => {
+        if (searchInput.value.trim().length === 0) {
+            if (allPatients.length > 0) {
+                displayPatientResults(allPatients);
+            } else {
+                resultsContainer.innerHTML = `
+                    <div style="text-align:center;padding:30px 20px;color:var(--text-secondary);">
+                        <i class="fas fa-users" style="font-size:48px;opacity:0.3;margin-bottom:16px;"></i>
+                        <p style="font-size:15px;margin:0;">No patients in system</p>
+                        <p style="font-size:13px;margin:8px 0 0 0;opacity:0.8;">Register patients in the Reception module first</p>
+                    </div>
+                `;
+            }
+        }
+    });
+    
+    // Clear results when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+            if (searchInput.value.trim().length === 0) {
+                resultsContainer.innerHTML = '';
+            }
+        }
+    });
+    
     searchInput.addEventListener('input', (e) => {
         clearTimeout(searchTimeout);
         const searchTerm = e.target.value.trim().toLowerCase();
         
         if (searchTerm.length === 0) {
-            resultsContainer.innerHTML = '';
+            // Show all patients when search is cleared
+            if (allPatients.length > 0) {
+                displayPatientResults(allPatients);
+            } else {
+                resultsContainer.innerHTML = `
+                    <div style="text-align:center;padding:30px 20px;color:var(--text-secondary);">
+                        <i class="fas fa-users" style="font-size:48px;opacity:0.3;margin-bottom:16px;"></i>
+                        <p style="font-size:15px;margin:0;">No patients in system</p>
+                        <p style="font-size:13px;margin:8px 0 0 0;opacity:0.8;">Register patients in the Reception module first</p>
+                    </div>
+                `;
+            }
             return;
         }
         
@@ -112,12 +171,28 @@ function setupPatientSearch() {
         `;
         
         searchTimeout = setTimeout(() => {
-            const results = allPatients.filter(patient => 
-                patient.patientNumber.toLowerCase().includes(searchTerm) ||
-                patient.fullName.toLowerCase().includes(searchTerm) ||
-                (patient.phone && patient.phone.includes(searchTerm))
-            );
+            console.log('Searching for:', searchTerm);
+            console.log('Total patients:', allPatients.length);
             
+            const results = allPatients.filter(patient => {
+                // Safely get values with fallbacks
+                const patientNumber = (patient.patientNumber || '').toString().toLowerCase();
+                const fullName = (patient.fullName || '').toString().toLowerCase();
+                const firstName = (patient.firstName || '').toString().toLowerCase();
+                const lastName = (patient.lastName || '').toString().toLowerCase();
+                const phone = (patient.phone || '').toString();
+                
+                // Check if search term matches any field
+                const matches = patientNumber.includes(searchTerm) ||
+                               fullName.includes(searchTerm) ||
+                               firstName.includes(searchTerm) ||
+                               lastName.includes(searchTerm) ||
+                               phone.includes(searchTerm);
+                
+                return matches;
+            });
+            
+            console.log('Found', results.length, 'matching patients');
             displayPatientResults(results);
         }, 300);
     });
@@ -139,7 +214,7 @@ if (!document.getElementById('billing-animations')) {
  * Display patient search results
  */
 function displayPatientResults(patients) {
-    const resultsContainer = document.getElementById('patientSearchResults');
+    const resultsContainer = document.getElementById('billingPatientSearchResults');
     
     if (patients.length === 0) {
         resultsContainer.innerHTML = `
@@ -195,8 +270,10 @@ window.selectPatient = function(patientId) {
     document.getElementById('billingFormSection').style.display = 'block';
     
     // Clear search
-    document.getElementById('patientSearchInput').value = '';
-    document.getElementById('patientSearchResults').innerHTML = '';
+    const searchInput = document.getElementById('billingPatientSearchInput');
+    const resultsContainer = document.getElementById('billingPatientSearchResults');
+    if (searchInput) searchInput.value = '';
+    if (resultsContainer) resultsContainer.innerHTML = '';
     
     // Reset form
     resetBillingForm();
@@ -244,8 +321,10 @@ window.toggleBillingMode = function(mode) {
         manualBtn.classList.add('active');
         
         // Clear search
-        document.getElementById('patientSearchInput').value = '';
-        document.getElementById('patientSearchResults').innerHTML = '';
+        const searchInput = document.getElementById('billingPatientSearchInput');
+        const resultsContainer = document.getElementById('billingPatientSearchResults');
+        if (searchInput) searchInput.value = '';
+        if (resultsContainer) resultsContainer.innerHTML = '';
     }
     
     // Hide patient info section
@@ -406,19 +485,41 @@ function setupBillingForm() {
     const billingForm = document.getElementById('billingForm');
     const clearBtn = document.getElementById('clearBillingBtn');
     
-    // Add input listeners for real-time calculation
-    document.getElementById('consultationAmount')?.addEventListener('input', updateBillSummary);
-    document.getElementById('pharmacyAmount')?.addEventListener('input', updateBillSummary);
+    console.log('Setting up billing form...', billingForm ? 'Form found' : 'Form NOT found');
     
-    if (billingForm) {
-        billingForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            await processBilling();
-        });
+    // Add input listeners for real-time calculation
+    const consultationAmount = document.getElementById('consultationAmount');
+    const pharmacyAmount = document.getElementById('pharmacyAmount');
+    
+    if (consultationAmount) {
+        consultationAmount.removeEventListener('input', updateBillSummary);
+        consultationAmount.addEventListener('input', updateBillSummary);
+    }
+    if (pharmacyAmount) {
+        pharmacyAmount.removeEventListener('input', updateBillSummary);
+        pharmacyAmount.addEventListener('input', updateBillSummary);
     }
     
-    if (clearBtn) {
-        clearBtn.addEventListener('click', () => {
+    if (billingForm) {
+        // Clone and replace form to remove all old event listeners
+        const newForm = billingForm.cloneNode(true);
+        billingForm.parentNode.replaceChild(newForm, billingForm);
+        
+        // Add submit handler to the new form
+        newForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            console.log('📝 Form submitted, processing billing...');
+            await processBilling();
+        });
+        console.log('✅ Billing form submit handler attached (cleaned)');
+    } else {
+        console.error('❌ Billing form element not found!');
+    }
+    
+    // Re-get clear button after cloning
+    const newClearBtn = document.getElementById('clearBillingBtn');
+    if (newClearBtn) {
+        newClearBtn.addEventListener('click', () => {
             if (confirm('Clear all billing information?')) {
                 resetBillingForm();
                 selectedPatient = null;
@@ -430,28 +531,74 @@ function setupBillingForm() {
 }
 
 /**
+ * Generate sequential receipt number
+ */
+async function generateReceiptNumber() {
+    try {
+        // Get the latest bill to determine next number
+        const billsCollection = collection(db, 'bills');
+        const q = query(billsCollection, orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        
+        let maxNumber = 0;
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.receiptNumber && data.receiptNumber.startsWith('RCP-')) {
+                const numPart = data.receiptNumber.replace('RCP-', '');
+                const num = parseInt(numPart);
+                if (!isNaN(num) && num > maxNumber) {
+                    maxNumber = num;
+                }
+            }
+        });
+        
+        // Generate next number
+        const nextNumber = maxNumber + 1;
+        return 'RCP-' + String(nextNumber).padStart(3, '0');
+    } catch (error) {
+        console.error('Error generating receipt number:', error);
+        // Fallback to timestamp-based
+        return 'RCP-' + Date.now();
+    }
+}
+
+/**
  * Process billing and save to Firestore
  */
 async function processBilling() {
+    console.log('🔍 Starting billing process...');
+    
     if (!selectedPatient) {
+        console.warn('⚠️ No patient selected');
         showNotification('Please select a patient first', 'warning');
         return;
     }
     
-    const paymentMethod = document.getElementById('paymentMethod').value;
-    if (!paymentMethod) {
+    console.log('✓ Patient selected:', selectedPatient.fullName);
+    
+    const paymentMethodEl = document.getElementById('billingPaymentMethod');
+    console.log('Payment method element:', paymentMethodEl);
+    const paymentMethod = paymentMethodEl ? paymentMethodEl.value : '';
+    console.log('Payment method value:', paymentMethod);
+    
+    if (!paymentMethod || paymentMethod === '') {
+        console.warn('⚠️ No payment method selected');
         showNotification('Please select a payment method', 'warning');
         return;
     }
+    
+    console.log('✓ Payment method:', paymentMethod);
     
     try {
         // Collect bill items
         const billItems = [];
         let totalAmount = 0;
         
+        console.log('📋 Collecting bill items...');
+        
         // Consultation fee
         const consultationToggle = document.getElementById('consultationFeeToggle');
-        if (consultationToggle.checked) {
+        if (consultationToggle && consultationToggle.checked) {
             const amount = parseFloat(document.getElementById('consultationAmount').value) || 0;
             const status = document.getElementById('consultationStatus').value;
             billItems.push({
@@ -461,13 +608,20 @@ async function processBilling() {
                 status: status
             });
             totalAmount += amount;
+            console.log('  ✓ Consultation:', amount);
         }
         
         // Additional services
         const serviceItems = document.querySelectorAll('.service-item');
-        serviceItems.forEach(item => {
-            const description = item.querySelector('.service-description').value;
-            const amount = parseFloat(item.querySelector('.service-amount').value) || 0;
+        console.log('  Found', serviceItems.length, 'service items');
+        serviceItems.forEach((item, index) => {
+            const descriptionEl = item.querySelector('.service-description');
+            const amountEl = item.querySelector('.service-amount');
+            const description = descriptionEl ? descriptionEl.value.trim() : '';
+            const amount = parseFloat(amountEl ? amountEl.value : 0) || 0;
+            
+            console.log(`  Service ${index + 1}:`, description, amount);
+            
             if (description && amount > 0) {
                 billItems.push({
                     type: 'service',
@@ -476,12 +630,17 @@ async function processBilling() {
                     status: 'paid'
                 });
                 totalAmount += amount;
+                console.log('    ✓ Added to bill');
+            } else if (description && amount === 0) {
+                console.warn('    ⚠️ Service has 0 amount, skipped');
+            } else if (!description) {
+                console.warn('    ⚠️ Service has no description, skipped');
             }
         });
         
         // Pharmacy payment
         const pharmacyToggle = document.getElementById('pharmacyPaymentToggle');
-        if (pharmacyToggle.checked) {
+        if (pharmacyToggle && pharmacyToggle.checked) {
             const amount = parseFloat(document.getElementById('pharmacyAmount').value) || 0;
             const prescriptionNumber = document.getElementById('pharmacyPrescriptionNumber').value;
             if (amount > 0) {
@@ -493,35 +652,42 @@ async function processBilling() {
                     prescriptionNumber: prescriptionNumber
                 });
                 totalAmount += amount;
+                console.log('  ✓ Pharmacy:', amount);
             }
         }
         
         if (billItems.length === 0) {
+            console.warn('⚠️ No bill items added');
             showNotification('Please add at least one bill item', 'warning');
             return;
         }
         
-        // Generate receipt number
-        const receiptNumber = 'RCP-' + Date.now();
+        console.log('✓ Total items:', billItems.length, 'Total amount:', totalAmount);
         
-        // Prepare bill data
+        // Generate sequential receipt number
+        const receiptNumber = await generateReceiptNumber();
+        console.log('✓ Receipt number:', receiptNumber);
+        
+        // Prepare bill data (with proper null checks)
         const billData = {
             receiptNumber: receiptNumber,
-            patientId: selectedPatient.id,
-            patientNumber: selectedPatient.patientNumber,
-            patientName: selectedPatient.fullName,
-            patientAge: selectedPatient.age,
-            patientGender: selectedPatient.gender,
+            patientId: selectedPatient.id || '',
+            patientNumber: selectedPatient.patientNumber || '',
+            patientName: selectedPatient.fullName || '',
+            patientAge: selectedPatient.age || null,
+            patientGender: selectedPatient.gender || null,
             items: billItems,
             totalAmount: totalAmount,
             paymentMethod: paymentMethod,
-            paymentReference: document.getElementById('paymentReference').value || null,
-            notes: document.getElementById('billingNotes').value || null,
+            paymentReference: document.getElementById('paymentReference')?.value || null,
+            notes: document.getElementById('billingNotes')?.value || null,
             status: 'paid',
             createdAt: serverTimestamp(),
             createdBy: 'Current User',
             dateTime: new Date().toISOString()
         };
+        
+        console.log('💾 Saving to Firestore...', billData);
         
         // Save to Firestore
         const billsCollection = collection(db, 'bills');
@@ -543,8 +709,11 @@ async function processBilling() {
         // Update stats
         updateBillingStats();
         
+        console.log('✅ Billing process completed successfully');
+        
     } catch (error) {
         console.error('❌ Error processing billing:', error);
+        console.error('Error details:', error.message, error.stack);
         showNotification('Error processing payment: ' + error.message, 'error');
     }
 }
@@ -659,7 +828,7 @@ function setupBillsRealtimeListener() {
         const billsCollection = collection(db, 'bills');
         const q = query(billsCollection, orderBy('dateTime', 'desc'));
         
-        onSnapshot(q, (snapshot) => {
+        const unsubscribe = onSnapshot(q, (snapshot) => {
             allBills = [];
             snapshot.forEach((doc) => {
                 allBills.push({
@@ -680,8 +849,10 @@ function setupBillsRealtimeListener() {
         });
         
         console.log('✅ Bills real-time listener setup');
+        return unsubscribe;
     } catch (error) {
         console.error('Error setting up bills listener:', error);
+        return null;
     }
 }
 
@@ -836,6 +1007,9 @@ function renderBillsTable() {
                     <button class="bill-action-btn view" onclick="viewBill('${bill.id}')" title="View Receipt">
                         <i class="fas fa-eye"></i>
                     </button>
+                    <button class="bill-action-btn print" onclick="printBill('${bill.id}')" title="Print Bill">
+                        <i class="fas fa-print"></i>
+                    </button>
                     ${bill.status !== 'cancelled' ? `
                     <button class="bill-action-btn cancel" onclick="cancelBill('${bill.id}')" title="Cancel">
                         <i class="fas fa-ban"></i>
@@ -858,6 +1032,123 @@ window.viewBill = function(billId) {
     if (bill) {
         showReceipt(bill);
     }
+};
+
+/**
+ * Print bill
+ */
+window.printBill = function(billId) {
+    const bill = allBills.find(b => b.id === billId);
+    if (!bill) {
+        showNotification('Bill not found', 'error');
+        return;
+    }
+    
+    // Create print window with receipt
+    const printWindow = window.open('', '_blank');
+    const date = new Date(bill.dateTime);
+    
+    const itemsHTML = bill.items.map(item => `
+        <tr>
+            <td style="padding:8px;border-bottom:1px solid #ddd;">${item.description}</td>
+            <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${formatCurrency(item.amount)}</td>
+        </tr>
+    `).join('');
+    
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Receipt - ${bill.receiptNumber}</title>
+            <style>
+                body { font-family: 'Courier New', monospace; max-width: 800px; margin: 0 auto; padding: 20px; }
+                .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 20px; }
+                .header h1 { margin: 0; font-size: 24px; }
+                .header p { margin: 5px 0; font-size: 12px; }
+                .info { margin-bottom: 20px; }
+                .info table { width: 100%; }
+                .info td { padding: 5px 0; }
+                .items table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                .items th { background: #f0f0f0; padding: 10px; text-align: left; border-bottom: 2px solid #000; }
+                .total { text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; border-top: 2px solid #000; padding-top: 10px; }
+                .footer { text-align: center; margin-top: 40px; border-top: 1px solid #ddd; padding-top: 20px; font-size: 12px; }
+                @media print {
+                    body { margin: 0; padding: 10mm; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>RxFlow Hospital Management System</h1>
+                <p>Payment Receipt</p>
+                <p>Receipt No: <strong>${bill.receiptNumber}</strong></p>
+                <p>Date: ${date.toLocaleDateString()} ${date.toLocaleTimeString()}</p>
+            </div>
+            
+            <div class="info">
+                <table>
+                    <tr>
+                        <td><strong>Patient Number:</strong></td>
+                        <td>${bill.patientNumber}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Patient Name:</strong></td>
+                        <td>${bill.patientName}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Payment Method:</strong></td>
+                        <td>${bill.paymentMethod.toUpperCase()}</td>
+                    </tr>
+                    ${bill.paymentReference ? `
+                    <tr>
+                        <td><strong>Reference:</strong></td>
+                        <td>${bill.paymentReference}</td>
+                    </tr>
+                    ` : ''}
+                </table>
+            </div>
+            
+            <div class="items">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th style="text-align:right;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHTML}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="total">
+                <p>TOTAL AMOUNT: ${formatCurrency(bill.totalAmount)}</p>
+            </div>
+            
+            ${bill.notes ? `
+            <div style="margin-top:20px;">
+                <p><strong>Notes:</strong> ${bill.notes}</p>
+            </div>
+            ` : ''}
+            
+            <div class="footer">
+                <p>Thank you for choosing RxFlow Hospital</p>
+                <p>This is an official receipt</p>
+            </div>
+            
+            <script>
+                window.onload = function() {
+                    window.print();
+                    // Close after print dialog is closed (optional)
+                    // window.onafterprint = function() { window.close(); };
+                }
+            </script>
+        </body>
+        </html>
+    `);
+    
+    printWindow.document.close();
 };
 
 /**
@@ -1057,31 +1348,30 @@ function formatCurrency(amount) {
 }
 
 /**
- * Show notification
+ * Show notification - Clean and simple
  */
 function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
     
     const bgColors = {
-        success: 'linear-gradient(135deg, #2ecc71 0%, #27ae60 100%)',
-        error: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
-        warning: 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)',
-        info: 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)'
+        success: '#27ae60',
+        error: '#e74c3c',
+        warning: '#f39c12',
+        info: '#3498db'
     };
     
     const icons = {
         success: 'check-circle',
-        error: 'exclamation-circle',
+        error: 'times-circle',
         warning: 'exclamation-triangle',
         info: 'info-circle'
     };
     
     notification.innerHTML = `
-        <div style="display:flex;align-items:center;gap:12px;">
-            <i class="fas fa-${icons[type]}" style="font-size:20px;"></i>
+        <div style="display:flex;align-items:center;gap:10px;">
+            <i class="fas fa-${icons[type]}" style="font-size:16px;"></i>
             <span style="flex:1;">${message}</span>
-            <button onclick="this.parentElement.parentElement.remove()" style="background:none;border:none;color:white;cursor:pointer;font-size:18px;padding:0;opacity:0.8;transition:opacity 0.2s;">
+            <button onclick="this.parentElement.parentElement.remove()" style="background:none;border:none;color:white;cursor:pointer;font-size:14px;padding:0;">
                 <i class="fas fa-times"></i>
             </button>
         </div>
@@ -1089,59 +1379,29 @@ function showNotification(message, type = 'info') {
     
     notification.style.cssText = `
         position: fixed;
-        top: 90px;
+        top: 80px;
         right: 20px;
         background: ${bgColors[type]};
         color: white;
-        padding: 16px 20px;
-        border-radius: 12px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+        padding: 12px 16px;
+        border-radius: 6px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         z-index: 10001;
-        min-width: 320px;
-        max-width: 450px;
+        min-width: 280px;
+        max-width: 400px;
         font-family: 'Montserrat', sans-serif;
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 500;
-        animation: slideInRight 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        backdrop-filter: blur(10px);
     `;
     
     document.body.appendChild(notification);
     
-    // Remove after 4 seconds
+    // Remove after 3 seconds
     setTimeout(() => {
-        notification.style.animation = 'slideOutRight 0.3s ease-out forwards';
+        notification.style.opacity = '0';
+        notification.style.transition = 'opacity 0.3s';
         setTimeout(() => notification.remove(), 300);
-    }, 4000);
-}
-
-// Add notification animations if not present
-if (!document.getElementById('notification-animations-billing')) {
-    const style = document.createElement('style');
-    style.id = 'notification-animations-billing';
-    style.textContent = `
-        @keyframes slideInRight {
-            from {
-                transform: translateX(500px);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-        @keyframes slideOutRight {
-            from {
-                transform: translateX(0);
-                opacity: 1;
-            }
-            to {
-                transform: translateX(500px);
-                opacity: 0;
-            }
-        }
-    `;
-    document.head.appendChild(style);
+    }, 3000);
 }
 
 /**
