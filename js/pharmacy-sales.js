@@ -397,28 +397,91 @@ function updatePaginationInfo(start, end, total) {
  */
 window.viewSale = function(saleId) {
     const sale = allSales.find(s => s.id === saleId);
-    if (!sale) return;
+    if (!sale) {
+        alert('Sale not found');
+        return;
+    }
     
     const saleDate = sale.createdAt?.toDate?.() || new Date(sale.timestamp);
     
-    alert(`
-Sale Details:
-═══════════════════
-Sale #: ${sale.saleNumber}
-Date: ${saleDate.toLocaleString()}
-Customer: ${sale.customerName}
-Contact: ${sale.customerContact}
-Payment: ${sale.paymentMethod}
-═══════════════════
-Items: ${sale.items?.length || 0}
-Subtotal: KSh ${sale.subtotal.toFixed(2)}
-Tax: KSh ${sale.tax.toFixed(2)}
-Discount: KSh ${sale.discount || 0}
-Total: KSh ${sale.total.toFixed(2)}
-═══════════════════
-Status: ${sale.status || 'completed'}
-    `);
+    // Populate modal with sale data
+    document.getElementById('modalSaleNumber').textContent = sale.saleNumber || sale.id;
+    document.getElementById('modalSaleDate').textContent = saleDate.toLocaleString();
+    document.getElementById('modalSaleTotal').textContent = (sale.total || 0).toFixed(2);
+    document.getElementById('modalSaleStatus').textContent = (sale.status || 'completed').toUpperCase();
+    
+    // Customer info
+    document.getElementById('modalCustomerName').textContent = sale.customerName || 'Walk-in Customer';
+    document.getElementById('modalCustomerContact').textContent = sale.customerContact || 'N/A';
+    document.getElementById('modalPaymentMethod').textContent = formatPaymentMethod(sale.paymentMethod);
+    document.getElementById('modalServedBy').textContent = sale.servedBy || sale.cashier || 'Staff';
+    
+    // Items sold
+    const itemsTableBody = document.getElementById('modalSaleItems');
+    if (sale.items && sale.items.length > 0) {
+        itemsTableBody.innerHTML = sale.items.map(item => `
+            <tr>
+                <td style="text-align: left;">
+                    <strong>${item.name || item.drugName || 'Unknown Item'}</strong>
+                    ${item.genericName ? `<br><small style="color: var(--text-secondary);">${item.genericName}</small>` : ''}
+                </td>
+                <td style="text-align: center;">${item.quantity || 1}</td>
+                <td style="text-align: right;">KSh ${(item.unitPrice || item.price || 0).toFixed(2)}</td>
+                <td style="text-align: right;"><strong>KSh ${((item.quantity || 1) * (item.unitPrice || item.price || 0)).toFixed(2)}</strong></td>
+            </tr>
+        `).join('');
+    } else {
+        itemsTableBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--text-secondary);">No items in this sale</td></tr>';
+    }
+    
+    // Sale summary
+    document.getElementById('modalSubtotal').textContent = (sale.subtotal || 0).toFixed(2);
+    document.getElementById('modalTax').textContent = (sale.tax || 0).toFixed(2);
+    document.getElementById('modalDiscount').textContent = (sale.discount || 0).toFixed(2);
+    document.getElementById('modalTotalAmount').textContent = (sale.total || 0).toFixed(2);
+    
+    // Store current sale ID for printing
+    window.currentViewingSaleId = saleId;
+    
+    // Show modal
+    const modal = document.getElementById('saleDetailsModal');
+    modal.classList.add('active');
+    modal.style.display = 'flex';
 };
+
+/**
+ * Close sale details modal
+ */
+window.closeSaleDetailsModal = function() {
+    const modal = document.getElementById('saleDetailsModal');
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+    window.currentViewingSaleId = null;
+};
+
+/**
+ * Print sale from modal
+ */
+window.printSaleFromModal = function() {
+    if (window.currentViewingSaleId) {
+        window.printSale(window.currentViewingSaleId);
+    }
+};
+
+/**
+ * Format payment method for display
+ */
+function formatPaymentMethod(method) {
+    const methods = {
+        'cash': 'Cash',
+        'card': 'Card',
+        'mobile-money': 'Mobile Money',
+        'mpesa': 'M-Pesa',
+        'insurance': 'Insurance',
+        'bank-transfer': 'Bank Transfer'
+    };
+    return methods[method] || method || 'Cash';
+}
 
 /**
  * Print sale receipt
