@@ -6198,10 +6198,25 @@ async function savePrescriptionToFirebase(rxData) {
     }
     
     try {
-        const { db, collection, addDoc, serverTimestamp } = await import('./firebase-config.js');
+        const { db, collection, addDoc, serverTimestamp, query, where, getDocs } = await import('./firebase-config.js');
+        
+        // Generate a unique session ID based on patient, report, and timestamp
+        const sessionId = `${rxData.patientId}_${rxData.reportId}_${new Date().toISOString().split('T')[0]}`;
+        
+        // Check if a prescription with this sessionId already exists
+        const prescriptionsRef = collection(db, 'prescriptions');
+        const q = query(prescriptionsRef, where('sessionId', '==', sessionId));
+        const existingDocs = await getDocs(q);
+        
+        if (!existingDocs.empty) {
+            console.log('Prescription with this sessionId already exists, skipping save');
+            prescriptionSavedForCurrentSession = true;
+            return { success: true, duplicate: true, existing: true };
+        }
         
         const prescriptionData = {
             ...rxData,
+            sessionId: sessionId,
             timestamp: serverTimestamp(),
             createdAt: new Date().toISOString()
         };
@@ -6270,10 +6285,25 @@ async function loadPatientPrescriptions(patientId) {
         }
         
         const prescriptions = [];
+        const seenSessionIds = new Set();
+        
         querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            const sessionId = data.sessionId;
+            
+            // Skip duplicates based on sessionId
+            if (sessionId && seenSessionIds.has(sessionId)) {
+                console.log('Skipping duplicate prescription with sessionId:', sessionId);
+                return;
+            }
+            
+            if (sessionId) {
+                seenSessionIds.add(sessionId);
+            }
+            
             prescriptions.push({
                 id: doc.id,
-                ...doc.data()
+                ...data
             });
         });
         
