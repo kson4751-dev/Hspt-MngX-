@@ -4,21 +4,60 @@
 const themeToggle = document.getElementById('themeToggle');
 const body = document.body;
 
-// Load saved theme
-const savedTheme = localStorage.getItem('theme') || 'light';
-if (savedTheme === 'dark') {
-    body.classList.add('dark-theme');
-}
+// Load saved theme from localStorage or user preferences
+const savedTheme = localStorage.getItem('userTheme') || localStorage.getItem('theme') || 'light';
+applyThemeFromToggle(savedTheme);
 
 themeToggle.addEventListener('click', () => {
-    body.classList.toggle('dark-theme');
+    // Toggle between light and dark
+    const currentTheme = getCurrentTheme();
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
     
-    if (body.classList.contains('dark-theme')) {
-        localStorage.setItem('theme', 'dark');
-    } else {
-        localStorage.setItem('theme', 'light');
+    applyThemeFromToggle(newTheme);
+    
+    // Save to localStorage
+    localStorage.setItem('theme', newTheme);
+    localStorage.setItem('userTheme', newTheme);
+    
+    // Update Firestore if profile settings module is loaded
+    if (window.savePreferencesToFirebase) {
+        window.savePreferencesToFirebase({ theme: newTheme }).catch(err => {
+            console.log('Theme saved locally only');
+        });
     }
 });
+
+// Apply theme function - instant, no animation
+function applyThemeFromToggle(theme) {
+    // Disable transitions temporarily for instant switch
+    body.style.transition = 'none';
+    
+    // Remove all theme classes
+    body.classList.remove('dark-theme', 'theme-light', 'theme-dark', 'theme-blue', 'theme-green');
+    
+    // Add appropriate theme class immediately
+    if (theme === 'dark') {
+        body.classList.add('dark-theme', 'theme-dark');
+    } else {
+        body.classList.add('theme-light');
+    }
+    
+    // Force immediate reflow
+    void body.offsetHeight;
+    
+    // Re-enable transitions after theme is applied
+    setTimeout(() => {
+        body.style.transition = '';
+    }, 0);
+}
+
+// Get current theme
+function getCurrentTheme() {
+    if (body.classList.contains('dark-theme') || body.classList.contains('theme-dark')) {
+        return 'dark';
+    }
+    return 'light';
+}
 
 // Sidebar Toggle
 const sidebarToggle = document.getElementById('sidebarToggle');

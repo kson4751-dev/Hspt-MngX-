@@ -458,21 +458,38 @@ async function loadAndApplyPreferences() {
     }
 }
 
-// Apply theme to the application
+// Apply theme to the application - instant, no animation
 function applyTheme(theme) {
     console.log('🎨 Applying theme:', theme);
     
-    // Remove existing theme classes
-    document.body.classList.remove('theme-light', 'theme-dark', 'theme-blue', 'theme-green');
+    // Disable transitions for instant switch
+    document.body.style.transition = 'none';
     
-    // Add new theme class
+    // Remove existing theme classes
+    document.body.classList.remove('theme-light', 'theme-dark', 'theme-blue', 'theme-green', 'dark-theme');
+    
+    // Add new theme class immediately
     document.body.classList.add(`theme-${theme}`);
+    
+    // Also add dark-theme for backward compatibility
+    if (theme === 'dark') {
+        document.body.classList.add('dark-theme');
+    }
+    
+    // Force immediate reflow
+    void document.body.offsetHeight;
+    
+    // Re-enable transitions
+    setTimeout(() => {
+        document.body.style.transition = '';
+    }, 0);
     
     // Cache theme preference
     const storageType = localStorage.getItem('userId') ? localStorage : sessionStorage;
     storageType.setItem('userTheme', theme);
+    storageType.setItem('theme', theme);
     
-    console.log('✅ Theme applied:', theme);
+    console.log('✅ Theme applied instantly:', theme);
 }
 
 // Apply sound settings
@@ -816,4 +833,9 @@ if (document.readyState === 'loading') {
     initProfileSettings();
 }
 
-export { initProfileSettings, loadUserProfile };
+// Export functions for use by other modules
+export { initProfileSettings, loadUserProfile, applyTheme, savePreferencesToFirebase };
+
+// Make functions available globally for backward compatibility
+window.savePreferencesToFirebase = savePreferencesToFirebase;
+window.applyTheme = applyTheme;

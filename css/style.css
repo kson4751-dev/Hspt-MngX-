@@ -19,6 +19,11 @@
     --transition: all 0.3s ease;
 }
 
+/* Disable transitions on theme-affected properties for instant switching */
+* {
+    transition-property: transform, opacity, box-shadow, border, margin, padding, width, height, max-height, left, right, top, bottom !important;
+}
+
 /* Dark Theme */
 body.dark-theme,
 body.theme-dark {
@@ -81,7 +86,6 @@ body {
     font-family: 'Montserrat', sans-serif;
     background-color: var(--bg-color);
     color: var(--text-primary);
-    transition: var(--transition);
     overflow-x: hidden;
 }
 
@@ -142,7 +146,7 @@ body {
     cursor: pointer;
     padding: 8px;
     border-radius: 8px;
-    transition: var(--transition);
+    transition: transform 0.2s ease;
 }
 
 .sidebar-toggle:hover {
@@ -625,7 +629,7 @@ body.dark-theme .theme-toggle .moon-icon {
     border-right: 1px solid var(--border-color);
     overflow-y: auto;
     overflow-x: hidden;
-    transition: var(--transition);
+    transition: width 0.3s ease, left 0.3s ease;
     z-index: 999;
 }
 
@@ -655,7 +659,7 @@ body.dark-theme .theme-toggle .moon-icon {
     text-decoration: none;
     font-size: 15px;
     font-weight: 500;
-    transition: var(--transition);
+    transition: padding 0.3s ease, gap 0.3s ease;
     white-space: nowrap;
     position: relative;
 }
@@ -668,7 +672,7 @@ body.dark-theme .theme-toggle .moon-icon {
 .dropdown-icon {
     margin-left: auto;
     font-size: 14px !important;
-    transition: var(--transition);
+    transition: transform 0.3s ease;
 }
 
 .nav-item-group.open .dropdown-icon {
@@ -13286,6 +13290,111 @@ body.dark-theme .vital-item-value {
     font-size: 15px;
     font-weight: 500;
     color: var(--text-primary);
+}
+
+/* Dark Theme & Theme Support for Settings Module */
+body.dark-theme .settings-form .form-input,
+body.theme-dark .settings-form .form-input {
+    background: var(--sidebar-bg);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+body.dark-theme .settings-form .form-input:read-only,
+body.theme-dark .settings-form .form-input:read-only {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary);
+}
+
+body.dark-theme .profile-photo-section h3,
+body.theme-dark .profile-photo-section h3,
+body.dark-theme .profile-info-section h3,
+body.theme-dark .profile-info-section h3 {
+    color: var(--text-primary);
+}
+
+body.dark-theme .settings-form label,
+body.theme-dark .settings-form label {
+    color: var(--text-primary);
+}
+
+body.dark-theme .info-item,
+body.theme-dark .info-item {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: var(--border-color);
+}
+
+body.dark-theme .info-label,
+body.theme-dark .info-label {
+    color: var(--text-secondary);
+}
+
+body.dark-theme .info-value,
+body.theme-dark .info-value {
+    color: var(--text-primary);
+}
+
+body.dark-theme .checkbox-label,
+body.theme-dark .checkbox-label {
+    color: var(--text-primary);
+}
+
+body.dark-theme .settings-tab-content h3,
+body.theme-dark .settings-tab-content h3 {
+    color: var(--text-primary);
+}
+
+body.dark-theme textarea.form-input,
+body.theme-dark textarea.form-input {
+    background: var(--sidebar-bg);
+    color: var(--text-primary);
+}
+
+/* Blue and Green themes - ensure good contrast */
+body.theme-blue .settings-form label,
+body.theme-blue .settings-tab-content h3,
+body.theme-blue .info-value {
+    color: var(--text-primary);
+}
+
+body.theme-green .settings-form label,
+body.theme-green .settings-tab-content h3,
+body.theme-green .info-value {
+    color: var(--text-primary);
+}
+
+/* Small text and helper text in forms */
+.settings-form small,
+.form-group small {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+body.dark-theme .settings-form small,
+body.theme-dark .settings-form small,
+body.dark-theme .form-group small,
+body.theme-dark .form-group small {
+    color: var(--text-secondary);
+}
+
+/* Ensure all headings are visible in all themes */
+.settings-tab-content h3,
+.settings-tab-content h4 {
+    color: var(--text-primary);
+}
+
+/* Password input fields in dark theme */
+body.dark-theme input[type="password"],
+body.theme-dark input[type="password"] {
+    background: var(--sidebar-bg);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+body.dark-theme input[type="password"]::placeholder,
+body.theme-dark input[type="password"]::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.6;
 }
 
 @media (max-width: 768px) {
