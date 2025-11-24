@@ -654,10 +654,20 @@ function navigateToModule(module, submodule = null) {
 }
 
 // Initialize dashboard on page load
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     initializeDashboard();
     loadRecentActivities();
     initializeDashboardSearch();
+    
+    // Initialize Ward & Nursing Module
+    try {
+        const { initWardNursingModule } = await import('./ward-nursing.js');
+        if (initWardNursingModule) {
+            initWardNursingModule();
+        }
+    } catch (error) {
+        console.error('Error initializing Ward & Nursing module:', error);
+    }
 });
 
 // ==========================================
@@ -5388,79 +5398,135 @@ async function sendToPharmacy() {
     }
 }
 
+// Processing flags to prevent double submissions
+let isProcessingSendToNurse = false;
+let isProcessingReferToWard = false;
+
 async function sendToNurse() {
-    if (!validateRxData()) return;
+    console.log('🏥 sendToNurse() called');
     
+    // Prevent double-click submissions
+    if (isProcessingSendToNurse) {
+        console.log('⏳ Already processing, please wait...');
+        return;
+    }
+    
+    console.log('📋 Current Rx Report:', currentRxReport);
+    
+    if (!validateRxData()) {
+        console.log('❌ Validation failed');
+        return;
+    }
+    
+    isProcessingSendToNurse = true;
     const rxData = collectRxData();
-    rxData.action = 'ward-nursing';
-    
-    console.log('Sending to Ward & Nursing:', rxData);
+    console.log('📦 Collected Rx Data:', rxData);
     
     try {
         // Import Firebase functions
         const { db, collection, addDoc, serverTimestamp } = await import('./firebase-config.js');
+        console.log('✅ Firebase imported successfully');
         
-        // Send to ward queue for nursing care
-        await addDoc(collection(db, 'wardQueue'), {
+        // Prepare ward queue data
+        const wardQueueData = {
             patientId: currentRxReport.patientId,
             patientName: currentRxReport.patientName,
             age: currentRxReport.age,
             gender: currentRxReport.gender,
-            diagnosis: rxData.diagnosis || currentRxReport.chiefComplaint,
-            referringDoctor: rxData.doctorName || 'Doctor',
-            treatmentPlan: rxData.treatmentPlan || '',
+            diagnosis: rxData.diagnosis && rxData.diagnosis.length > 0 ? rxData.diagnosis.join(', ') : currentRxReport.chiefComplaint || 'No diagnosis provided',
+            referringDoctor: rxData.prescribedBy || 'Doctor',
+            treatmentPlan: rxData.managementNotes || 'Nursing care required',
             medications: rxData.medications || [],
             priority: 'normal',
             status: 'pending',
             timestamp: serverTimestamp(),
             type: 'nursing-care'
-        });
+        };
         
-        alert(`Treatment plan sent to Ward & Nursing Station!\n\nPatient: ${currentRxReport.patientName}\n\nThe nursing staff will follow up with the patient.`);
+        console.log('📤 Sending to wardQueue:', wardQueueData);
+        
+        // Send to ward queue for nursing care
+        const docRef = await addDoc(collection(db, 'wardQueue'), wardQueueData);
+        
+        console.log('✅ Successfully added to wardQueue with ID:', docRef.id);
+        
+        alert(`✅ Patient sent to Ward & Nursing!\n\nPatient: ${currentRxReport.patientName}\nQueue ID: ${docRef.id}\n\nThe nursing staff will follow up with the patient.`);
+        
+        closeRxTreatmentModal();
     } catch (error) {
-        console.error('Error sending to ward:', error);
-        alert('Error sending to Ward & Nursing. Please try again.');
+        console.error('❌ Error sending to ward:', error);
+        console.error('Error details:', error.message, error.stack);
+        alert('Error sending to Ward & Nursing: ' + error.message);
+    } finally {
+        isProcessingSendToNurse = false;
     }
-    
-    closeRxTreatmentModal();
 }
 
-async function referToWardNursing() {
-    if (!validateRxData()) return;
+// Expose globally for onclick handler
+window.sendToNurse = sendToNurse;
+
+async function referToWard() {
+    console.log('🚨 referToWard() called - URGENT ADMISSION');
     
+    // Prevent double-click submissions
+    if (isProcessingReferToWard) {
+        console.log('⏳ Already processing, please wait...');
+        return;
+    }
+    
+    console.log('📋 Current Rx Report:', currentRxReport);
+    
+    if (!validateRxData()) {
+        console.log('❌ Validation failed');
+        return;
+    }
+    
+    isProcessingReferToWard = true;
     const rxData = collectRxData();
-    rxData.action = 'ward-nursing';
-    
-    console.log('Referring to Ward & Nursing:', rxData);
+    console.log('📦 Collected Rx Data:', rxData);
     
     try {
         // Import Firebase functions
         const { db, collection, addDoc, serverTimestamp } = await import('./firebase-config.js');
+        console.log('✅ Firebase imported successfully');
         
-        // Send to ward queue for admission
-        await addDoc(collection(db, 'wardQueue'), {
+        // Prepare ward queue data for urgent admission
+        const wardQueueData = {
             patientId: currentRxReport.patientId,
             patientName: currentRxReport.patientName,
             age: currentRxReport.age,
             gender: currentRxReport.gender,
-            diagnosis: rxData.diagnosis || currentRxReport.chiefComplaint,
-            referringDoctor: rxData.doctorName || 'Doctor',
-            treatmentPlan: rxData.treatmentPlan || '',
+            diagnosis: rxData.diagnosis && rxData.diagnosis.length > 0 ? rxData.diagnosis.join(', ') : currentRxReport.chiefComplaint || 'No diagnosis provided',
+            referringDoctor: rxData.prescribedBy || 'Doctor',
+            treatmentPlan: rxData.managementNotes || 'Patient requires ward admission',
             medications: rxData.medications || [],
             priority: 'urgent',
             status: 'pending',
             timestamp: serverTimestamp(),
             type: 'admission'
-        });
+        };
         
-        alert(`Patient referred to Ward & Nursing for admission!\n\nPatient: ${currentRxReport.patientName}\n\nThe ward & nursing team will prepare for patient admission.`);
+        console.log('📤 Sending URGENT admission to wardQueue:', wardQueueData);
+        
+        // Send to ward queue for urgent admission
+        const docRef = await addDoc(collection(db, 'wardQueue'), wardQueueData);
+        
+        console.log('✅ Successfully added to wardQueue with ID:', docRef.id);
+        
+        alert(`✅ Patient referred for URGENT ward admission!\n\nPatient: ${currentRxReport.patientName}\nQueue ID: ${docRef.id}\nPriority: URGENT\n\nThe ward & nursing team will prepare for immediate admission.`);
+        
+        closeRxTreatmentModal();
     } catch (error) {
-        console.error('Error referring to ward:', error);
-        alert('Error referring to Ward & Nursing. Please try again.');
+        console.error('❌ Error referring to ward:', error);
+        console.error('Error details:', error.message, error.stack);
+        alert('Error referring to Ward & Nursing: ' + error.message);
+    } finally {
+        isProcessingReferToWard = false;
     }
-    
-    closeRxTreatmentModal();
 }
+
+// Expose globally for onclick handler
+window.referToWard = referToWard;
 
 function sendToBilling() {
     if (!validateRxData()) return;

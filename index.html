@@ -1863,103 +1863,105 @@
         <div class="module" id="ward-nursing-module">
             <div class="module-header">
                 <h1 class="module-title">Ward & Nursing</h1>
-                <p class="module-description">Inpatient management, bed allocation, patient care, medication administration, and vital monitoring</p>
+                <p class="module-description">Inpatient management, bed allocation, patient care, and monitoring</p>
             </div>
 
-            <div class="module-content">
-                <!-- Stats Grid -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                            <i class="fas fa-bed"></i>
-                        </div>
-                        <div class="stat-info">
-                            <span class="stat-label">Total Patients</span>
-                            <span class="stat-value" id="wardTotalPatientsCount">0</span>
-                        </div>
+            <!-- Stats Grid -->
+            <div class="stats-container">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background-color: rgba(139, 92, 246, 0.1);">
+                        <i class="fas fa-users" style="color: #8b5cf6;"></i>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                            <i class="fas fa-user-check"></i>
-                        </div>
-                        <div class="stat-info">
-                            <span class="stat-label">Admitted Today</span>
-                            <span class="stat-value" id="wardAdmittedTodayCount">0</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
-                            <i class="fas fa-sign-out-alt"></i>
-                        </div>
-                        <div class="stat-info">
-                            <span class="stat-label">Discharged Today</span>
-                            <span class="stat-value" id="wardDischargedTodayCount">0</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-                            <i class="fas fa-hospital-user"></i>
-                        </div>
-                        <div class="stat-info">
-                            <span class="stat-label">Occupied Beds</span>
-                            <span class="stat-value" id="wardOccupiedBedsCount">0</span>
-                        </div>
+                    <div class="stat-content">
+                        <h3 class="stat-value" id="wardQueueCount">0</h3>
+                        <p class="stat-label">Queue from Doctors</p>
                     </div>
                 </div>
 
-                <!-- Nursing Station Queue -->
-                <div class="lab-queue-section">
-                    <div class="section-header">
-                        <h2 class="section-title">
-                            <i class="fas fa-user-nurse"></i>
-                            Nursing Station Queue
-                        </h2>
-                        <button class="btn btn-sm btn-primary" onclick="refreshWardQueue()">
-                            <i class="fas fa-sync-alt"></i>
-                            Refresh
+                <div class="stat-card">
+                    <div class="stat-icon" style="background-color: rgba(16, 185, 129, 0.1);">
+                        <i class="fas fa-bed" style="color: #10b981;"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 class="stat-value" id="wardTotalPatients">0</h3>
+                        <p class="stat-label">Total Admitted</p>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background-color: rgba(245, 158, 11, 0.1);">
+                        <i class="fas fa-hospital-user" style="color: #f59e0b;"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 class="stat-value" id="wardAdmittedToday">0</h3>
+                        <p class="stat-label">Admitted Today</p>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background-color: rgba(14, 165, 233, 0.1);">
+                        <i class="fas fa-door-open" style="color: #0ea5e9;"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 class="stat-value" id="wardOccupiedBeds">0</h3>
+                        <p class="stat-label">Occupied Beds</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nursing Station Queue -->
+            <div class="section-container">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-user-nurse"></i> Nursing Station Queue
+                        <span class="badge" id="queueBadge">0</span>
+                    </h2>
+                    <button class="btn btn-secondary" onclick="refreshWardQueue()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+                
+                <div class="queue-container" id="wardQueueContainer">
+                    <div class="empty-state">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading queue...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ward Patients Table -->
+            <div class="table-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-bed"></i> Ward Patients
+                    </h2>
+                    <div class="section-actions">
+                        <div class="search-box-inline">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="wardSearchInput" placeholder="Search patients..." class="search-input-inline">
+                        </div>
+                        <select id="wardStatusFilter" class="filter-select">
+                            <option value="">All Status</option>
+                            <option value="admitted">Admitted</option>
+                            <option value="stable">Stable</option>
+                            <option value="critical">Critical</option>
+                            <option value="discharged">Discharged</option>
+                        </select>
+                        <button class="btn btn-secondary" onclick="refreshWardPatients()">
+                            <i class="fas fa-sync-alt"></i> Refresh
                         </button>
                     </div>
-                    
-                    <div class="lab-queue-horizontal">
-                        <div class="lab-queue-scroll" id="wardNursingQueue">
-                            <div class="empty-state">
-                                <i class="fas fa-inbox"></i>
-                                <p>No pending admissions from doctors</p>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
-                <!-- Ward Patients Table -->
-                <div class="lab-requests-section">
-                    <div class="section-header">
-                        <h2 class="section-title">
-                            <i class="fas fa-bed"></i>
-                            Ward Patients
-                        </h2>
-                        <div class="section-actions">
-                            <input type="search" class="search-input" placeholder="Search by patient ID or name..." id="wardSearchInput">
-                            <select class="form-control" id="wardStatusFilter" style="width: 150px;">
-                                <option value="">All Status</option>
-                                <option value="admitted">Admitted</option>
-                                <option value="discharged">Discharged</option>
-                                <option value="critical">Critical</option>
-                                <option value="stable">Stable</option>
-                            </select>
-                            <button class="btn btn-sm btn-success" onclick="refreshWardPatients()">
-                                <i class="fas fa-sync-alt"></i>
-                                Refresh
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="records-table-container">
-                        <table class="data-table">
+                <div class="table-container">
+                    <div class="table-wrapper">
+                        <table class="patients-table">
                             <thead>
                                 <tr>
                                     <th>Patient ID</th>
                                     <th>Patient Name</th>
-                                    <th>Age/Gender</th>
+                                    <th>Age</th>
+                                    <th>Gender</th>
                                     <th>Bed No.</th>
                                     <th>Admission Date</th>
                                     <th>Diagnosis</th>
@@ -1967,13 +1969,10 @@
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="wardPatientsBody">
-                                <tr class="empty-row">
-                                    <td colspan="8">
-                                        <div class="empty-state">
-                                            <i class="fas fa-bed"></i>
-                                            <p>No patients in ward</p>
-                                        </div>
+                            <tbody id="wardPatientsTableBody">
+                                <tr>
+                                    <td colspan="9" class="loading-row">
+                                        <i class="fas fa-spinner fa-spin"></i> Loading patients...
                                     </td>
                                 </tr>
                             </tbody>
@@ -6954,6 +6953,17 @@
         
         // Initialize when billing module is shown
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Page loaded - initializing ward module for realtime updates...');
+            
+            // Initialize ward module immediately on page load (not just when navigating to it)
+            // This ensures realtime listeners are active to receive patients from Rx module
+            try {
+                initWardNursingModule();
+                console.log('✅ Ward module initialized on page load');
+            } catch (error) {
+                console.error('❌ Error initializing ward module:', error);
+            }
+            
             // Watch for module changes
             const observer = new MutationObserver((mutations) => {
                 mutations.forEach((mutation) => {
@@ -6971,6 +6981,7 @@
                         }
                         
                         if (wardNursingModule && wardNursingModule.classList.contains('active')) {
+                            console.log('🏥 Ward module activated - re-initializing...');
                             initWardNursingModule();
                         }
                     }

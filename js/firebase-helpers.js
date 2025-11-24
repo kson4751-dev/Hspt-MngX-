@@ -796,5 +796,146 @@ export async function updateLabRequest(requestId, updates) {
     }
 }
 
+// ==================== WARD & NURSING ====================
+
+// Add patient to ward queue (from doctor/Rx module)
+export async function addToWardQueue(wardData) {
+    try {
+        const wardQueueRef = collection(db, 'wardQueue');
+        const docRef = await addDoc(wardQueueRef, {
+            ...wardData,
+            status: 'pending',
+            timestamp: serverTimestamp(),
+            createdAt: serverTimestamp()
+        });
+        console.log('Patient added to ward queue with ID:', docRef.id);
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('Error adding to ward queue:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// Subscribe to ward queue (realtime)
+export function subscribeToWardQueue(callback) {
+    console.log('🔍 subscribeToWardQueue called - setting up listener');
+    const wardQueueRef = collection(db, 'wardQueue');
+    
+    // Simple query without orderBy to avoid index requirement issues
+    const q = query(wardQueueRef, where('status', '==', 'pending'));
+    
+    console.log('📡 Starting onSnapshot listener for wardQueue...');
+    
+    return onSnapshot(q, (snapshot) => {
+        console.log('📥 onSnapshot triggered - documents found:', snapshot.size);
+        const queue = [];
+        snapshot.forEach((doc) => {
+            const data = { id: doc.id, ...doc.data() };
+            console.log('📄 Queue document:', doc.id, data);
+            queue.push(data);
+        });
+        
+        // Sort by timestamp in JavaScript instead
+        queue.sort((a, b) => {
+            const timeA = a.timestamp?.toDate?.() || new Date(0);
+            const timeB = b.timestamp?.toDate?.() || new Date(0);
+            return timeB - timeA; // Descending order
+        });
+        
+        console.log('✅ Calling callback with', queue.length, 'patients');
+        callback(queue);
+    }, (error) => {
+        console.error('❌ Error in ward queue onSnapshot:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        // Still call callback with empty array so UI doesn't break
+        callback([]);
+    });
+}
+
+// Admit patient to ward
+export async function admitPatientToWard(admissionData) {
+    try {
+        const wardAdmissionsRef = collection(db, 'ward_admissions');
+        const docRef = await addDoc(wardAdmissionsRef, {
+            ...admissionData,
+            status: 'admitted',
+            admissionDate: serverTimestamp(),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+        console.log('Patient admitted to ward with ID:', docRef.id);
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('Error admitting patient to ward:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// Subscribe to ward patients (realtime)
+export function subscribeToWardPatients(callback) {
+    const wardAdmissionsRef = collection(db, 'ward_admissions');
+    const q = query(wardAdmissionsRef, orderBy('admissionDate', 'desc'));
+    
+    return onSnapshot(q, (snapshot) => {
+        const patients = [];
+        snapshot.forEach((doc) => {
+            patients.push({ id: doc.id, ...doc.data() });
+        });
+        callback(patients);
+    }, (error) => {
+        console.error('Error fetching ward patients:', error);
+    });
+}
+
+// Update ward queue status (e.g., mark as admitted)
+export async function updateWardQueueStatus(queueId, status) {
+    try {
+        const queueRef = doc(db, 'wardQueue', queueId);
+        await updateDoc(queueRef, {
+            status: status,
+            updatedAt: serverTimestamp()
+        });
+        console.log('Ward queue updated:', queueId);
+        return { success: true };
+    } catch (error) {
+        console.error('Error updating ward queue:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// Get ward patient by ID
+export async function getWardPatient(patientId) {
+    try {
+        const patientRef = doc(db, 'ward_admissions', patientId);
+        const patientSnap = await getDoc(patientRef);
+        
+        if (patientSnap.exists()) {
+            return { success: true, data: { id: patientSnap.id, ...patientSnap.data() } };
+        } else {
+            return { success: false, error: 'Ward patient not found' };
+        }
+    } catch (error) {
+        console.error('Error getting ward patient:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// Update ward patient
+export async function updateWardPatient(patientId, updates) {
+    try {
+        const patientRef = doc(db, 'ward_admissions', patientId);
+        await updateDoc(patientRef, {
+            ...updates,
+            updatedAt: serverTimestamp()
+        });
+        console.log('Ward patient updated:', patientId);
+        return { success: true };
+    } catch (error) {
+        console.error('Error updating ward patient:', error);
+        return { success: false, error: error.message };
+    }
+}
+
 console.log('Firebase helper functions loaded');
 
