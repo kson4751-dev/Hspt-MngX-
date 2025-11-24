@@ -69,10 +69,108 @@ export async function updatePatient(patientId, updateData) {
 }
 
 // Delete patient
-export async function deletePatient(patientId) {
+export async function deletePatient(firebaseDocId) {
     try {
-        const patientRef = doc(db, 'patients', patientId);
+        console.log('Starting complete deletion for Firebase doc ID:', firebaseDocId);
+        
+        // First, get the patient document to retrieve the custom patientId
+        const patientRef = doc(db, 'patients', firebaseDocId);
+        const patientSnap = await getDoc(patientRef);
+        
+        if (!patientSnap.exists()) {
+            console.error('Patient document not found');
+            return { success: false, error: 'Patient not found in database' };
+        }
+        
+        const patientData = patientSnap.data();
+        const customPatientId = patientData.patientId;
+        console.log('Patient custom ID:', customPatientId);
+        
+        // Delete from main patients collection
         await deleteDoc(patientRef);
+        console.log('Deleted from patients collection');
+        
+        // Delete related records using the custom patientId
+        if (customPatientId) {
+            // Delete from triage queue if exists
+            try {
+                const triageQuery = query(collection(db, 'triage_queue'), where('patientId', '==', customPatientId));
+                const triageSnapshot = await getDocs(triageQuery);
+                const triageDeletes = triageSnapshot.docs.map(doc => deleteDoc(doc.ref));
+                await Promise.all(triageDeletes);
+                console.log(`Deleted ${triageSnapshot.size} triage queue records`);
+            } catch (err) {
+                console.warn('Error deleting triage queue records:', err);
+            }
+            
+            // Delete from triage records if exists
+            try {
+                const triageRecordsQuery = query(collection(db, 'triage_records'), where('patientId', '==', customPatientId));
+                const triageRecordsSnapshot = await getDocs(triageRecordsQuery);
+                const triageRecordsDeletes = triageRecordsSnapshot.docs.map(doc => deleteDoc(doc.ref));
+                await Promise.all(triageRecordsDeletes);
+                console.log(`Deleted ${triageRecordsSnapshot.size} triage records`);
+            } catch (err) {
+                console.warn('Error deleting triage records:', err);
+            }
+            
+            // Delete from lab requests if exists
+            try {
+                const labQuery = query(collection(db, 'lab_requests'), where('patientId', '==', customPatientId));
+                const labSnapshot = await getDocs(labQuery);
+                const labDeletes = labSnapshot.docs.map(doc => deleteDoc(doc.ref));
+                await Promise.all(labDeletes);
+                console.log(`Deleted ${labSnapshot.size} lab requests`);
+            } catch (err) {
+                console.warn('Error deleting lab requests:', err);
+            }
+            
+            // Delete from pharmacy orders if exists
+            try {
+                const pharmacyQuery = query(collection(db, 'pharmacy_orders'), where('patientId', '==', customPatientId));
+                const pharmacySnapshot = await getDocs(pharmacyQuery);
+                const pharmacyDeletes = pharmacySnapshot.docs.map(doc => deleteDoc(doc.ref));
+                await Promise.all(pharmacyDeletes);
+                console.log(`Deleted ${pharmacySnapshot.size} pharmacy orders`);
+            } catch (err) {
+                console.warn('Error deleting pharmacy orders:', err);
+            }
+            
+            // Delete from doctor queue if exists
+            try {
+                const doctorQuery = query(collection(db, 'doctor_queue'), where('patientId', '==', customPatientId));
+                const doctorSnapshot = await getDocs(doctorQuery);
+                const doctorDeletes = doctorSnapshot.docs.map(doc => deleteDoc(doc.ref));
+                await Promise.all(doctorDeletes);
+                console.log(`Deleted ${doctorSnapshot.size} doctor queue records`);
+            } catch (err) {
+                console.warn('Error deleting doctor queue records:', err);
+            }
+            
+            // Delete from billing if exists
+            try {
+                const billingQuery = query(collection(db, 'billing'), where('patientId', '==', customPatientId));
+                const billingSnapshot = await getDocs(billingQuery);
+                const billingDeletes = billingSnapshot.docs.map(doc => deleteDoc(doc.ref));
+                await Promise.all(billingDeletes);
+                console.log(`Deleted ${billingSnapshot.size} billing records`);
+            } catch (err) {
+                console.warn('Error deleting billing records:', err);
+            }
+            
+            // Delete from ward admissions if exists
+            try {
+                const wardQuery = query(collection(db, 'ward_admissions'), where('patientId', '==', customPatientId));
+                const wardSnapshot = await getDocs(wardQuery);
+                const wardDeletes = wardSnapshot.docs.map(doc => deleteDoc(doc.ref));
+                await Promise.all(wardDeletes);
+                console.log(`Deleted ${wardSnapshot.size} ward admission records`);
+            } catch (err) {
+                console.warn('Error deleting ward records:', err);
+            }
+        }
+        
+        console.log('Patient completely deleted from all collections');
         return { success: true };
     } catch (error) {
         console.error('Error deleting patient:', error);

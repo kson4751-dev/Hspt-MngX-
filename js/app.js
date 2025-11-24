@@ -873,6 +873,9 @@ function refreshDashboard() {
     showNotification('Dashboard Refreshed', 'All data has been updated', 'success');
 }
 
+// Expose dashboard function globally
+window.refreshDashboard = refreshDashboard;
+
 // ==========================================
 // RECENT ACTIVITIES
 // ==========================================
@@ -1752,9 +1755,14 @@ function updateStats() {
     
     const queuePatients = allPatients.filter(p => p.status === 'in-queue');
     
+    // Update All Patients module stats
     if (totalPatientsCount) totalPatientsCount.textContent = allPatients.length;
     if (todayPatientsCount) todayPatientsCount.textContent = todayPatients.length;
     if (queuePatientsCount) queuePatientsCount.textContent = queuePatients.length;
+    
+    // Update Dashboard stats as well
+    updatePatientsStats(allPatients);
+    updateDashboardDisplay();
 }
 
 // Helper functions
@@ -1856,23 +1864,31 @@ function convertToCSV(data) {
 }
 
 // Modal Functions
-const patientModal = document.getElementById('patientModal');
-const modalOverlay = document.getElementById('modalOverlay');
-const modalCloseBtn = document.getElementById('modalCloseBtn');
-const modalCancelBtn = document.getElementById('modalCancelBtn');
-const modalTitle = document.getElementById('modalTitle');
-const modalBody = document.getElementById('modalBody');
-const modalFooter = document.getElementById('modalFooter');
+function getModalElements() {
+    return {
+        patientModal: document.getElementById('patientModal'),
+        modalCloseBtn: document.getElementById('modalCloseBtn'),
+        modalCancelBtn: document.getElementById('modalCancelBtn'),
+        modalTitle: document.getElementById('modalTitle'),
+        modalBody: document.getElementById('modalBody'),
+        modalFooter: document.getElementById('modalFooter')
+    };
+}
 
 function openModal(modalId) {
+    console.log('Opening modal:', modalId);
     const modal = document.getElementById(modalId);
     if (modal) {
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
+        console.log('Modal opened successfully');
+    } else {
+        console.error('Modal not found:', modalId);
     }
 }
 
 function closeModal(modalId) {
+    console.log('Closing modal:', modalId);
     const modal = document.getElementById(modalId);
     if (modal) {
         modal.classList.remove('active');
@@ -1910,9 +1926,21 @@ document.addEventListener('click', (e) => {
 
 // Patient action functions
 function viewPatient(patientId) {
+    console.log('viewPatient called with ID:', patientId);
+    console.log('All patients:', allPatients);
     const patient = allPatients.find(p => p.patientId === patientId || p.id === patientId);
     if (!patient) {
+        console.error('Patient not found:', patientId);
         alert('Patient not found');
+        return;
+    }
+    
+    console.log('Patient found:', patient);
+    const { modalTitle, modalBody, modalFooter } = getModalElements();
+    
+    if (!modalTitle || !modalBody || !modalFooter) {
+        console.error('Modal elements not found');
+        alert('Error: Modal elements not found. Please refresh the page.');
         return;
     }
     
@@ -2060,19 +2088,27 @@ function viewPatient(patientId) {
     `;
     
     modalFooter.innerHTML = `
-        <button class="btn btn-secondary" onclick="closeModal()">Close</button>
-        <button class="btn btn-primary" onclick="closeModal(); editPatient('${patient.patientId}');">
+        <button class="btn btn-secondary" onclick="closeModal('patientModal')">Close</button>
+        <button class="btn btn-primary" onclick="closeModal('patientModal'); editPatient('${patient.patientId}');">
             <i class="fas fa-edit"></i> Edit Patient
         </button>
     `;
     
-    openModal();
+    openModal('patientModal');
 }
 
 function editPatient(patientId) {
     const patient = allPatients.find(p => p.patientId === patientId || p.id === patientId);
     if (!patient) {
         alert('Patient not found');
+        return;
+    }
+    
+    const { modalTitle, modalBody, modalFooter } = getModalElements();
+    
+    if (!modalTitle || !modalBody || !modalFooter) {
+        console.error('Modal elements not found');
+        alert('Error: Modal elements not found. Please refresh the page.');
         return;
     }
     
@@ -2140,13 +2176,13 @@ function editPatient(patientId) {
     `;
     
     modalFooter.innerHTML = `
-        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-secondary" onclick="closeModal('patientModal')">Cancel</button>
         <button class="btn btn-primary" onclick="savePatientEdit('${patient.patientId}')">
             <i class="fas fa-save"></i> Save Changes
         </button>
     `;
     
-    openModal();
+    openModal('patientModal');
 }
 
 function savePatientEdit(patientId) {
@@ -2175,10 +2211,15 @@ function savePatientEdit(patientId) {
         
         updateStats();
         filterAndDisplayPatients();
-        closeModal();
+        closeModal('patientModal');
         alert('Patient updated successfully!');
     }
 }
+
+// Make functions globally accessible
+window.viewPatient = viewPatient;
+window.editPatient = editPatient;
+window.savePatientEdit = savePatientEdit;
 
 function sendToDoctor(patientId) {
     // Find patient in triage records
@@ -2290,29 +2331,83 @@ async function updatePatientStatus(patientId, newStatus) {
 }
 
 async function deletePatient(patientId) {
-    if (confirm('Are you sure you want to delete this patient? This action cannot be undone.')) {
+    const patient = allPatients.find(p => p.patientId === patientId || p.id === patientId);
+    if (!patient) {
+        alert('Patient not found');
+        return;
+    }
+    
+    // Use the Firebase document ID, not the custom patientId
+    const firebaseDocId = patient.id || patientId;
+    
+    console.log('Patient to delete:', {
+        customPatientId: patient.patientId,
+        firebaseDocId: firebaseDocId,
+        patient: patient
+    });
+    
+    const confirmMessage = `⚠️ PERMANENT DELETE WARNING ⚠️\n\nYou are about to PERMANENTLY delete:\n\nPatient ID: ${patient.patientId || patientId}\nName: ${patient.firstName} ${patient.lastName}\n\nThis will delete ALL associated records including:\n• Patient information\n• Triage records\n• Lab requests\n• Pharmacy orders\n• Billing records\n• Ward admissions\n\nThis action CANNOT be undone!\n\nType "DELETE" in the next prompt to confirm.`;
+    
+    if (confirm(confirmMessage)) {
+        const secondConfirm = prompt('Type "DELETE" (all caps) to confirm permanent deletion:');
+        
+        if (secondConfirm !== 'DELETE') {
+            alert('Deletion cancelled. Patient not deleted.');
+            return;
+        }
+        
         try {
-            // Import Firebase helpers dynamically
-            const { deletePatient: deletePatientFromFirebase } = await import('./firebase-helpers.js');
+            console.log('Attempting complete deletion with Firebase doc ID:', firebaseDocId);
             
-            // Delete from Firebase
-            const result = await deletePatientFromFirebase(patientId);
+            // Show loading indicator
+            const originalTableBody = patientsTableBody ? patientsTableBody.innerHTML : '';
+            if (patientsTableBody) {
+                patientsTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="11" class="loading-row">
+                            <i class="fas fa-spinner fa-spin"></i> Deleting patient and all associated records...
+                        </td>
+                    </tr>
+                `;
+            }
             
-            if (result.success) {
-                alert('Patient deleted successfully');
-            } else {
-                alert('Error deleting patient: ' + result.error);
+            // Try to delete from Firebase using the correct document ID
+            try {
+                const { deletePatient: deletePatientFromFirebase } = await import('./firebase-helpers.js');
+                const result = await deletePatientFromFirebase(firebaseDocId);
+                
+                if (result.success) {
+                    console.log('Patient completely deleted from Firebase with doc ID:', firebaseDocId);
+                    // Remove from local array using both IDs to be safe
+                    allPatients = allPatients.filter(p => p.id !== firebaseDocId && p.patientId !== patient.patientId);
+                    updateStats();
+                    filterAndDisplayPatients();
+                    alert('✅ Patient deleted successfully!\n\nAll patient records have been permanently removed from the database.');
+                } else {
+                    throw new Error(result.error || 'Failed to delete from Firebase');
+                }
+            } catch (firebaseError) {
+                console.error('Firebase deletion failed:', firebaseError);
+                // Restore table on error
+                if (patientsTableBody && originalTableBody) {
+                    patientsTableBody.innerHTML = originalTableBody;
+                }
+                alert('❌ Error deleting patient from database:\n\n' + firebaseError.message + '\n\nPlease try again or contact support.');
             }
         } catch (error) {
-            console.error('Error deleting patient:', error);
-            // Fallback: remove from local array
-            allPatients = allPatients.filter(p => p.patientId !== patientId && p.id !== patientId);
-            updateStats();
-            filterAndDisplayPatients();
-            alert('Patient deleted (local only)');
+            console.error('Error in delete operation:', error);
+            alert('❌ Error deleting patient: ' + error.message);
         }
     }
 }
+
+// Make patient action functions globally accessible
+window.sendToDoctor = sendToDoctor;
+window.sendToTriage = sendToTriage;
+window.sendToPharmacy = sendToPharmacy;
+window.printPatient = printPatient;
+window.cancelPatient = cancelPatient;
+window.deletePatient = deletePatient;
 
 // Initialize All Patients Module when the module is shown
 initializeAllPatientsModule();
