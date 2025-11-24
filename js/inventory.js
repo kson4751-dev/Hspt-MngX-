@@ -5,7 +5,18 @@
 /**
  * Inventory Management Utility Functions
  * Handles inventory operations, stock tracking, and reporting
+ * Connected to Firebase Firestore for real-time synchronization
  */
+
+// Firebase references - will be initialized dynamically
+let db = null;
+let inventoryCollection = null;
+let inventoryTransactionsCollection = null;
+let inventoryUnsubscribe = null;
+let isInventoryFirebaseInitialized = false;
+
+// Local cache for inventory items
+let inventoryCache = [];
 
 // Item Categories Configuration
 const ITEM_CATEGORIES = {
@@ -69,32 +80,188 @@ const ITEM_STATUS = {
 };
 
 /**
- * Get all inventory items
+ * Initialize Firebase Inventory Module
+ */
+async function initializeInventoryFirebase() {
+    // Prevent double initialization
+    if (isInventoryFirebaseInitialized) {
+        console.log('⚠️ Inventory Firebase already initialized, skipping...');
+        return true;
+    }
+    
+    console.log('🔧 Initializing Inventory Firebase module...');
+    
+    try {
+        // Import Firebase modules
+        const { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } = 
+            await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        const { getApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+        
+        console.log('Firebase modules imported successfully');
+        
+        // Get Firestore instance
+        const app = getApp();
+        db = getFirestore(app);
+        
+        console.log('Firestore instance obtained');
+        
+        // Store Firebase functions globally for this module
+        window.firestoreModule = { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp };
+        
+        // Initialize collections
+        inventoryCollection = collection(db, 'inventory');
+        inventoryTransactionsCollection = collection(db, 'inventoryTransactions');
+        
+        console.log('Collections initialized');
+        
+        // Setup real-time listener
+        setupInventoryRealtimeListener();
+        
+        isInventoryFirebaseInitialized = true;
+        console.log('✅ Inventory Firebase initialized successfully');
+        return true;
+    } catch (error) {
+        console.error('❌ Error initializing Inventory Firebase:', error);
+        return false;
+    }
+}
+
+/**
+ * Setup real-time listener for inventory updates
+ */
+function setupInventoryRealtimeListener() {
+    if (!inventoryCollection || !window.firestoreModule) {
+        console.error('Cannot setup listener - collection or module not ready');
+        return;
+    }
+
+    const { onSnapshot } = window.firestoreModule;
+    
+    console.log('Setting up inventory real-time listener...');
+    
+    inventoryUnsubscribe = onSnapshot(inventoryCollection, (snapshot) => {
+        inventoryCache = [];
+        console.log('Inventory snapshot received, docs count:', snapshot.size);
+        
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            console.log('Processing inventory item:', doc.id, data);
+            inventoryCache.push({
+                id: doc.id,
+                ...data,
+                // Convert Firestore timestamps to ISO strings for compatibility
+                dateAdded: data.dateAdded?.toDate ? data.dateAdded.toDate().toISOString() : data.dateAdded,
+                lastUpdated: data.lastUpdated?.toDate ? data.lastUpdated.toDate().toISOString() : data.lastUpdated
+            });
+        });
+
+        console.log(`✅ Inventory synced: ${inventoryCache.length} items in cache`);
+
+        // Update UI if on inventory page
+        if (typeof updateInventoryDisplay === 'function') {
+            console.log('Calling updateInventoryDisplay...');
+            updateInventoryDisplay();
+        }
+    }, (error) => {
+        console.error('Error in inventory listener:', error);
+    });
+}
+
+/**
+ * Add new inventory item to Firestore
+ */
+async function addInventoryItem(itemData) {
+    if (!db || !window.firestoreModule) {
+        throw new Error('Firebase not initialized');
+    }
+
+    try {
+        const { addDoc, serverTimestamp } = window.firestoreModule;
+        const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+        
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+        
+        const newItem = {
+            ...itemData,
+            dateAdded: serverTimestamp(),
+            lastUpdated: serverTimestamp(),
+            createdBy: currentUser?.email || 'system'
+        };
+
+        const docRef = await addDoc(inventoryCollection, newItem);
+        
+        // Log transaction
+        await logInventoryTransaction({
+            itemId: docRef.id,
+            itemCode: itemData.code,
+            itemName: itemData.name,
+            type: 'stock-in',
+            oldQuantity: 0,
+            newQuantity: itemData.quantity,
+            difference: itemData.quantity,
+            reason: 'Initial stock',
+            timestamp: serverTimestamp(),
+            performedBy: currentUser?.email || 'system'
+        });
+
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('Error adding inventory item:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Update inventory item in Firestore
+ */
+async function updateInventoryItem(itemId, updateData) {
+    if (!db || !window.firestoreModule) {
+        throw new Error('Firebase not initialized');
+    }
+
+    try {
+        const { updateDoc, doc, serverTimestamp } = window.firestoreModule;
+        const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+        
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+        
+        const itemRef = doc(db, 'inventory', itemId);
+        
+        await updateDoc(itemRef, {
+            ...updateData,
+            lastUpdated: serverTimestamp(),
+            updatedBy: currentUser?.email || 'system'
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error('Error updating inventory item:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Get all inventory items (from cache for real-time data)
  */
 function getAllInventoryItems() {
-    try {
-        const items = localStorage.getItem('inventoryItems');
-        return items ? JSON.parse(items) : [];
-    } catch (error) {
-        console.error('Error loading inventory items:', error);
-        return [];
-    }
+    console.log('getAllInventoryItems called, cache has:', inventoryCache.length, 'items');
+    return inventoryCache || [];
 }
 
 /**
  * Get item by ID
  */
 function getInventoryItemById(id) {
-    const items = getAllInventoryItems();
-    return items.find(item => item.id === id);
+    return inventoryCache.find(item => item.id === id);
 }
 
 /**
  * Get item by code
  */
 function getInventoryItemByCode(code) {
-    const items = getAllInventoryItems();
-    return items.find(item => item.code === code);
+    return inventoryCache.find(item => item.code === code);
 }
 
 /**
@@ -232,86 +399,151 @@ function getInventoryByLocation() {
 }
 
 /**
- * Update item quantity
+ * Update item quantity in Firestore
  */
-function updateItemQuantity(itemId, newQuantity, reason = 'adjustment') {
-    const items = getAllInventoryItems();
-    const itemIndex = items.findIndex(item => item.id === itemId);
+async function updateItemQuantity(itemId, newQuantity, reason = 'adjustment') {
+    if (!db || !window.firestoreModule) {
+        throw new Error('Firebase not initialized');
+    }
 
-    if (itemIndex !== -1) {
-        const oldQuantity = items[itemIndex].quantity;
-        items[itemIndex].quantity = newQuantity;
-        items[itemIndex].totalValue = newQuantity * items[itemIndex].costPrice;
-        items[itemIndex].lastUpdated = new Date().toISOString();
+    try {
+        const { updateDoc, doc, serverTimestamp } = window.firestoreModule;
+        const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+        
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+        
+        const item = getInventoryItemById(itemId);
+        if (!item) {
+            throw new Error('Item not found');
+        }
+
+        const oldQuantity = item.quantity;
+        const totalValue = newQuantity * item.costPrice;
+
+        const itemRef = doc(db, 'inventory', itemId);
+        
+        await updateDoc(itemRef, {
+            quantity: newQuantity,
+            totalValue: totalValue,
+            lastUpdated: serverTimestamp(),
+            updatedBy: currentUser?.email || 'system'
+        });
 
         // Log the transaction
-        logInventoryTransaction({
+        await logInventoryTransaction({
             itemId: itemId,
-            itemCode: items[itemIndex].code,
-            itemName: items[itemIndex].name,
+            itemCode: item.code,
+            itemName: item.name,
             type: newQuantity > oldQuantity ? 'stock-in' : 'stock-out',
             oldQuantity: oldQuantity,
             newQuantity: newQuantity,
             difference: newQuantity - oldQuantity,
             reason: reason,
-            timestamp: new Date().toISOString()
+            timestamp: serverTimestamp(),
+            performedBy: currentUser?.email || 'system'
         });
 
-        localStorage.setItem('inventoryItems', JSON.stringify(items));
-        return true;
+        return { success: true };
+    } catch (error) {
+        console.error('Error updating item quantity:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Log inventory transaction to Firestore
+ */
+async function logInventoryTransaction(transaction) {
+    if (!inventoryTransactionsCollection || !window.firestoreModule) {
+        console.error('Transactions collection not initialized');
+        return;
     }
 
-    return false;
-}
-
-/**
- * Log inventory transaction
- */
-function logInventoryTransaction(transaction) {
-    let transactions = JSON.parse(localStorage.getItem('inventoryTransactions') || '[]');
-    transactions.push(transaction);
-    localStorage.setItem('inventoryTransactions', JSON.stringify(transactions));
-}
-
-/**
- * Get inventory transactions
- */
-function getInventoryTransactions(itemId = null) {
-    const transactions = JSON.parse(localStorage.getItem('inventoryTransactions') || '[]');
-    
-    if (itemId) {
-        return transactions.filter(t => t.itemId === itemId);
+    try {
+        const { addDoc } = window.firestoreModule;
+        await addDoc(inventoryTransactionsCollection, transaction);
+    } catch (error) {
+        console.error('Error logging transaction:', error);
     }
-    
-    return transactions;
 }
 
 /**
- * Delete inventory item
+ * Get inventory transactions from Firestore
  */
-function deleteInventoryItem(itemId) {
-    let items = getAllInventoryItems();
-    const itemIndex = items.findIndex(item => item.id === itemId);
-    
-    if (itemIndex !== -1) {
-        const deletedItem = items[itemIndex];
-        items.splice(itemIndex, 1);
-        localStorage.setItem('inventoryItems', JSON.stringify(items));
+async function getInventoryTransactions(itemId = null) {
+    if (!inventoryTransactionsCollection || !window.firestoreModule) {
+        return [];
+    }
+
+    try {
+        const { getDocs, query, where, orderBy, limit } = 
+            await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
         
-        // Log deletion
-        logInventoryTransaction({
+        let q = query(inventoryTransactionsCollection, orderBy('timestamp', 'desc'), limit(100));
+        
+        if (itemId) {
+            q = query(inventoryTransactionsCollection, where('itemId', '==', itemId), orderBy('timestamp', 'desc'), limit(100));
+        }
+        
+        const snapshot = await getDocs(q);
+        const transactions = [];
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            transactions.push({
+                id: doc.id,
+                ...data,
+                timestamp: data.timestamp?.toDate ? data.timestamp.toDate().toISOString() : data.timestamp
+            });
+        });
+        
+        return transactions;
+    } catch (error) {
+        console.error('Error getting transactions:', error);
+        return [];
+    }
+}
+
+/**
+ * Delete inventory item from Firestore
+ */
+async function deleteInventoryItem(itemId) {
+    if (!db || !window.firestoreModule) {
+        throw new Error('Firebase not initialized');
+    }
+
+    try {
+        const { deleteDoc, doc, serverTimestamp } = window.firestoreModule;
+        const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+        
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+        
+        const item = getInventoryItemById(itemId);
+        if (!item) {
+            throw new Error('Item not found');
+        }
+
+        // Log deletion before deleting
+        await logInventoryTransaction({
             itemId: itemId,
-            itemCode: deletedItem.code,
-            itemName: deletedItem.name,
+            itemCode: item.code,
+            itemName: item.name,
             type: 'deleted',
             reason: 'Item removed from inventory',
-            timestamp: new Date().toISOString()
+            timestamp: serverTimestamp(),
+            performedBy: currentUser?.email || 'system'
         });
+
+        const itemRef = doc(db, 'inventory', itemId);
+        await deleteDoc(itemRef);
         
-        return true;
+        return { success: true };
+    } catch (error) {
+        console.error('Error deleting item:', error);
+        return { success: false, error: error.message };
     }
-    
-    return false;
 }
 
 /**
@@ -456,6 +688,16 @@ function formatInventoryCurrency(amount) {
     return `KSh ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/**
+ * Cleanup function - unsubscribe from listeners
+ */
+function cleanupInventoryListeners() {
+    if (inventoryUnsubscribe) {
+        inventoryUnsubscribe();
+        inventoryUnsubscribe = null;
+    }
+}
+
 // Export functions for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
@@ -463,6 +705,9 @@ if (typeof module !== 'undefined' && module.exports) {
         MEASUREMENT_UNITS,
         STORAGE_LOCATIONS,
         ITEM_STATUS,
+        initializeInventoryFirebase,
+        addInventoryItem,
+        updateInventoryItem,
         getAllInventoryItems,
         getInventoryItemById,
         getInventoryItemByCode,
@@ -479,7 +724,8 @@ if (typeof module !== 'undefined' && module.exports) {
         getInventoryStatistics,
         getStockLevelStatus,
         generateReorderReport,
-        formatInventoryCurrency
+        formatInventoryCurrency,
+        cleanupInventoryListeners
     };
 }
 

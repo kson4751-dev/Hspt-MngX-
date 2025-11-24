@@ -655,6 +655,11 @@ function navigateToModule(module, submodule = null) {
         const moduleElement = document.getElementById(`${submodule}-module`);
         if (moduleElement) {
             moduleElement.classList.add('active');
+            
+            // Special handling for specific submodules
+            if (submodule === 'view-inventory') {
+                initializeViewInventoryModule();
+            }
         }
     } else {
         // Navigate to main module
@@ -8621,6 +8626,11 @@ function generateItemCode(category, itemName) {
 function initializeInventoryModule() {
     console.log('Initializing Inventory Module...');
     
+    // Initialize Firebase for inventory
+    if (typeof initializeInventoryFirebase === 'function') {
+        initializeInventoryFirebase();
+    }
+    
     // Handle form submission
     const itemForm = document.getElementById('addItemForm');
     if (itemForm) {
@@ -8652,8 +8662,6 @@ function initializeInventoryModule() {
 
     // Setup automatic calculations
     setupInventoryCalculations();
-    
-    loadInventoryFromStorage();
 }
 
 // Setup Automatic Calculations
@@ -8702,25 +8710,29 @@ async function handleItemSubmit(e) {
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding Item...';
         submitBtn.disabled = true;
 
-        // Save to storage
-        await saveItemToStorage(formData);
+        // Save to Firestore
+        const result = await addInventoryItem(formData);
 
-        // Show success message with summary
-        showItemSuccessMessage(formData);
+        if (result.success) {
+            // Show success message with summary
+            showItemSuccessMessage(formData);
 
-        // Reset form
-        document.getElementById('addItemForm').reset();
-        
-        // Reset button state
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
+            // Reset form
+            document.getElementById('addItemForm').reset();
+            
+            // Reset button state
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
 
-        // Log success
-        console.log('Item added successfully:', formData);
+            // Log success
+            console.log('Item added successfully to Firestore:', formData);
+        } else {
+            throw new Error(result.error || 'Failed to add item');
+        }
 
     } catch (error) {
         console.error('Error adding item:', error);
-        alert('Failed to add item. Please try again.');
+        alert('Failed to add item. Please try again: ' + error.message);
         
         // Reset button
         const submitBtn = e.target.querySelector('button[type="submit"]');
@@ -8737,7 +8749,6 @@ function getItemFormData() {
     const costPrice = parseFloat(document.getElementById('itemCostPrice').value) || 0;
     
     return {
-        id: 'ITM-' + Date.now(),
         category: category,
         subcategory: document.getElementById('itemSubcategory').value,
         name: itemName,
@@ -8753,9 +8764,7 @@ function getItemFormData() {
         supplierName: document.getElementById('supplierName').value,
         storageLocation: document.getElementById('storageLocation').value,
         expiryDate: document.getElementById('expiryDate').value,
-        status: 'active',
-        dateAdded: new Date().toISOString(),
-        addedBy: 'Current User'
+        status: 'active'
     };
 }
 
@@ -8806,27 +8815,12 @@ function validateItemForm(formData) {
     return true;
 }
 
-// Save Item to Storage
-async function saveItemToStorage(itemData) {
-    return new Promise((resolve) => {
-        let items = JSON.parse(localStorage.getItem('inventoryItems') || '[]');
-        items.push(itemData);
-        localStorage.setItem('inventoryItems', JSON.stringify(items));
-        
-        setTimeout(resolve, 500);
-    });
-}
-
-// Load Inventory from Storage
-function loadInventoryFromStorage() {
-    const items = JSON.parse(localStorage.getItem('inventoryItems') || '[]');
-    console.log(`Loaded ${items.length} inventory items from storage`);
-    return items;
-}
-
-// Get Inventory Items
-function getInventoryItems() {
-    return JSON.parse(localStorage.getItem('inventoryItems') || '[]');
+// Generate Item Code
+function generateItemCode(category, itemName) {
+    const categoryPrefix = category.substring(0, 3).toUpperCase();
+    const namePrefix = itemName.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, '');
+    const timestamp = Date.now().toString().slice(-6);
+    return `${categoryPrefix}-${namePrefix}-${timestamp}`;
 }
 
 // Handle Cancel Item
@@ -8841,7 +8835,7 @@ function handleCancelItem() {
 function handleSaveItemDraft() {
     const formData = getItemFormData();
     
-    // Save draft to localStorage
+    // Save draft to localStorage (drafts can stay local)
     const drafts = JSON.parse(localStorage.getItem('inventoryDrafts') || '[]');
     drafts.push({
         ...formData,
@@ -8913,14 +8907,46 @@ let inventoryPageSize = 25;
 let inventoryFilteredItems = [];
 let inventorySearchTerm = '';
 
+// Function to update inventory display from real-time data
+function updateInventoryDisplay() {
+    if (document.getElementById('view-inventory-module')?.classList.contains('active')) {
+        filterAndRenderInventory();
+    }
+}
+
 function initializeViewInventoryModule() {
-    console.log('Initializing View Inventory Module...');
+    console.log('🔧 Initializing View Inventory Module...');
+    
+    // Initialize Firebase for inventory if not already done
+    if (typeof initializeInventoryFirebase === 'function') {
+        console.log('Calling initializeInventoryFirebase...');
+        initializeInventoryFirebase().then(() => {
+            console.log('Firebase initialized, loading inventory data...');
+            // Give it a moment for the snapshot listener to populate cache
+            setTimeout(() => {
+                const items = getAllInventoryItems();
+                console.log('Items available after Firebase init:', items.length);
+                filterAndRenderInventory();
+            }, 1000);
+        }).catch((error) => {
+            console.error('Error initializing Firebase:', error);
+            // Still try to render with whatever data we have
+            filterAndRenderInventory();
+        });
+    } else {
+        console.error('initializeInventoryFirebase function not found!');
+        filterAndRenderInventory();
+    }
     
     // Search functionality
     const searchInput = document.getElementById('inventorySearchInput');
     if (searchInput) {
         let searchTimeout;
-        searchInput.addEventListener('input', (e) => {
+        // Remove old listener if exists
+        const newSearchInput = searchInput.cloneNode(true);
+        searchInput.parentNode.replaceChild(newSearchInput, searchInput);
+        
+        newSearchInput.addEventListener('input', (e) => {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
                 inventorySearchTerm = e.target.value.toLowerCase();
@@ -8937,7 +8963,11 @@ function initializeViewInventoryModule() {
 
     [filterCategory, filterStockStatus, filterLocation].forEach(filter => {
         if (filter) {
-            filter.addEventListener('change', () => {
+            // Remove old listener by cloning
+            const newFilter = filter.cloneNode(true);
+            filter.parentNode.replaceChild(newFilter, filter);
+            
+            newFilter.addEventListener('change', () => {
                 inventoryCurrentPage = 1;
                 filterAndRenderInventory();
             });
@@ -8947,7 +8977,16 @@ function initializeViewInventoryModule() {
     // Clear filters button
     const clearFiltersBtn = document.getElementById('clearInventoryFiltersBtn');
     if (clearFiltersBtn) {
-        clearFiltersBtn.addEventListener('click', () => {
+        // Remove old listener by cloning
+        const newClearBtn = clearFiltersBtn.cloneNode(true);
+        clearFiltersBtn.parentNode.replaceChild(newClearBtn, clearFiltersBtn);
+        
+        newClearBtn.addEventListener('click', () => {
+            const searchInput = document.getElementById('inventorySearchInput');
+            const filterCategory = document.getElementById('filterCategory');
+            const filterStockStatus = document.getElementById('filterStockStatus');
+            const filterLocation = document.getElementById('filterLocation');
+            
             if (searchInput) searchInput.value = '';
             if (filterCategory) filterCategory.value = '';
             if (filterStockStatus) filterStockStatus.value = '';
@@ -8961,13 +9000,19 @@ function initializeViewInventoryModule() {
     // Export button
     const exportBtn = document.getElementById('exportInventoryBtn');
     if (exportBtn) {
-        exportBtn.addEventListener('click', exportInventoryToCSV);
+        // Remove old listener by cloning
+        const newExportBtn = exportBtn.cloneNode(true);
+        exportBtn.parentNode.replaceChild(newExportBtn, exportBtn);
+        newExportBtn.addEventListener('click', exportInventoryToCSV);
     }
 
     // Page size selector
     const pageSizeSelect = document.getElementById('inventoryPageSize');
     if (pageSizeSelect) {
-        pageSizeSelect.addEventListener('change', (e) => {
+        // Remove old listener by cloning
+        const newPageSizeSelect = pageSizeSelect.cloneNode(true);
+        pageSizeSelect.parentNode.replaceChild(newPageSizeSelect, pageSizeSelect);
+        newPageSizeSelect.addEventListener('change', (e) => {
             inventoryPageSize = parseInt(e.target.value);
             inventoryCurrentPage = 1;
             renderInventoryTable();
@@ -8979,7 +9024,10 @@ function initializeViewInventoryModule() {
     const nextBtn = document.getElementById('inventoryNextBtn');
 
     if (prevBtn) {
-        prevBtn.addEventListener('click', () => {
+        // Remove old listener by cloning
+        const newPrevBtn = prevBtn.cloneNode(true);
+        prevBtn.parentNode.replaceChild(newPrevBtn, prevBtn);
+        newPrevBtn.addEventListener('click', () => {
             if (inventoryCurrentPage > 1) {
                 inventoryCurrentPage--;
                 renderInventoryTable();
@@ -8988,7 +9036,10 @@ function initializeViewInventoryModule() {
     }
 
     if (nextBtn) {
-        nextBtn.addEventListener('click', () => {
+        // Remove old listener by cloning
+        const newNextBtn = nextBtn.cloneNode(true);
+        nextBtn.parentNode.replaceChild(newNextBtn, nextBtn);
+        newNextBtn.addEventListener('click', () => {
             const totalPages = Math.ceil(inventoryFilteredItems.length / inventoryPageSize);
             if (inventoryCurrentPage < totalPages) {
                 inventoryCurrentPage++;
@@ -9000,21 +9051,27 @@ function initializeViewInventoryModule() {
     // Edit item save button
     const saveEditBtn = document.getElementById('saveEditItemBtn');
     if (saveEditBtn) {
-        saveEditBtn.addEventListener('click', saveItemEdit);
+        // Remove old listener by cloning
+        const newSaveEditBtn = saveEditBtn.cloneNode(true);
+        saveEditBtn.parentNode.replaceChild(newSaveEditBtn, saveEditBtn);
+        newSaveEditBtn.addEventListener('click', saveItemEdit);
     }
 
     // Delete item confirm button
     const confirmDeleteBtn = document.getElementById('confirmDeleteItemBtn');
     if (confirmDeleteBtn) {
-        confirmDeleteBtn.addEventListener('click', confirmDeleteItem);
+        // Remove old listener by cloning
+        const newConfirmDeleteBtn = confirmDeleteBtn.cloneNode(true);
+        confirmDeleteBtn.parentNode.replaceChild(newConfirmDeleteBtn, confirmDeleteBtn);
+        newConfirmDeleteBtn.addEventListener('click', confirmDeleteItem);
     }
-
-    // Load and display inventory
-    filterAndRenderInventory();
 }
 
 function filterAndRenderInventory() {
-    const allItems = getInventoryItems();
+    const allItems = getAllInventoryItems(); // Now gets from Firebase cache
+    
+    console.log('Inventory items from cache:', allItems.length, allItems);
+    
     const categoryFilter = document.getElementById('filterCategory')?.value || '';
     const stockFilter = document.getElementById('filterStockStatus')?.value || '';
     const locationFilter = document.getElementById('filterLocation')?.value || '';
@@ -9042,6 +9099,8 @@ function filterAndRenderInventory() {
         return matchesSearch && matchesCategory && matchesStock && matchesLocation;
     });
 
+    console.log('Filtered items:', inventoryFilteredItems.length);
+    
     updateInventoryStats(allItems);
     renderInventoryTable();
 }
@@ -9232,9 +9291,14 @@ function formatLocation(location) {
 }
 
 function viewItemDetails(itemId) {
-    const items = getInventoryItems();
-    const item = items.find(i => i.id === itemId);
-    if (!item) return;
+    console.log('viewItemDetails called with ID:', itemId);
+    const item = getInventoryItemById(itemId);
+    console.log('Item found:', item);
+    
+    if (!item) {
+        alert('Item not found!');
+        return;
+    }
 
     const detailsHTML = `
         <div class="item-details-grid">
@@ -9296,23 +9360,29 @@ function viewItemDetails(itemId) {
             </div>
             <div class="detail-group">
                 <div class="detail-label">Date Added</div>
-                <div class="detail-value">${new Date(item.dateAdded).toLocaleDateString('en-GB')}</div>
+                <div class="detail-value">${item.dateAdded ? new Date(item.dateAdded).toLocaleDateString('en-GB') : 'N/A'}</div>
             </div>
             <div class="detail-group">
                 <div class="detail-label">Added By</div>
-                <div class="detail-value">${item.addedBy}</div>
+                <div class="detail-value">${item.createdBy || item.addedBy || 'N/A'}</div>
             </div>
         </div>
     `;
 
     document.getElementById('viewItemDetails').innerHTML = detailsHTML;
+    console.log('Opening viewItemModal...');
     openModal('viewItemModal');
 }
 
 function openEditItemModal(itemId) {
-    const items = getInventoryItems();
-    const item = items.find(i => i.id === itemId);
-    if (!item) return;
+    console.log('openEditItemModal called with ID:', itemId);
+    const item = getInventoryItemById(itemId);
+    console.log('Item found:', item);
+    
+    if (!item) {
+        alert('Item not found!');
+        return;
+    }
 
     document.getElementById('editItemId').value = item.id;
     document.getElementById('editItemName').value = item.name;
@@ -9324,15 +9394,15 @@ function openEditItemModal(itemId) {
     document.getElementById('editItemSellingPrice').value = item.sellingPrice || '';
     document.getElementById('editStorageLocation').value = item.storageLocation;
 
+    console.log('Opening editItemModal...');
     openModal('editItemModal');
 }
 
-function saveItemEdit() {
+async function saveItemEdit() {
     const itemId = document.getElementById('editItemId').value;
-    const items = getInventoryItems();
-    const itemIndex = items.findIndex(i => i.id === itemId);
+    const item = getInventoryItemById(itemId);
 
-    if (itemIndex === -1) {
+    if (!item) {
         alert('Item not found!');
         return;
     }
@@ -9340,8 +9410,7 @@ function saveItemEdit() {
     const quantity = parseFloat(document.getElementById('editItemQuantity').value);
     const costPrice = parseFloat(document.getElementById('editItemCostPrice').value);
 
-    items[itemIndex] = {
-        ...items[itemIndex],
+    const updateData = {
         name: document.getElementById('editItemName').value,
         category: document.getElementById('editItemCategory').value,
         quantity: quantity,
@@ -9350,19 +9419,25 @@ function saveItemEdit() {
         costPrice: costPrice,
         sellingPrice: parseFloat(document.getElementById('editItemSellingPrice').value) || null,
         storageLocation: document.getElementById('editStorageLocation').value,
-        totalValue: quantity * costPrice,
-        lastModified: new Date().toISOString()
+        totalValue: quantity * costPrice
     };
 
-    localStorage.setItem('inventoryItems', JSON.stringify(items));
-    closeModal('editItemModal');
-    filterAndRenderInventory();
-    alert('Item updated successfully!');
+    try {
+        const result = await updateInventoryItem(itemId, updateData);
+        if (result.success) {
+            closeModal('editItemModal');
+            alert('Item updated successfully!');
+        } else {
+            throw new Error(result.error);
+        }
+    } catch (error) {
+        console.error('Error updating item:', error);
+        alert('Failed to update item: ' + error.message);
+    }
 }
 
 function openDeleteItemModal(itemId) {
-    const items = getInventoryItems();
-    const item = items.find(i => i.id === itemId);
+    const item = getInventoryItemById(itemId);
     if (!item) return;
 
     document.getElementById('deleteItemInfo').innerHTML = `
@@ -9375,22 +9450,23 @@ function openDeleteItemModal(itemId) {
     openModal('deleteItemModal');
 }
 
-function confirmDeleteItem(itemId) {
-    const items = getInventoryItems();
-    const filteredItems = items.filter(i => i.id !== itemId);
-    localStorage.setItem('inventoryItems', JSON.stringify(filteredItems));
-    
-    closeModal('deleteItemModal');
-    filterAndRenderInventory();
-    alert('Item deleted successfully!');
-}
-
-function getInventoryItems() {
-    return JSON.parse(localStorage.getItem('inventoryItems') || '[]');
+async function confirmDeleteItem(itemId) {
+    try {
+        const result = await deleteInventoryItem(itemId);
+        if (result.success) {
+            closeModal('deleteItemModal');
+            alert('Item deleted successfully!');
+        } else {
+            throw new Error(result.error);
+        }
+    } catch (error) {
+        console.error('Error deleting item:', error);
+        alert('Failed to delete item: ' + error.message);
+    }
 }
 
 function exportInventoryToCSV() {
-    const items = inventoryFilteredItems.length > 0 ? inventoryFilteredItems : getInventoryItems();
+    const items = inventoryFilteredItems.length > 0 ? inventoryFilteredItems : getAllInventoryItems();
     
     if (items.length === 0) {
         alert('No items to export!');
