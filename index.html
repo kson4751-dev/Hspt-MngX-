@@ -92,6 +92,25 @@
                     </svg>
                     <span class="messages-badge" id="messagesBadge"></span>
                 </button>
+                <div class="messages-dropdown" id="messagesDropdown">
+                    <div class="messages-header">
+                        <h4>Messages</h4>
+                        <div class="messages-actions">
+                            <button class="clear-messages-btn" id="clearMessagesBtn" title="Clear All Messages">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <button class="compose-btn" id="composeMessageBtn" title="Compose Message">
+                                <i class="fas fa-pen"></i> Compose
+                            </button>
+                        </div>
+                    </div>
+                    <div class="messages-list" id="messagesList">
+                        <!-- Messages will be dynamically loaded here -->
+                    </div>
+                    <div class="messages-footer">
+                        <a href="#" id="viewAllMessages">View all messages</a>
+                    </div>
+                </div>
             </div>
             <div class="profile-menu">
                 <button class="profile-button" id="profileBtn">
@@ -8314,10 +8333,93 @@
         </div>
     </div>
 
+    <!-- Compose Message Modal -->
+    <div id="composeMessageModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-pen"></i> Compose Message</h3>
+                <button class="close-modal" onclick="closeComposeMessageModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="messageRecipient">To *</label>
+                    <select class="form-control" id="messageRecipient" required>
+                        <option value="">Select recipient...</option>
+                        <option value="all">All Staff</option>
+                        <option value="doctors">All Doctors</option>
+                        <option value="nurses">All Nurses</option>
+                        <option value="pharmacists">All Pharmacists</option>
+                        <option value="lab-techs">All Lab Technicians</option>
+                        <option value="administrators">All Administrators</option>
+                        <optgroup label="Individual Staff" id="individualStaffList">
+                            <!-- Individual staff will be loaded here -->
+                        </optgroup>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="messageSubject">Subject *</label>
+                    <input type="text" class="form-control" id="messageSubject" placeholder="Enter subject" required maxlength="100">
+                </div>
+
+                <div class="form-group">
+                    <label for="messageContent">Message *</label>
+                    <textarea class="form-control" id="messageContent" rows="6" placeholder="Type your message here..." required maxlength="1000"></textarea>
+                    <small class="form-text">Maximum 1000 characters</small>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="messagePriority"> Mark as urgent
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeComposeMessageModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i> Send Message
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Message Modal -->
+    <div id="viewMessageModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-envelope-open"></i> <span id="viewMessageSubject"></span></h3>
+                <button class="close-modal" onclick="closeViewMessageModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="message-meta">
+                    <div class="message-from">
+                        <strong>From:</strong> <span id="viewMessageFrom"></span>
+                    </div>
+                    <div class="message-date">
+                        <strong>Date:</strong> <span id="viewMessageDate"></span>
+                    </div>
+                    <div class="message-priority" id="viewMessagePriority" style="display: none;">
+                        <span class="badge badge-danger"><i class="fas fa-exclamation-triangle"></i> Urgent</span>
+                    </div>
+                </div>
+                <div class="message-content-view" id="viewMessageContent">
+                    <!-- Message content will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeViewMessageModal()">Close</button>
+                <button class="btn btn-primary" onclick="replyToMessage()">
+                    <i class="fas fa-reply"></i> Reply
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase Configuration -->
     <script type="module" src="js/firebase-config.js"></script>
     <script type="module" src="js/firebase-helpers.js"></script>
     <script type="module" src="js/auth.js"></script>
+    <script type="module" src="js/messages.js"></script>
     <script type="module" src="js/profile-settings.js"></script>
     <script type="module" src="js/admin.js"></script>
     <script type="module" src="js/pharmacy-inventory.js"></script>

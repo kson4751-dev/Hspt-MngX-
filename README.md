@@ -4,6 +4,15 @@ A comprehensive, clean, and modern hospital management system built with HTML, C
 
 ## 🆕 Latest Updates
 
+### ✅ Staff Internal Messaging System (November 2025)
+- **Real-time Messaging** - Instant communication between staff members
+- **Message Dropdown** - Quick access to recent messages from top navigation
+- **Compose Messages** - Send to individuals or groups (All Staff, All Doctors, etc.)
+- **Urgent Messages** - Flag important messages for priority attention
+- **Unread Indicators** - Visual badges and highlights for new messages
+- **Reply Functionality** - Quick reply to received messages
+- **Mobile Responsive** - Optimized for all devices
+
 ### ✅ Authentication System (November 2025)
 - **Professional Login Page** - Clean split-screen design with branding
 - **Real-time Firebase Authentication** - Secure email/password login
@@ -13,6 +22,8 @@ A comprehensive, clean, and modern hospital management system built with HTML, C
 - **Multi-user System** - Separate access for different departments
 
 **Quick Start:** Open `start.html` for setup instructions or `login.html` to login
+
+**Messaging Documentation:** See `MESSAGING_SYSTEM.md` for detailed messaging features
 
 ## Features
 
