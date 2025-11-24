@@ -79,6 +79,170 @@ const profileBtn = document.getElementById('profileBtn');
 const profileDropdown = document.getElementById('profileDropdown');
 const profileNameElement = document.getElementById('profileName');
 
+// Initialize real-time emergency alarm listener for ALL logged-in users
+let emergencyAlarmListener = null;
+
+async function initEmergencyAlarmListener() {
+    try {
+        const { db } = await import('./firebase-config.js');
+        const { collection, query, where, onSnapshot, orderBy, limit, updateDoc, doc, arrayUnion } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        
+        const storageType = localStorage.getItem('userId') ? localStorage : sessionStorage;
+        const currentUserId = storageType.getItem('userId');
+        
+        if (!currentUserId) {
+            console.warn('⚠️ No user ID found for emergency alarm listener');
+            return;
+        }
+        
+        // Listen to active emergency alarms
+        const alarmsRef = collection(db, 'emergency_alarms');
+        const q = query(
+            alarmsRef,
+            where('active', '==', true),
+            orderBy('timestamp', 'desc'),
+            limit(1)
+        );
+        
+        emergencyAlarmListener = onSnapshot(q, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === 'added') {
+                    const alarm = change.doc.data();
+                    const alarmId = change.doc.id;
+                    
+                    // Check if this user hasn't acknowledged this alarm yet
+                    if (!alarm.acknowledged || !alarm.acknowledged.includes(currentUserId)) {
+                        console.log('🚨 NEW EMERGENCY ALARM RECEIVED:', alarm);
+                        
+                        // Play emergency siren sound
+                        playEmergencyAlert();
+                        
+                        // Show emergency alarm modal pop-up
+                        showEmergencyAlarmModal(alarm, alarmId);
+                        
+                        // Show browser notification
+                        if ('Notification' in window && Notification.permission === 'granted') {
+                            new Notification('🚨 EMERGENCY ALARM', {
+                                body: alarm.message + '\n' + alarm.description,
+                                icon: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
+                                tag: 'emergency-alarm-' + alarmId,
+                                requireInteraction: true,
+                                vibrate: [200, 100, 200, 100, 200, 100, 200]
+                            });
+                        }
+                    }
+                }
+            });
+        }, (error) => {
+            console.error('❌ Error listening to emergency alarms:', error);
+        });
+        
+        console.log('✅ Emergency alarm listener initialized');
+    } catch (error) {
+        console.error('❌ Error initializing emergency alarm listener:', error);
+    }
+}
+
+// Show emergency alarm modal pop-up
+function showEmergencyAlarmModal(alarm, alarmId) {
+    // Remove existing modal if any
+    const existingModal = document.getElementById('emergencyAlarmModalGlobal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.id = 'emergencyAlarmModalGlobal';
+    modal.className = 'emergency-alarm-modal-overlay';
+    modal.innerHTML = `
+        <div class="emergency-alarm-modal-content">
+            <div class="emergency-alarm-modal-header">
+                <div class="emergency-alarm-icon-large">
+                    <i class="fas fa-ambulance"></i>
+                </div>
+                <h2>🚨 EMERGENCY ALARM ACTIVATED</h2>
+            </div>
+            <div class="emergency-alarm-modal-body">
+                <div class="emergency-alarm-message">
+                    <h3>${alarm.message}</h3>
+                    <p>${alarm.description}</p>
+                </div>
+                <div class="emergency-alarm-details">
+                    <div class="alarm-detail-item">
+                        <i class="fas fa-user"></i>
+                        <span><strong>Triggered by:</strong> ${alarm.triggeredByName || 'System'}</span>
+                    </div>
+                    <div class="alarm-detail-item">
+                        <i class="fas fa-clock"></i>
+                        <span><strong>Time:</strong> ${new Date().toLocaleTimeString()}</span>
+                    </div>
+                    <div class="alarm-detail-item">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span><strong>Severity:</strong> CRITICAL</span>
+                    </div>
+                </div>
+                <div class="emergency-alarm-instructions">
+                    <h4>⚠️ IMMEDIATE ACTIONS REQUIRED:</h4>
+                    <ul>
+                        <li>Report to your emergency station immediately</li>
+                        <li>Follow hospital emergency protocols</li>
+                        <li>Await further instructions from supervisors</li>
+                        <li>Do not ignore this alert</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="emergency-alarm-modal-footer">
+                <button class="btn btn-emergency-ack" onclick="acknowledgeEmergencyAlarm('${alarmId}')">
+                    <i class="fas fa-check-circle"></i> ACKNOWLEDGE & CLOSE
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Animate in
+    setTimeout(() => {
+        modal.classList.add('show');
+    }, 10);
+    
+    console.log('✅ Emergency alarm modal displayed');
+}
+
+// Acknowledge emergency alarm
+window.acknowledgeEmergencyAlarm = async function(alarmId) {
+    try {
+        const { db } = await import('./firebase-config.js');
+        const { doc, updateDoc, arrayUnion } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        
+        const storageType = localStorage.getItem('userId') ? localStorage : sessionStorage;
+        const currentUserId = storageType.getItem('userId');
+        
+        // Update alarm document to mark as acknowledged by this user
+        await updateDoc(doc(db, 'emergency_alarms', alarmId), {
+            acknowledged: arrayUnion(currentUserId)
+        });
+        
+        // Close modal
+        const modal = document.getElementById('emergencyAlarmModalGlobal');
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => modal.remove(), 300);
+        }
+        
+        console.log('✅ Emergency alarm acknowledged');
+    } catch (error) {
+        console.error('❌ Error acknowledging alarm:', error);
+        // Still close modal even if update fails
+        const modal = document.getElementById('emergencyAlarmModalGlobal');
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => modal.remove(), 300);
+        }
+    }
+};
+
 // Load user profile from Firebase Auth
 async function loadUserProfile() {
     try {
@@ -90,6 +254,9 @@ async function loadUserProfile() {
         const app = getApp();
         const auth = getAuth(app);
         const db = getFirestore(app);
+        
+        // Initialize emergency alarm listener for this user
+        initEmergencyAlarmListener();
         
         // Listen to auth state changes
         onAuthStateChanged(auth, async (user) => {
@@ -11325,64 +11492,94 @@ window.refreshEmergencyData = function() {
 };
 
 // Test emergency alert
-// Sound emergency alarm to all departments
-window.soundEmergencyAlarm = function() {
-    console.log('🚨 EMERGENCY ALARM ACTIVATED - Broadcasting to all departments');
+// Sound emergency alarm to all departments - BROADCASTS TO ALL LOGGED-IN USERS
+window.soundEmergencyAlarm = async function() {
+    console.log('🚨 EMERGENCY ALARM ACTIVATED - Broadcasting to ALL logged-in users');
     
-    // Play the ambulance siren sound
-    playEmergencyAlert();
-    
-    // Show emergency notification banner
-    showEmergencyNotificationBanner({
-        id: 'alarm-' + Date.now(),
-        severity: 'critical',
-        patientName: 'Emergency Alert',
-        caseType: 'Code Red',
-        chiefComplaint: '⚠️ EMERGENCY ALARM - All staff report to emergency stations immediately'
-    });
-    
-    // Send browser notification to all open tabs/windows
-    if ('Notification' in window) {
-        if (Notification.permission === 'granted') {
-            new Notification('🚨 EMERGENCY ALARM ACTIVATED', {
-                body: 'Code Red - All departments on alert. Report to emergency stations immediately.',
-                icon: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
-                tag: 'emergency-alarm',
-                requireInteraction: true,
-                vibrate: [200, 100, 200, 100, 200]
-            });
-        } else if (Notification.permission === 'default') {
-            Notification.requestPermission().then(permission => {
-                if (permission === 'granted') {
-                    new Notification('🚨 EMERGENCY ALARM ACTIVATED', {
-                        body: 'Code Red - All departments on alert. Report to emergency stations immediately.',
-                        icon: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
-                        tag: 'emergency-alarm',
-                        requireInteraction: true,
-                        vibrate: [200, 100, 200, 100, 200]
-                    });
-                }
-            });
+    try {
+        // Import Firebase modules
+        const { db } = await import('./firebase-config.js');
+        const { collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        
+        // Get current user info
+        const storageType = localStorage.getItem('userId') ? localStorage : sessionStorage;
+        const currentUserId = storageType.getItem('userId');
+        const currentUserName = storageType.getItem('userName') || 'System Admin';
+        
+        // Create emergency alarm document in Firebase - ALL users will be notified via real-time listener
+        const alarmData = {
+            triggeredBy: currentUserId || 'System',
+            triggeredByName: currentUserName,
+            message: '🚨 CODE RED - EMERGENCY ALARM ACTIVATED',
+            description: 'All staff report to emergency stations immediately. This is a hospital-wide emergency alert.',
+            severity: 'critical',
+            timestamp: serverTimestamp(),
+            acknowledged: [],
+            active: true
+        };
+        
+        const alarmRef = await addDoc(collection(db, 'emergency_alarms'), alarmData);
+        console.log('✅ Emergency alarm broadcasted to all users via Firebase:', alarmRef.id);
+        
+        // Play local sound for the person who triggered it
+        playEmergencyAlert();
+        
+        // Show local banner for the person who triggered it
+        showEmergencyNotificationBanner({
+            id: alarmRef.id,
+            severity: 'critical',
+            patientName: 'Emergency Alert',
+            caseType: 'Code Red',
+            chiefComplaint: '⚠️ EMERGENCY ALARM - All staff report to emergency stations immediately'
+        });
+        
+        // Send browser notification
+        if ('Notification' in window) {
+            if (Notification.permission === 'granted') {
+                new Notification('🚨 EMERGENCY ALARM ACTIVATED', {
+                    body: 'Code Red - All departments on alert. Report to emergency stations immediately.',
+                    icon: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
+                    tag: 'emergency-alarm',
+                    requireInteraction: true,
+                    vibrate: [200, 100, 200, 100, 200]
+                });
+            } else if (Notification.permission === 'default') {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        new Notification('🚨 EMERGENCY ALARM ACTIVATED', {
+                            body: 'Code Red - All departments on alert. Report to emergency stations immediately.',
+                            icon: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
+                            tag: 'emergency-alarm',
+                            requireInteraction: true,
+                            vibrate: [200, 100, 200, 100, 200]
+                        });
+                    }
+                });
+            }
         }
+        
+        // Log activity for all departments
+        import('./firebase-helpers.js').then(({ logActivity }) => {
+            logActivity(
+                'Emergency Department',
+                'ALARM',
+                currentUserName,
+                'EMERGENCY ALARM ACTIVATED',
+                `🚨 Code Red alarm broadcasted to all hospital staff by ${currentUserName}`
+            );
+        }).catch(error => {
+            console.error('Error logging alarm activity:', error);
+        });
+        
+        // Confirmation alert
+        setTimeout(() => {
+            alert('🚨 EMERGENCY ALARM ACTIVATED\n\nAll logged-in staff have been alerted!\n\nSound alarm and pop-up notifications sent to all users.');
+        }, 500);
+        
+    } catch (error) {
+        console.error('❌ Error broadcasting emergency alarm:', error);
+        alert('Error: Could not broadcast emergency alarm. Please try again.');
     }
-    
-    // Log activity for all departments
-    import('./firebase-helpers.js').then(({ logActivity }) => {
-        logActivity(
-            'Emergency Department',
-            'ALARM',
-            'System',
-            'EMERGENCY ALARM ACTIVATED',
-            '🚨 Code Red alarm broadcasted to all hospital departments'
-        );
-    }).catch(error => {
-        console.error('Error logging alarm activity:', error);
-    });
-    
-    // Confirmation alert
-    setTimeout(() => {
-        alert('🚨 EMERGENCY ALARM ACTIVATED\n\nAll departments have been alerted.\nSound alarm has been broadcasted to all staff.');
-    }, 500);
 };
 
 // Debug function to test emergency elements
