@@ -100,8 +100,8 @@
                     <i class="fas fa-chevron-down"></i>
                 </button>
                 <div class="profile-dropdown" id="profileDropdown">
-                    <a href="#"><i class="fas fa-user"></i> My Profile</a>
-                    <a href="#"><i class="fas fa-cog"></i> Settings</a>
+                    <a href="#settings" onclick="navigateToModule('settings'); return false;"><i class="fas fa-user"></i> My Profile</a>
+                    <a href="#settings" onclick="navigateToModule('settings'); return false;"><i class="fas fa-cog"></i> Settings</a>
                     <a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a>
                 </div>
             </div>
@@ -5828,11 +5828,175 @@
             </div>
         </div>
 
-        <!-- Settings Module -->
+        <!-- Profile & Settings Module -->
         <div class="module" id="settings-module">
             <div class="module-header">
-                <h1 class="module-title">Settings</h1>
-                <p class="module-description">Personal preferences, notifications, security, and application configuration</p>
+                <h1 class="module-title">
+                    <i class="fas fa-user-cog"></i>
+                    Profile & Settings
+                </h1>
+                <p class="module-description">Manage your profile, preferences, notifications, and application settings</p>
+            </div>
+            <div class="module-content">
+                <!-- Profile Section -->
+                <div class="settings-container">
+                    <div class="settings-tabs">
+                        <button class="settings-tab active" data-tab="profile">
+                            <i class="fas fa-user"></i> Profile
+                        </button>
+                        <button class="settings-tab" data-tab="preferences">
+                            <i class="fas fa-cog"></i> Preferences
+                        </button>
+                        <button class="settings-tab" data-tab="security">
+                            <i class="fas fa-shield-alt"></i> Security
+                        </button>
+                    </div>
+
+                    <!-- Profile Tab -->
+                    <div class="settings-tab-content active" id="profileTab">
+                        <div class="profile-settings-grid">
+                            <div class="profile-photo-section">
+                                <h3>Profile Photo</h3>
+                                <div class="profile-photo-upload">
+                                    <img src="https://via.placeholder.com/150" alt="Profile" id="profilePhotoPreview" class="profile-photo-large">
+                                    <input type="file" id="profilePhotoInput" accept="image/*" style="display: none;">
+                                    <button class="btn btn-primary" onclick="document.getElementById('profilePhotoInput').click()">
+                                        <i class="fas fa-camera"></i> Change Photo
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="removeProfilePhoto()">
+                                        <i class="fas fa-trash"></i> Remove
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="profile-info-section">
+                                <h3>Personal Information</h3>
+                                <form id="profileForm" class="settings-form">
+                                    <div class="form-group">
+                                        <label for="profileDisplayName">Full Name *</label>
+                                        <input type="text" id="profileDisplayName" class="form-input" required>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="profileEmail">Email Address *</label>
+                                        <input type="email" id="profileEmail" class="form-input" required readonly>
+                                        <small style="color: var(--text-muted);">Email cannot be changed</small>
+                                    </div>
+
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="profileRole">Role</label>
+                                            <input type="text" id="profileRole" class="form-input" readonly>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="profileDepartment">Department</label>
+                                            <input type="text" id="profileDepartment" class="form-input" readonly>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="profilePhone">Phone Number</label>
+                                        <input type="tel" id="profilePhone" class="form-input" placeholder="e.g., +254 712 345 678">
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="profileBio">Bio / Description</label>
+                                        <textarea id="profileBio" class="form-input" rows="3" placeholder="Tell us about yourself..."></textarea>
+                                    </div>
+
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save"></i> Save Profile
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preferences Tab -->
+                    <div class="settings-tab-content" id="preferencesTab">
+                        <h3>Application Preferences</h3>
+                        <form id="preferencesForm" class="settings-form">
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="prefEmailNotifications">
+                                    <span>Email Notifications</span>
+                                </label>
+                                <small style="color: var(--text-muted);">Receive email updates about important activities</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="prefPushNotifications">
+                                    <span>Push Notifications</span>
+                                </label>
+                                <small style="color: var(--text-muted);">Get real-time browser notifications</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="prefSoundAlerts">
+                                    <span>Sound Alerts</span>
+                                </label>
+                                <small style="color: var(--text-muted);">Play sounds for critical notifications</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="prefTheme">Theme</label>
+                                <select id="prefTheme" class="form-input">
+                                    <option value="light">Light</option>
+                                    <option value="dark">Dark</option>
+                                    <option value="auto">Auto (System)</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Save Preferences
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Security Tab -->
+                    <div class="settings-tab-content" id="securityTab">
+                        <h3>Security Settings</h3>
+                        <form id="securityForm" class="settings-form">
+                            <div class="form-group">
+                                <label for="currentPassword">Current Password *</label>
+                                <input type="password" id="currentPassword" class="form-input">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="newPassword">New Password *</label>
+                                <input type="password" id="newPassword" class="form-input">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="confirmPassword">Confirm New Password *</label>
+                                <input type="password" id="confirmPassword" class="form-input">
+                            </div>
+
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fas fa-key"></i> Change Password
+                            </button>
+                        </form>
+
+                        <hr style="margin: 30px 0; border: none; border-top: 1px solid var(--border-color);">
+
+                        <div>
+                            <h3>Session Information</h3>
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <span class="info-label">Last Login:</span>
+                                    <span class="info-value" id="lastLoginTime">Loading...</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Session Started:</span>
+                                    <span class="info-value" id="sessionStartTime">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -8150,6 +8314,7 @@
     <script type="module" src="js/firebase-config.js"></script>
     <script type="module" src="js/firebase-helpers.js"></script>
     <script type="module" src="js/auth.js"></script>
+    <script type="module" src="js/profile-settings.js"></script>
     <script type="module" src="js/admin.js"></script>
     <script type="module" src="js/pharmacy-inventory.js"></script>
     <script type="module" src="js/pharmacy-pos.js"></script>
