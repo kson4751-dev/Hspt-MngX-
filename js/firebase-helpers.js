@@ -956,6 +956,92 @@ export async function logActivity(activityData) {
     }
 }
 
+// ==================== EMERGENCY CASES ====================
+
+// Add emergency case
+export async function addEmergencyCase(caseData) {
+    try {
+        const emergencyRef = collection(db, 'emergency_cases');
+        const docRef = await addDoc(emergencyRef, {
+            ...caseData,
+            arrivalTime: serverTimestamp(),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+        console.log('Emergency case added with ID:', docRef.id);
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('Error adding emergency case:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// Subscribe to emergency cases (realtime)
+export function subscribeToEmergencyCases(callback) {
+    const emergencyRef = collection(db, 'emergency_cases');
+    const q = query(emergencyRef, orderBy('arrivalTime', 'desc'));
+    
+    return onSnapshot(q, (snapshot) => {
+        const cases = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            cases.push({ 
+                id: doc.id, 
+                ...data,
+                arrivalTime: data.arrivalTime?.toDate() || new Date()
+            });
+        });
+        callback(cases);
+    }, (error) => {
+        console.error('Error fetching emergency cases:', error);
+        callback([]);
+    });
+}
+
+// Get single emergency case
+export async function getEmergencyCase(caseId) {
+    try {
+        const caseRef = doc(db, 'emergency_cases', caseId);
+        const caseSnap = await getDoc(caseRef);
+        
+        if (caseSnap.exists()) {
+            return { success: true, data: { id: caseSnap.id, ...caseSnap.data() } };
+        } else {
+            return { success: false, error: 'Emergency case not found' };
+        }
+    } catch (error) {
+        console.error('Error getting emergency case:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// Update emergency case
+export async function updateEmergencyCase(caseId, updateData) {
+    try {
+        const caseRef = doc(db, 'emergency_cases', caseId);
+        await updateDoc(caseRef, {
+            ...updateData,
+            updatedAt: serverTimestamp()
+        });
+        return { success: true };
+    } catch (error) {
+        console.error('Error updating emergency case:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// Delete emergency case
+export async function deleteEmergencyCase(caseId) {
+    try {
+        const caseRef = doc(db, 'emergency_cases', caseId);
+        await deleteDoc(caseRef);
+        return { success: true };
+    } catch (error) {
+        console.error('Error deleting emergency case:', error);
+        return { success: false, error: error.message };
+    }
+}
+
 // Subscribe to activities (realtime) - get latest activities
 export function subscribeToActivities(callback, limit = 50) {
     const activitiesRef = collection(db, 'activities');

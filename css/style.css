@@ -46,6 +46,32 @@ body {
     overflow-x: hidden;
 }
 
+/* Custom Scrollbar for table containers */
+.table-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+.table-container::-webkit-scrollbar-track {
+    background: var(--bg-color);
+    border-radius: 3px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+    transition: background 0.2s ease;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
+}
+
+/* Firefox scrollbar */
+.table-container {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) var(--bg-color);
+}
+
 /* Top Bar */
 .top-bar {
     position: fixed;
@@ -113,6 +139,32 @@ body {
     border-radius: 8px;
     transition: var(--transition);
     position: relative;
+}
+
+/* Small icon buttons for table actions */
+.icon-btn {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+}
+
+.icon-btn:hover {
+    background-color: var(--bg-color);
+    transform: scale(1.1);
+}
+
+.icon-btn:active {
+    transform: scale(0.95);
 }
 
 .theme-toggle:hover,
@@ -209,6 +261,65 @@ body.dark-theme .theme-toggle .moon-icon {
     border: 2px solid var(--sidebar-bg);
     display: none;
     animation: pulse 2s infinite;
+}
+
+/* Emergency Indicator */
+.emergency-indicator-menu {
+    position: relative;
+}
+
+.emergency-indicator-btn {
+    position: relative;
+    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+    color: white;
+    padding: 10px 14px;
+    border-radius: 8px;
+    animation: emergencyBlink 2s ease-in-out infinite;
+}
+
+.emergency-indicator-btn:hover {
+    background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%);
+    transform: scale(1.05);
+}
+
+.emergency-indicator-btn i {
+    color: white;
+    font-size: 18px;
+}
+
+.emergency-indicator-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #fbbf24;
+    color: #7c2d12;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 10px;
+    border: 2px solid var(--topbar-bg);
+    min-width: 20px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(251, 191, 36, 0.5);
+    animation: badgePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes emergencyBlink {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(220, 38, 38, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(220, 38, 38, 0.8), 0 0 30px rgba(220, 38, 38, 0.4);
+    }
+}
+
+@keyframes badgePulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.2);
+    }
 }
 
 .profile-menu {
@@ -832,10 +943,14 @@ body.dark-theme .theme-toggle .moon-icon {
 /* Emergency Stat Card Animation */
 .emergency-stat-card {
     position: relative;
+    transition: all 0.3s ease;
+}
+
+.emergency-stat-card.has-critical {
     animation: emergencyCardPulse 2s ease-in-out infinite;
 }
 
-.emergency-stat-card::before {
+.emergency-stat-card.has-critical::before {
     content: '';
     position: absolute;
     inset: -2px;
@@ -844,6 +959,10 @@ body.dark-theme .theme-toggle .moon-icon {
     opacity: 0;
     animation: emergencyCardGlow 2s ease-in-out infinite;
     z-index: -1;
+}
+
+.emergency-stat-card.has-critical .emergency-count {
+    animation: emergencyNumberPulse 1.5s ease-in-out infinite;
 }
 
 .emergency-stat-card:hover {
@@ -870,6 +989,17 @@ body.dark-theme .theme-toggle .moon-icon {
     }
     50% {
         opacity: 0.12;
+    }
+}
+
+@keyframes emergencyNumberPulse {
+    0%, 100% {
+        transform: scale(1);
+        color: #ef4444;
+    }
+    50% {
+        transform: scale(1.1);
+        color: #dc2626;
     }
 }
 
@@ -1115,6 +1245,178 @@ body.dark-theme .theme-toggle .moon-icon {
 body.dark-theme .module-badge {
     background-color: #334155;
     border-color: #475569;
+}
+
+/* Emergency Alert Banner */
+.emergency-alert-banner {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000;
+    width: 90%;
+    max-width: 800px;
+    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+    color: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(220, 38, 38, 0.4);
+    animation: emergencyPulse 2s ease-in-out infinite, slideInDown 0.5s ease-out;
+    border: 3px solid #fca5a5;
+}
+
+.emergency-alert-content {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 20px;
+}
+
+.emergency-alert-icon {
+    flex-shrink: 0;
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: iconPulse 1s ease-in-out infinite;
+}
+
+.emergency-alert-icon i {
+    color: white;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.emergency-alert-info {
+    flex: 1;
+}
+
+.emergency-alert-info strong {
+    display: block;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.emergency-alert-info p {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 4px 0;
+}
+
+.emergency-alert-info small {
+    font-size: 13px;
+    opacity: 0.9;
+}
+
+.emergency-alert-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.emergency-alert-actions .btn {
+    white-space: nowrap;
+}
+
+.emergency-alert-actions .btn-light {
+    background: white;
+    color: #dc2626;
+    border: none;
+}
+
+.emergency-alert-actions .btn-light:hover {
+    background: #f1f5f9;
+    transform: translateY(-2px);
+}
+
+.emergency-alert-actions .btn-danger {
+    background: rgba(0, 0, 0, 0.2);
+    border: 2px solid white;
+    color: white;
+}
+
+.emergency-alert-actions .btn-danger:hover {
+    background: rgba(0, 0, 0, 0.4);
+    transform: translateY(-2px);
+}
+
+.emergency-alert-actions .btn-secondary {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    padding: 8px 12px;
+}
+
+.emergency-alert-actions .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Animations */
+@keyframes emergencyPulse {
+    0%, 100% {
+        box-shadow: 0 10px 40px rgba(220, 38, 38, 0.4);
+    }
+    50% {
+        box-shadow: 0 10px 60px rgba(220, 38, 38, 0.7), 0 0 30px rgba(220, 38, 38, 0.5);
+    }
+}
+
+@keyframes iconPulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+@keyframes slideInDown {
+    from {
+        transform: translate(-50%, -100px);
+        opacity: 0;
+    }
+    to {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutUp {
+    from {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+    to {
+        transform: translate(-50%, -100px);
+        opacity: 0;
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .emergency-alert-banner {
+        width: 95%;
+        top: 70px;
+    }
+    
+    .emergency-alert-content {
+        flex-direction: column;
+        text-align: center;
+        padding: 15px;
+    }
+    
+    .emergency-alert-actions {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .emergency-alert-actions .btn {
+        width: 100%;
+    }
 }
 
 /* Sub Navigation */
@@ -1836,7 +2138,9 @@ body.dark-theme .module-badge {
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow);
     margin-bottom: 24px;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: visible;
+    width: 100%;
 }
 
 .table-wrapper {
@@ -3032,6 +3336,8 @@ body.dark-theme .module-badge {
     color: var(--text-secondary);
     text-transform: uppercase;
     border-bottom: 2px solid var(--border-color);
+    white-space: nowrap;
+    vertical-align: middle;
 }
 
 .data-table td {
@@ -3039,6 +3345,8 @@ body.dark-theme .module-badge {
     border-bottom: 1px solid var(--border-color);
     font-size: 14px;
     color: var(--text-primary);
+    white-space: nowrap;
+    vertical-align: middle;
 }
 
 .data-table tbody tr {
@@ -8955,6 +9263,70 @@ body.dark-theme .medication-item {
     transition: all 0.2s ease;
 }
 
+.search-results-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-top: 4px;
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    display: none;
+}
+
+.search-results-dropdown[style*="display: block"] {
+    display: block !important;
+}
+
+.search-results-dropdown .search-result-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 12px;
+    margin: 0;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 0;
+    background: var(--sidebar-bg);
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.search-results-dropdown .search-result-item:hover {
+    background: var(--bg-color);
+    transform: none;
+}
+
+.search-results-dropdown .search-result-item:last-child {
+    border-bottom: none;
+}
+
+.search-results-dropdown .search-result-item strong {
+    font-size: 14px;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+.search-results-dropdown .search-result-item small {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* Make parent position relative for absolute positioning */
+#existingPatientSearch {
+    position: relative;
+}
+
+#existingPatientSearch .form-group {
+    position: relative;
+}
+
 .search-result-item:hover {
     border-color: var(--primary-color);
     background: rgba(52, 152, 219, 0.05);
@@ -10363,12 +10735,19 @@ body.dark-theme .medication-item {
 .btn-sm {
     padding: 8px 14px;
     font-size: 13px;
-    min-width: 80px;
+    min-width: 36px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .btn-sm:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+/* Action buttons container in tables */
+.data-table td > div {
+    min-width: fit-content;
 }
 
 .btn-sm:disabled:hover {

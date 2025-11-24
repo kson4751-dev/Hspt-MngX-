@@ -162,19 +162,10 @@ navItems.forEach(item => {
             return;
         }
         
-        // Remove active class from all nav items and dropdown items
-        navItems.forEach(nav => nav.classList.remove('active'));
-        navDropdownItems.forEach(nav => nav.classList.remove('active'));
-        modules.forEach(module => module.classList.remove('active'));
-        
-        // Add active class to clicked nav item
-        item.classList.add('active');
-        
-        // Show corresponding module
-        const moduleId = item.getAttribute('data-module') + '-module';
-        const activeModule = document.getElementById(moduleId);
-        if (activeModule) {
-            activeModule.classList.add('active');
+        // Get module name and navigate
+        const moduleName = item.getAttribute('data-module');
+        if (moduleName) {
+            navigateToModule(moduleName);
         }
         
         // Close sidebar on mobile after selection
@@ -189,20 +180,12 @@ navDropdownItems.forEach(item => {
     item.addEventListener('click', (e) => {
         e.preventDefault();
         
-        // Remove active class from all nav items and modules
-        navItems.forEach(nav => nav.classList.remove('active'));
-        navDropdownItems.forEach(nav => nav.classList.remove('active'));
-        modules.forEach(module => module.classList.remove('active'));
-        
-        // Add active class to clicked dropdown item
-        item.classList.add('active');
-        
-        // Show corresponding module
+        // Get module and submodule names
+        const parentModule = item.getAttribute('data-module');
         const submodule = item.getAttribute('data-submodule');
-        const moduleId = submodule + '-module';
-        const activeModule = document.getElementById(moduleId);
-        if (activeModule) {
-            activeModule.classList.add('active');
+        
+        if (submodule) {
+            navigateToModule(parentModule, submodule);
         }
         
         // Close sidebar on mobile after selection
@@ -508,6 +491,16 @@ async function loadDashboardStats() {
             console.error('Error loading lab requests for dashboard:', error);
         });
         
+        // Load emergency cases data for dashboard
+        import('./firebase-helpers.js').then(({ subscribeToEmergencyCases }) => {
+            subscribeToEmergencyCases((cases) => {
+                updateEmergencyStats(cases);
+                updateDashboardDisplay();
+            });
+        }).catch(error => {
+            console.error('Error loading emergency cases for dashboard:', error);
+        });
+        
     } catch (error) {
         console.error('Error initializing dashboard stats:', error);
     }
@@ -544,10 +537,27 @@ function updatePatientsStats(patients) {
         return triageDate.getTime() === today.getTime();
     }).length;
     
-    // Emergency cases
+    // Emergency cases - kept for backward compatibility but will be overridden by real emergency data
     dashboardStats.emergencies = patients.filter(p => 
         p.priority === 'emergency' || p.status === 'emergency'
     ).length;
+}
+
+// Update emergency statistics from emergency module
+function updateEmergencyStats(emergencyCases) {
+    // Count active (not discharged) emergency cases
+    const activeCases = emergencyCases.filter(c => 
+        c.status !== 'discharged' && c.status !== 'transferred'
+    );
+    
+    // Count critical cases
+    const criticalCases = emergencyCases.filter(c => 
+        c.severity === 'critical' && (c.status === 'active' || c.status === 'stabilizing')
+    );
+    
+    dashboardStats.emergencies = criticalCases.length;
+    
+    console.log(`📊 Dashboard Emergency Stats Updated: ${dashboardStats.emergencies} critical cases out of ${activeCases.length} active`);
 }
 
 // Update lab statistics
@@ -582,13 +592,23 @@ function updateDashboardDisplay() {
     if (dashLabTests) dashLabTests.textContent = dashboardStats.labTests;
     if (dashPharmacyOrders) dashPharmacyOrders.textContent = dashboardStats.pharmacyOrders;
     if (dashTriageCases) dashTriageCases.textContent = dashboardStats.triageCases;
-    if (dashEmergencies) dashEmergencies.textContent = dashboardStats.emergencies;
+    if (dashEmergencies) {
+        dashEmergencies.textContent = dashboardStats.emergencies;
+        // Add pulsing animation if there are critical cases
+        const emergencyCard = document.querySelector('.emergency-stat-card');
+        if (dashboardStats.emergencies > 0) {
+            emergencyCard?.classList.add('has-critical');
+        } else {
+            emergencyCard?.classList.remove('has-critical');
+        }
+    }
     if (dashPatientsChange) dashPatientsChange.textContent = dashboardStats.todayPatients;
     
     // Add animation to updated numbers
     animateNumber(dashTotalPatients);
     animateNumber(dashTodayPatients);
     animateNumber(dashQueuePatients);
+    animateNumber(dashEmergencies);
 }
 
 // Animate number change
@@ -647,9 +667,11 @@ function navigateToModule(module, submodule = null) {
         if (moduleElement) {
             moduleElement.classList.add('active');
             
-            // Special handling for all-activities module
+            // Special handling for specific modules
             if (module === 'all-activities') {
                 navigateToAllActivitiesModule();
+            } else if (module === 'emergency') {
+                initializeEmergencyModule();
             }
         }
     }
@@ -663,6 +685,75 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeDashboard();
     loadRecentActivities();
     initializeDashboardSearch();
+    
+    // Initialize emergency alert system for all users
+    initializeEmergencyAlertSound();
+    requestNotificationPermission();
+    
+    // Subscribe to emergency cases for all logged-in staff (for alerts)
+    try {
+        const { subscribeToEmergencyCases } = await import('./firebase-helpers.js');
+        
+        subscribeToEmergencyCases((cases) => {
+            // Check for new critical cases (only if we have previous data)
+            const previousCases = window.globalEmergencyCases || [];
+            
+            if (previousCases.length > 0) {
+                const newCases = cases.filter(newCase => 
+                    !previousCases.find(oldCase => oldCase.id === newCase.id)
+                );
+                
+                // Alert for new critical or severe cases
+                newCases.forEach(newCase => {
+                    if (newCase.severity === 'critical' || newCase.severity === 'severe') {
+                        console.log('🚨 GLOBAL ALERT: New critical case detected!');
+                        playEmergencyAlert();
+                        showEmergencyNotificationBanner(newCase);
+                        
+                        // Browser notification
+                        if ('Notification' in window && Notification.permission === 'granted') {
+                            new Notification('🚨 EMERGENCY: ' + newCase.severity.toUpperCase(), {
+                                body: `${newCase.patientName} - ${newCase.caseType}\n${newCase.chiefComplaint}`,
+                                icon: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
+                                requireInteraction: true,
+                                tag: 'emergency-' + newCase.id
+                            });
+                        }
+                    }
+                });
+            }
+            
+            // Update global emergency cases
+            window.globalEmergencyCases = cases;
+            
+            // Update dashboard emergency count
+            const dashEmergencies = document.getElementById('dashEmergencies');
+            if (dashEmergencies) {
+                const critical = cases.filter(c => c.severity === 'critical' && c.status === 'active').length;
+                dashEmergencies.textContent = critical;
+            }
+            
+            // Update top bar emergency indicator
+            const activeCritical = cases.filter(c => 
+                (c.severity === 'critical' || c.severity === 'severe') && 
+                c.status === 'active'
+            ).length;
+            
+            const emergencyIndicatorMenu = document.getElementById('emergencyIndicatorMenu');
+            const emergencyIndicatorBadge = document.getElementById('emergencyIndicatorBadge');
+            
+            if (activeCritical > 0) {
+                if (emergencyIndicatorMenu) emergencyIndicatorMenu.style.display = 'block';
+                if (emergencyIndicatorBadge) emergencyIndicatorBadge.textContent = activeCritical;
+            } else {
+                if (emergencyIndicatorMenu) emergencyIndicatorMenu.style.display = 'none';
+            }
+        });
+        
+        console.log('✅ Global emergency alert system active');
+    } catch (error) {
+        console.error('Error initializing global emergency alerts:', error);
+    }
     
     // Initialize Ward & Nursing Module
     try {
@@ -9587,6 +9678,1182 @@ if (!document.getElementById('notification-animations')) {
     `;
     document.head.appendChild(style);
 }
+
+// ==========================================
+// EMERGENCY MODULE
+// ==========================================
+
+let emergencyCases = [];
+let emergencyUnsubscribe = null;
+let emergencyAlertAudio = null;
+let isAlertPlaying = false;
+
+// Initialize emergency alert sound
+function initializeEmergencyAlertSound() {
+    // Create audio context for emergency alert
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioContext = new AudioContext();
+        
+        // Store for later use
+        window.emergencyAudioContext = audioContext;
+        
+        console.log('🔊 Emergency alert sound system initialized');
+    } catch (error) {
+        console.error('Audio context not supported:', error);
+    }
+}
+
+// Play emergency alert sound (ambulance siren - WIU WIU WIU)
+function playEmergencyAlert() {
+    try {
+        const audioContext = window.emergencyAudioContext || new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Create oscillator for siren effect
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        // Connect nodes
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Configure siren sound - European ambulance style (WIU WIU WIU)
+        oscillator.type = 'sine';
+        
+        const now = audioContext.currentTime;
+        const duration = 4; // 4 seconds for 3 complete wiu cycles
+        const cycleTime = 1.3; // Each "WIU" cycle duration
+        
+        // Start with low frequency
+        oscillator.frequency.setValueAtTime(400, now);
+        
+        // Create 3 "WIU" cycles (up-down sweep)
+        for (let i = 0; i < 3; i++) {
+            const cycleStart = now + (i * cycleTime);
+            const sweepUp = cycleStart + 0.15; // Quick rise
+            const hold = sweepUp + 0.3; // Hold high
+            const sweepDown = hold + 0.15; // Quick fall
+            
+            // Sweep up: 400Hz -> 1200Hz (WI-)
+            oscillator.frequency.linearRampToValueAtTime(400, cycleStart);
+            oscillator.frequency.linearRampToValueAtTime(1200, sweepUp);
+            
+            // Hold high frequency (-U-)
+            oscillator.frequency.linearRampToValueAtTime(1200, hold);
+            
+            // Sweep down: 1200Hz -> 400Hz (-U)
+            oscillator.frequency.linearRampToValueAtTime(400, sweepDown);
+        }
+        
+        // Volume envelope - fade in and out
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.4, now + 0.1); // Fade in
+        gainNode.gain.setValueAtTime(0.4, now + duration - 0.3);
+        gainNode.gain.linearRampToValueAtTime(0, now + duration); // Fade out
+        
+        // Start and stop oscillator
+        oscillator.start(now);
+        oscillator.stop(now + duration);
+        
+        isAlertPlaying = true;
+        
+        // Reset flag after duration
+        setTimeout(() => {
+            isAlertPlaying = false;
+        }, duration * 1000);
+        
+        console.log('🚨 Emergency siren playing: WIU WIU WIU');
+        
+    } catch (error) {
+        console.error('Error playing emergency alert:', error);
+        // Fallback: browser notification
+        if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('🚨 EMERGENCY ALERT', {
+                body: 'Critical patient admitted to Emergency Department',
+                icon: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
+                requireInteraction: true,
+                tag: 'emergency-alert'
+            });
+        }
+    }
+}
+
+// Show emergency notification banner
+function showEmergencyNotificationBanner(emergencyCase) {
+    // Remove existing banner if any
+    const existingBanner = document.getElementById('emergencyAlertBanner');
+    if (existingBanner) {
+        existingBanner.remove();
+    }
+    
+    const banner = document.createElement('div');
+    banner.id = 'emergencyAlertBanner';
+    banner.className = 'emergency-alert-banner';
+    banner.innerHTML = `
+        <div class="emergency-alert-content">
+            <div class="emergency-alert-icon">
+                <i class="fas fa-ambulance fa-2x"></i>
+            </div>
+            <div class="emergency-alert-info">
+                <strong>🚨 EMERGENCY ALERT - ${emergencyCase.severity.toUpperCase()}</strong>
+                <p>${emergencyCase.patientName} - ${emergencyCase.caseType}</p>
+                <small>Chief Complaint: ${emergencyCase.chiefComplaint}</small>
+            </div>
+            <div class="emergency-alert-actions">
+                <button class="btn btn-sm btn-light" onclick="viewEmergencyCase('${emergencyCase.id}')">
+                    <i class="fas fa-eye"></i> View Case
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="navigateToModule('emergency')">
+                    <i class="fas fa-ambulance"></i> Go to Emergency
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="dismissEmergencyAlert()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(banner);
+    
+    // Auto-dismiss after 30 seconds
+    setTimeout(() => {
+        if (document.getElementById('emergencyAlertBanner')) {
+            dismissEmergencyAlert();
+        }
+    }, 30000);
+}
+
+// Dismiss emergency alert banner
+window.dismissEmergencyAlert = function() {
+    const banner = document.getElementById('emergencyAlertBanner');
+    if (banner) {
+        banner.style.animation = 'slideOutUp 0.5s ease-out';
+        setTimeout(() => banner.remove(), 500);
+    }
+};
+
+// Request notification permission
+function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+            console.log('Notification permission:', permission);
+        });
+    }
+}
+
+// Initialize Emergency Module
+async function initializeEmergencyModule() {
+    console.log('🚨 ========== INITIALIZING EMERGENCY MODULE ==========');
+    console.log('🚨 Current URL:', window.location.href);
+    console.log('🚨 Emergency module visible:', document.getElementById('emergency-module')?.classList.contains('active'));
+    
+    // Initialize alert sound system
+    initializeEmergencyAlertSound();
+    
+    // Request notification permission
+    requestNotificationPermission();
+    
+    try {
+        // Import Firebase helpers
+        const { subscribeToEmergencyCases } = await import('./firebase-helpers.js');
+        
+        // Unsubscribe from previous listener if exists
+        if (emergencyUnsubscribe) {
+            emergencyUnsubscribe();
+        }
+        
+        // Subscribe to real-time emergency cases
+        emergencyUnsubscribe = subscribeToEmergencyCases((cases) => {
+            console.log(`🚑 Received ${cases.length} emergency cases from Firebase`);
+            
+            // Check for new critical cases
+            if (emergencyCases.length > 0) {
+                const newCases = cases.filter(newCase => 
+                    !emergencyCases.find(oldCase => oldCase.id === newCase.id)
+                );
+                
+                // Alert for new critical or severe cases
+                newCases.forEach(newCase => {
+                    if (newCase.severity === 'critical' || newCase.severity === 'severe') {
+                        console.log('🚨 NEW CRITICAL CASE DETECTED!');
+                        playEmergencyAlert();
+                        showEmergencyNotificationBanner(newCase);
+                        
+                        // Browser notification
+                        if ('Notification' in window && Notification.permission === 'granted') {
+                            new Notification('🚨 EMERGENCY: ' + newCase.severity.toUpperCase(), {
+                                body: `${newCase.patientName} - ${newCase.caseType}\n${newCase.chiefComplaint}`,
+                                icon: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
+                                requireInteraction: true,
+                                tag: 'emergency-' + newCase.id
+                            });
+                        }
+                    }
+                });
+            }
+            
+            emergencyCases = cases;
+            updateEmergencyModuleStats();
+            displayEmergencyCases();
+            
+            // Also update dashboard emergency stats
+            updateDashboardEmergencyStats(cases);
+        });
+        
+        console.log('✅ Emergency module initialized with real-time updates');
+    } catch (error) {
+        console.error('❌ Error initializing emergency module:', error);
+    }
+    
+    // Setup event listeners
+    console.log('🚨 About to setup event listeners...');
+    setupEmergencyEventListeners();
+    console.log('🚨 ========== EMERGENCY MODULE INIT COMPLETE ==========');
+}
+
+// Setup event listeners
+function setupEmergencyEventListeners() {
+    console.log('🔧 ========== SETTING UP EMERGENCY EVENT LISTENERS ==========');
+    
+    // Patient type change
+    const patientType = document.getElementById('emergencyPatientType');
+    const existingSearch = document.getElementById('existingPatientSearch');
+    const newFields = document.getElementById('newPatientFields');
+    
+    console.log('🔍 Looking for elements:');
+    console.log('  - emergencyPatientType:', patientType);
+    console.log('  - existingPatientSearch:', existingSearch);
+    console.log('  - newPatientFields:', newFields);
+    
+    console.log('🔍 Element states:', {
+        patientTypeExists: !!patientType,
+        existingSearchExists: !!existingSearch,
+        newFieldsExists: !!newFields,
+        existingSearchDisplay: existingSearch?.style.display,
+        newFieldsDisplay: newFields?.style.display
+    });
+    
+    if (patientType && existingSearch && newFields) {
+        console.log('✅ All elements found! Attaching event listener...');
+        
+        // Remove any existing listeners by cloning
+        const newPatientType = patientType.cloneNode(true);
+        patientType.parentNode.replaceChild(newPatientType, patientType);
+        console.log('🔄 Element cloned and replaced');
+        
+        newPatientType.addEventListener('change', (e) => {
+            console.log('🔥 ========== PATIENT TYPE CHANGE EVENT FIRED ==========');
+            console.log('🔥 Selected value:', e.target.value);
+            console.log('🔥 Event target:', e.target);
+            
+            const existing = document.getElementById('existingPatientSearch');
+            const newPat = document.getElementById('newPatientFields');
+            
+            console.log('🔥 Retrieved elements again:', {
+                existing: !!existing,
+                newPat: !!newPat
+            });
+            
+            if (e.target.value === 'existing') {
+                console.log('🔥 Setting EXISTING patient search visible...');
+                existing.style.display = 'block';
+                newPat.style.display = 'none';
+                console.log('✅ Done! Display values:', {
+                    existing: existing.style.display,
+                    newPat: newPat.style.display
+                });
+            } else if (e.target.value === 'new') {
+                console.log('🔥 Setting NEW patient fields visible...');
+                existing.style.display = 'none';
+                newPat.style.display = 'block';
+                console.log('✅ Done! Display values:', {
+                    existing: existing.style.display,
+                    newPat: newPat.style.display
+                });
+            } else {
+                console.log('🔥 Hiding both sections...');
+                existing.style.display = 'none';
+                newPat.style.display = 'none';
+                console.log('✅ Done! Both hidden');
+            }
+        });
+        console.log('✅ ========== EVENT LISTENER ATTACHED SUCCESSFULLY ==========');
+    } else {
+        console.error('❌ ========== ELEMENTS NOT FOUND ==========');
+        console.error('❌ Missing elements:', {
+            patientType: !patientType ? 'MISSING' : 'found',
+            existingSearch: !existingSearch ? 'MISSING' : 'found',
+            newFields: !newFields ? 'MISSING' : 'found'
+        });
+    }
+    
+    // Patient search
+    const patientSearch = document.getElementById('emergencyPatientSearch');
+    if (patientSearch) {
+        let searchTimeout;
+        patientSearch.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                searchPatientsForEmergency(e.target.value);
+            }, 300);
+        });
+    }
+    
+    // Filters
+    const statusFilter = document.getElementById('emergencyStatusFilter');
+    const severityFilter = document.getElementById('emergencySeverityFilter');
+    const searchInput = document.getElementById('emergencySearchInput');
+    
+    if (statusFilter) statusFilter.addEventListener('change', displayEmergencyCases);
+    if (severityFilter) severityFilter.addEventListener('change', displayEmergencyCases);
+    if (searchInput) {
+        let searchTimeout;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(displayEmergencyCases, 300);
+        });
+    }
+}
+
+// Search patients for emergency
+function searchPatientsForEmergency(searchTerm) {
+    if (!searchTerm || searchTerm.length < 2) {
+        document.getElementById('emergencyPatientResults').innerHTML = '';
+        document.getElementById('emergencyPatientResults').style.display = 'none';
+        return;
+    }
+    
+    const term = searchTerm.toLowerCase();
+    const results = allPatients.filter(p => 
+        p.patientId?.toLowerCase().includes(term) ||
+        p.firstName?.toLowerCase().includes(term) ||
+        p.lastName?.toLowerCase().includes(term) ||
+        p.phone?.includes(term)
+    ).slice(0, 10);
+    
+    const resultsContainer = document.getElementById('emergencyPatientResults');
+    
+    if (results.length === 0) {
+        resultsContainer.innerHTML = '<div class="search-result-item">No patients found. Enter details manually below.</div>';
+        resultsContainer.style.display = 'block';
+        return;
+    }
+    
+    resultsContainer.innerHTML = results.map(patient => `
+        <div class="search-result-item" onclick="selectPatientForEmergency('${patient.id}')">
+            <strong>${patient.firstName} ${patient.lastName}</strong>
+            <small>${patient.patientId} • ${patient.age || 'N/A'} yrs • ${patient.gender || 'N/A'} • ${patient.phone || 'No phone'}</small>
+        </div>
+    `).join('');
+    resultsContainer.style.display = 'block';
+}
+
+// Select patient for emergency
+window.selectPatientForEmergency = function(patientId) {
+    const patient = allPatients.find(p => p.id === patientId);
+    if (!patient) return;
+    
+    // Calculate age from date of birth
+    let age = 'Unknown';
+    if (patient.dateOfBirth) {
+        const birthDate = new Date(patient.dateOfBirth);
+        const today = new Date();
+        age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+    }
+    
+    // Store patient data
+    document.getElementById('selectedPatientId').value = patient.patientId;
+    document.getElementById('selectedPatientData').value = JSON.stringify({
+        ...patient,
+        calculatedAge: age
+    });
+    
+    // Update search input to show selected patient
+    document.getElementById('emergencyPatientSearch').value = `${patient.firstName} ${patient.lastName} (${patient.patientId}) - ${age} yrs, ${patient.gender || 'N/A'}`;
+    
+    // Clear and hide results
+    document.getElementById('emergencyPatientResults').innerHTML = '';
+    document.getElementById('emergencyPatientResults').style.display = 'none';
+    
+    console.log('✅ Patient selected:', patient);
+};
+
+// Open new emergency modal
+window.openNewEmergencyModal = function() {
+    console.log('📋 ========== OPENING NEW EMERGENCY MODAL ==========');
+    
+    const modal = document.getElementById('newEmergencyModal');
+    console.log('📋 Modal element:', modal);
+    
+    modal.classList.add('active');
+    console.log('📋 Modal classes:', modal.className);
+    
+    const form = document.getElementById('newEmergencyForm');
+    console.log('📋 Form element:', form);
+    form.reset();
+    
+    // Reset visibility
+    const existingSearch = document.getElementById('existingPatientSearch');
+    const newFields = document.getElementById('newPatientFields');
+    const resultsContainer = document.getElementById('emergencyPatientResults');
+    const patientTypeSelect = document.getElementById('emergencyPatientType');
+    
+    console.log('📋 Form elements found:', {
+        existingSearch: !!existingSearch,
+        newFields: !!newFields,
+        resultsContainer: !!resultsContainer,
+        patientTypeSelect: !!patientTypeSelect
+    });
+    
+    existingSearch.style.display = 'none';
+    newFields.style.display = 'none';
+    resultsContainer.innerHTML = '';
+    resultsContainer.style.display = 'none';
+    
+    console.log('📋 Display values after reset:', {
+        existingSearch: existingSearch.style.display,
+        newFields: newFields.style.display
+    });
+    
+    // Clear hidden fields
+    document.getElementById('selectedPatientId').value = '';
+    document.getElementById('selectedPatientData').value = '';
+    
+    // Reset patient type dropdown
+    patientTypeSelect.value = '';
+    console.log('📋 Patient type reset to:', patientTypeSelect.value);
+    
+    console.log('✅ ========== MODAL OPENED AND RESET ==========');
+    document.body.style.overflow = 'hidden';
+};
+
+// Close new emergency modal
+window.closeNewEmergencyModal = function() {
+    document.getElementById('newEmergencyModal').classList.remove('active');
+    document.body.style.overflow = 'auto';
+};
+
+// Save emergency case
+window.saveEmergencyCase = async function() {
+    const form = document.getElementById('newEmergencyForm');
+    
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    
+    const patientType = document.getElementById('emergencyPatientType').value;
+    
+    if (!patientType) {
+        alert('Please select patient type (Existing or New)');
+        return;
+    }
+    
+    let patientInfo = {};
+    
+    if (patientType === 'existing') {
+        const patientData = document.getElementById('selectedPatientData').value;
+        if (!patientData) {
+            alert('Please select an existing patient from the search results');
+            document.getElementById('emergencyPatientSearch').focus();
+            return;
+        }
+        
+        const patient = JSON.parse(patientData);
+        patientInfo = {
+            patientId: patient.patientId,
+            patientName: `${patient.firstName} ${patient.lastName}`,
+            age: patient.calculatedAge || calculateAge(patient.dateOfBirth) || 'Unknown',
+            gender: patient.gender || 'Unknown',
+            dateOfBirth: patient.dateOfBirth || null,
+            phone: patient.phone || 'N/A',
+            existingPatient: true
+        };
+        
+    } else if (patientType === 'new') {
+        const name = document.getElementById('emergencyPatientName').value.trim();
+        
+        if (!name) {
+            alert('Please enter patient name');
+            document.getElementById('emergencyPatientName').focus();
+            return;
+        }
+        
+        patientInfo = {
+            patientId: 'EMERG-' + Date.now(),
+            patientName: name,
+            age: document.getElementById('emergencyPatientAge').value || 'Unknown',
+            gender: document.getElementById('emergencyPatientGender').value || 'Unknown',
+            phone: 'N/A',
+            existingPatient: false
+        };
+    }
+    
+    // Validate case details
+    const caseType = document.getElementById('emergencyCaseType').value;
+    const severity = document.getElementById('emergencySeverity').value;
+    const chiefComplaint = document.getElementById('emergencyChiefComplaint').value.trim();
+    
+    if (!caseType) {
+        alert('Please select case type');
+        document.getElementById('emergencyCaseType').focus();
+        return;
+    }
+    
+    if (!severity) {
+        alert('Please select severity level');
+        document.getElementById('emergencySeverity').focus();
+        return;
+    }
+    
+    if (!chiefComplaint) {
+        alert('Please enter chief complaint');
+        document.getElementById('emergencyChiefComplaint').focus();
+        return;
+    }
+    
+    const caseData = {
+        ...patientInfo,
+        caseNumber: 'EMG-' + Date.now(),
+        caseType: caseType,
+        severity: severity,
+        chiefComplaint: chiefComplaint,
+        incidentDetails: document.getElementById('emergencyIncidentDetails').value || '',
+        vitalSigns: {
+            bloodPressure: document.getElementById('emergencyBP').value || 'Not recorded',
+            heartRate: document.getElementById('emergencyHeartRate').value || 'Not recorded',
+            respiratoryRate: document.getElementById('emergencyRespRate').value || 'Not recorded',
+            temperature: document.getElementById('emergencyTemp').value || 'Not recorded',
+            oxygenSaturation: document.getElementById('emergencyO2Sat').value || 'Not recorded',
+            gcsScore: document.getElementById('emergencyGCS').value || 'Not recorded'
+        },
+        initialTreatment: document.getElementById('emergencyInitialTreatment').value || '',
+        status: 'active',
+        attendingStaff: 'Current User', // TODO: Get from auth
+        arrivalTimestamp: new Date().toISOString()
+    };
+    
+    console.log('💾 Saving emergency case:', caseData);
+    
+    try {
+        const { addEmergencyCase } = await import('./firebase-helpers.js');
+        const result = await addEmergencyCase(caseData);
+        
+        if (result.success) {
+            // Track activity
+            trackEmergency(
+                caseData.patientName,
+                caseData.patientId,
+                `${caseData.caseType} - ${caseData.severity}`
+            );
+            
+            // Play alert sound for critical/severe cases
+            if (caseData.severity === 'critical' || caseData.severity === 'severe') {
+                setTimeout(() => {
+                    playEmergencyAlert();
+                    showEmergencyNotificationBanner({
+                        id: result.id,
+                        ...caseData
+                    });
+                }, 500);
+            }
+            
+            alert(`✅ Emergency case registered successfully!\n\nCase Number: ${caseData.caseNumber}\nPatient: ${caseData.patientName}\nSeverity: ${caseData.severity}\n\n${caseData.severity === 'critical' || caseData.severity === 'severe' ? '🚨 Emergency alert sent to all staff!' : ''}`);
+            closeNewEmergencyModal();
+        } else {
+            alert('❌ Error registering emergency case: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Error saving emergency case:', error);
+        alert('❌ Error: ' + error.message);
+    }
+};
+
+// Update emergency stats
+// Update emergency module statistics
+function updateEmergencyModuleStats() {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    const activeCases = emergencyCases.filter(c => c.status === 'active').length;
+    const todayCases = emergencyCases.filter(c => {
+        const caseDate = new Date(c.arrivalTime);
+        return caseDate >= today;
+    }).length;
+    const stabilized = emergencyCases.filter(c => c.status === 'stabilized' && new Date(c.updatedAt) >= today).length;
+    const critical = emergencyCases.filter(c => c.severity === 'critical' && c.status === 'active').length;
+    
+    const activeEl = document.getElementById('emergencyActiveCases');
+    const todayEl = document.getElementById('emergencyTodayCases');
+    const stabilizedEl = document.getElementById('emergencyStabilized');
+    const criticalEl = document.getElementById('emergencyCritical');
+    
+    if (activeEl) activeEl.textContent = activeCases;
+    if (todayEl) todayEl.textContent = todayCases;
+    if (stabilizedEl) stabilizedEl.textContent = stabilized;
+    if (criticalEl) criticalEl.textContent = critical;
+}
+
+// Update dashboard emergency statistics
+function updateDashboardEmergencyStats(cases) {
+    // Count active (not discharged) emergency cases
+    const activeCases = cases.filter(c => 
+        c.status !== 'discharged' && c.status !== 'transferred'
+    );
+    
+    // Count critical cases
+    const criticalCases = cases.filter(c => 
+        c.severity === 'critical' && (c.status === 'active' || c.status === 'stabilizing')
+    );
+    
+    dashboardStats.emergencies = criticalCases.length;
+    
+    console.log(`📊 Dashboard Emergency Stats Updated: ${dashboardStats.emergencies} critical cases out of ${activeCases.length} active`);
+    
+    // Update the dashboard display
+    updateDashboardDisplay();
+}
+
+// Display emergency cases
+function displayEmergencyCases() {
+    const tbody = document.getElementById('emergencyCasesTableBody');
+    if (!tbody) return;
+    
+    let filtered = [...emergencyCases];
+    
+    // Apply filters
+    const statusFilter = document.getElementById('emergencyStatusFilter')?.value;
+    const severityFilter = document.getElementById('emergencySeverityFilter')?.value;
+    const searchTerm = document.getElementById('emergencySearchInput')?.value.toLowerCase();
+    
+    if (statusFilter) {
+        filtered = filtered.filter(c => c.status === statusFilter);
+    }
+    
+    if (severityFilter) {
+        filtered = filtered.filter(c => c.severity === severityFilter);
+    }
+    
+    if (searchTerm) {
+        filtered = filtered.filter(c =>
+            c.patientName.toLowerCase().includes(searchTerm) ||
+            c.patientId.toLowerCase().includes(searchTerm) ||
+            c.caseType.toLowerCase().includes(searchTerm) ||
+            c.chiefComplaint.toLowerCase().includes(searchTerm)
+        );
+    }
+    
+    if (filtered.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                    <i class="fas fa-inbox" style="font-size: 32px; margin-bottom: 10px; display: block;"></i>
+                    <p>No emergency cases found</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = filtered.map(emergencyCase => {
+        const arrivalTime = new Date(emergencyCase.arrivalTime);
+        const timeStr = arrivalTime.toLocaleString([], { 
+            month: 'short', 
+            day: 'numeric', 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+        
+        const severityColors = {
+            critical: '#dc2626',
+            severe: '#f59e0b',
+            moderate: '#3b82f6',
+            minor: '#10b981'
+        };
+        
+        const statusBadges = {
+            active: 'negative',
+            stabilized: 'success',
+            admitted: 'info',
+            discharged: 'neutral'
+        };
+        
+        return `
+            <tr>
+                <td style="white-space: nowrap;">${timeStr}</td>
+                <td style="white-space: nowrap;"><strong>${emergencyCase.patientName}</strong><br><small style="color: var(--text-secondary);">${emergencyCase.patientId}</small></td>
+                <td style="white-space: nowrap;">${emergencyCase.age} / ${emergencyCase.gender}</td>
+                <td style="white-space: nowrap;"><span class="module-badge">${emergencyCase.caseType}</span></td>
+                <td style="white-space: nowrap;">
+                    <span class="activity-badge" style="background-color: ${severityColors[emergencyCase.severity]}20; color: ${severityColors[emergencyCase.severity]}; font-weight: 700;">
+                        ${emergencyCase.severity.toUpperCase()}
+                    </span>
+                </td>
+                <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${emergencyCase.chiefComplaint}">${emergencyCase.chiefComplaint}</td>
+                <td>
+                    <small style="line-height: 1.6;">
+                        BP: ${emergencyCase.vitalSigns.bloodPressure}<br>
+                        HR: ${emergencyCase.vitalSigns.heartRate}<br>
+                        O2: ${emergencyCase.vitalSigns.oxygenSaturation}
+                    </small>
+                </td>
+                <td style="white-space: nowrap;">
+                    <span class="activity-badge ${statusBadges[emergencyCase.status]}">
+                        ${emergencyCase.status.charAt(0).toUpperCase() + emergencyCase.status.slice(1)}
+                    </span>
+                </td>
+                <td style="white-space: nowrap;">
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: nowrap;">
+                        <button class="icon-btn" onclick="viewEmergencyCase('${emergencyCase.id}')" title="View Details" style="color: var(--primary-color);">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="icon-btn" onclick="updateEmergencyStatus('${emergencyCase.id}', 'stabilized')" title="Mark Stabilized" style="color: var(--success-color);">
+                            <i class="fas fa-check-circle"></i>
+                        </button>
+                        <button class="icon-btn" onclick="referEmergencyPatient('${emergencyCase.id}')" title="Refer to Specialist" style="color: var(--secondary-color);">
+                            <i class="fas fa-share-square"></i>
+                        </button>
+                        <button class="icon-btn" onclick="admitEmergencyPatient('${emergencyCase.id}')" title="Admit to Ward" style="color: var(--warning-color);">
+                            <i class="fas fa-bed"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// View emergency case
+window.viewEmergencyCase = function(caseId) {
+    const emergencyCase = emergencyCases.find(c => c.id === caseId);
+    if (!emergencyCase) return;
+    
+    const arrivalTime = new Date(emergencyCase.arrivalTime);
+    
+    const html = `
+        <div class="form-section">
+            <h3 class="section-title">Case Information</h3>
+            <div class="modal-info-grid">
+                <div class="modal-info-item">
+                    <span class="modal-info-label">Case Number</span>
+                    <span class="modal-info-value"><strong>${emergencyCase.caseNumber}</strong></span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">Arrival Time</span>
+                    <span class="modal-info-value">${arrivalTime.toLocaleString()}</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">Case Type</span>
+                    <span class="modal-info-value">${emergencyCase.caseType}</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">Severity</span>
+                    <span class="modal-info-value"><strong style="color: #dc2626;">${emergencyCase.severity.toUpperCase()}</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3 class="section-title">Patient Information</h3>
+            <div class="modal-info-grid">
+                <div class="modal-info-item">
+                    <span class="modal-info-label">Patient Name</span>
+                    <span class="modal-info-value">${emergencyCase.patientName}</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">Patient ID</span>
+                    <span class="modal-info-value">${emergencyCase.patientId}</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">Age</span>
+                    <span class="modal-info-value">${emergencyCase.age}</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">Gender</span>
+                    <span class="modal-info-value">${emergencyCase.gender}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3 class="section-title">Medical Information</h3>
+            <div class="modal-info-item" style="margin-bottom: 15px;">
+                <span class="modal-info-label">Chief Complaint</span>
+                <span class="modal-info-value">${emergencyCase.chiefComplaint}</span>
+            </div>
+            <div class="modal-info-item">
+                <span class="modal-info-label">Incident Details</span>
+                <span class="modal-info-value">${emergencyCase.incidentDetails || 'Not provided'}</span>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3 class="section-title">Vital Signs</h3>
+            <div class="modal-info-grid">
+                <div class="modal-info-item">
+                    <span class="modal-info-label">Blood Pressure</span>
+                    <span class="modal-info-value">${emergencyCase.vitalSigns.bloodPressure}</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">Heart Rate</span>
+                    <span class="modal-info-value">${emergencyCase.vitalSigns.heartRate} bpm</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">Respiratory Rate</span>
+                    <span class="modal-info-value">${emergencyCase.vitalSigns.respiratoryRate}</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">Temperature</span>
+                    <span class="modal-info-value">${emergencyCase.vitalSigns.temperature}°C</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">O2 Saturation</span>
+                    <span class="modal-info-value">${emergencyCase.vitalSigns.oxygenSaturation}%</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">GCS Score</span>
+                    <span class="modal-info-value">${emergencyCase.vitalSigns.gcsScore}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3 class="section-title">Treatment</h3>
+            <div class="modal-info-item">
+                <span class="modal-info-label">Initial Treatment</span>
+                <span class="modal-info-value">${emergencyCase.initialTreatment || 'Not recorded'}</span>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3 class="section-title">Status</h3>
+            <div class="modal-info-grid">
+                <div class="modal-info-item">
+                    <span class="modal-info-label">Current Status</span>
+                    <span class="modal-info-value"><strong>${emergencyCase.status.toUpperCase()}</strong></span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">Attending Staff</span>
+                    <span class="modal-info-value">${emergencyCase.attendingStaff}</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('viewEmergencyBody').innerHTML = html;
+    document.getElementById('viewEmergencyModal').classList.add('active');
+    window.currentEmergencyCase = emergencyCase;
+    document.body.style.overflow = 'hidden';
+};
+
+// Close view emergency modal
+window.closeViewEmergencyModal = function() {
+    document.getElementById('viewEmergencyModal').classList.remove('active');
+    document.body.style.overflow = 'auto';
+};
+
+// Update emergency status
+window.updateEmergencyStatus = async function(caseId, newStatus) {
+    try {
+        const { updateEmergencyCase } = await import('./firebase-helpers.js');
+        const result = await updateEmergencyCase(caseId, { status: newStatus });
+        
+        if (result.success) {
+            const emergencyCase = emergencyCases.find(c => c.id === caseId);
+            if (emergencyCase) {
+                trackEmergency(
+                    emergencyCase.patientName,
+                    emergencyCase.patientId,
+                    `Status updated to ${newStatus}`
+                );
+            }
+            alert(`✅ Case status updated to ${newStatus}`);
+        } else {
+            alert('❌ Error updating status: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Error updating status:', error);
+        alert('❌ Error: ' + error.message);
+    }
+};
+
+// Refer emergency patient
+window.referEmergencyPatient = async function(caseId) {
+    const emergencyCase = emergencyCases.find(c => c.id === caseId);
+    if (!emergencyCase) return;
+    
+    const referralNote = prompt(`Refer ${emergencyCase.patientName} to specialist.\n\nEnter referral notes:`);
+    if (!referralNote) return;
+    
+    try {
+        const { updateEmergencyCase } = await import('./firebase-helpers.js');
+        const result = await updateEmergencyCase(caseId, { 
+            status: 'referred',
+            referralNote: referralNote,
+            referralTime: new Date().toISOString()
+        });
+        
+        if (result.success) {
+            trackEmergency(
+                emergencyCase.patientName,
+                emergencyCase.patientId,
+                `Referred to specialist: ${referralNote.substring(0, 50)}...`
+            );
+            alert(`✅ ${emergencyCase.patientName} referred successfully`);
+        } else {
+            alert('❌ Error referring patient: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Error referring patient:', error);
+        alert('❌ Error: ' + error.message);
+    }
+};
+
+// Admit emergency patient to ward
+window.admitEmergencyPatient = async function(caseId) {
+    const emergencyCase = emergencyCases.find(c => c.id === caseId);
+    if (!emergencyCase) return;
+    
+    const admissionNote = prompt(`Admit ${emergencyCase.patientName} to ward.\n\nEnter admission notes:`);
+    if (!admissionNote) return;
+    
+    try {
+        const { updateEmergencyCase } = await import('./firebase-helpers.js');
+        const result = await updateEmergencyCase(caseId, { 
+            status: 'admitted',
+            admissionNote: admissionNote,
+            admissionTime: new Date().toISOString()
+        });
+        
+        if (result.success) {
+            trackEmergency(
+                emergencyCase.patientName,
+                emergencyCase.patientId,
+                `Admitted to ward: ${admissionNote.substring(0, 50)}...`
+            );
+            alert(`✅ ${emergencyCase.patientName} admitted to ward successfully`);
+            
+            // Navigate to ward module
+            if (confirm('Would you like to go to the Ward module now?')) {
+                navigateToModule('patients', 'ward-nursing');
+            }
+        } else {
+            alert('❌ Error admitting patient: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Error admitting patient:', error);
+        alert('❌ Error: ' + error.message);
+    }
+};
+
+// Print emergency case
+window.printEmergencyCase = function() {
+    if (!window.currentEmergencyCase) return;
+    
+    const printWindow = window.open('', '_blank');
+    const emergencyCase = window.currentEmergencyCase;
+    
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Emergency Case - ${emergencyCase.caseNumber}</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; }
+                h1 { color: #dc2626; }
+                .section { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; }
+                .info-row { display: flex; margin: 5px 0; }
+                .label { font-weight: bold; width: 200px; }
+            </style>
+        </head>
+        <body>
+            <h1>🚨 Emergency Case Report</h1>
+            <div class="section">
+                <h3>Case Information</h3>
+                <div class="info-row"><span class="label">Case Number:</span> ${emergencyCase.caseNumber}</div>
+                <div class="info-row"><span class="label">Arrival Time:</span> ${new Date(emergencyCase.arrivalTime).toLocaleString()}</div>
+                <div class="info-row"><span class="label">Severity:</span> ${emergencyCase.severity.toUpperCase()}</div>
+            </div>
+            <div class="section">
+                <h3>Patient Information</h3>
+                <div class="info-row"><span class="label">Name:</span> ${emergencyCase.patientName}</div>
+                <div class="info-row"><span class="label">ID:</span> ${emergencyCase.patientId}</div>
+                <div class="info-row"><span class="label">Age/Gender:</span> ${emergencyCase.age} / ${emergencyCase.gender}</div>
+            </div>
+            <div class="section">
+                <h3>Medical Details</h3>
+                <div class="info-row"><span class="label">Chief Complaint:</span> ${emergencyCase.chiefComplaint}</div>
+                <div class="info-row"><span class="label">Case Type:</span> ${emergencyCase.caseType}</div>
+            </div>
+            <div class="section">
+                <h3>Vital Signs</h3>
+                <div class="info-row"><span class="label">Blood Pressure:</span> ${emergencyCase.vitalSigns.bloodPressure}</div>
+                <div class="info-row"><span class="label">Heart Rate:</span> ${emergencyCase.vitalSigns.heartRate}</div>
+                <div class="info-row"><span class="label">O2 Saturation:</span> ${emergencyCase.vitalSigns.oxygenSaturation}</div>
+            </div>
+        </body>
+        </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.print();
+};
+
+// Refresh emergency data
+window.refreshEmergencyData = function() {
+    updateEmergencyModuleStats();
+    updateDashboardEmergencyStats(emergencyCases);
+    displayEmergencyCases();
+    alert('✅ Emergency data refreshed');
+};
+
+// Test emergency alert
+// Sound emergency alarm to all departments
+window.soundEmergencyAlarm = function() {
+    console.log('🚨 EMERGENCY ALARM ACTIVATED - Broadcasting to all departments');
+    
+    // Play the ambulance siren sound
+    playEmergencyAlert();
+    
+    // Show emergency notification banner
+    showEmergencyNotificationBanner({
+        id: 'alarm-' + Date.now(),
+        severity: 'critical',
+        patientName: 'Emergency Alert',
+        caseType: 'Code Red',
+        chiefComplaint: '⚠️ EMERGENCY ALARM - All staff report to emergency stations immediately'
+    });
+    
+    // Send browser notification to all open tabs/windows
+    if ('Notification' in window) {
+        if (Notification.permission === 'granted') {
+            new Notification('🚨 EMERGENCY ALARM ACTIVATED', {
+                body: 'Code Red - All departments on alert. Report to emergency stations immediately.',
+                icon: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
+                tag: 'emergency-alarm',
+                requireInteraction: true,
+                vibrate: [200, 100, 200, 100, 200]
+            });
+        } else if (Notification.permission === 'default') {
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    new Notification('🚨 EMERGENCY ALARM ACTIVATED', {
+                        body: 'Code Red - All departments on alert. Report to emergency stations immediately.',
+                        icon: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
+                        tag: 'emergency-alarm',
+                        requireInteraction: true,
+                        vibrate: [200, 100, 200, 100, 200]
+                    });
+                }
+            });
+        }
+    }
+    
+    // Log activity for all departments
+    import('./firebase-helpers.js').then(({ logActivity }) => {
+        logActivity(
+            'Emergency Department',
+            'ALARM',
+            'System',
+            'EMERGENCY ALARM ACTIVATED',
+            '🚨 Code Red alarm broadcasted to all hospital departments'
+        );
+    }).catch(error => {
+        console.error('Error logging alarm activity:', error);
+    });
+    
+    // Confirmation alert
+    setTimeout(() => {
+        alert('🚨 EMERGENCY ALARM ACTIVATED\n\nAll departments have been alerted.\nSound alarm has been broadcasted to all staff.');
+    }, 500);
+};
+
+// Debug function to test emergency elements
+window.testEmergencyElements = function() {
+    console.log('🐛 ========== EMERGENCY ELEMENTS DEBUG ==========');
+    
+    const elements = {
+        modal: document.getElementById('newEmergencyModal'),
+        form: document.getElementById('newEmergencyForm'),
+        patientType: document.getElementById('emergencyPatientType'),
+        existingSearch: document.getElementById('existingPatientSearch'),
+        newFields: document.getElementById('newPatientFields'),
+        searchInput: document.getElementById('emergencyPatientSearch'),
+        resultsContainer: document.getElementById('emergencyPatientResults')
+    };
+    
+    console.log('🐛 Elements Check:');
+    Object.keys(elements).forEach(key => {
+        console.log(`  - ${key}:`, elements[key] ? '✅ FOUND' : '❌ NOT FOUND');
+        if (elements[key]) {
+            console.log(`    ID: ${elements[key].id}`);
+            console.log(`    Display: ${elements[key].style.display}`);
+            console.log(`    Classes: ${elements[key].className}`);
+        }
+    });
+    
+    // Test event listener
+    if (elements.patientType) {
+        console.log('🐛 Testing manual change event...');
+        elements.patientType.value = 'existing';
+        elements.patientType.dispatchEvent(new Event('change'));
+        
+        setTimeout(() => {
+            console.log('🐛 After setting to "existing":');
+            console.log('  - existingSearch display:', elements.existingSearch.style.display);
+            console.log('  - newFields display:', elements.newFields.style.display);
+            
+            elements.patientType.value = 'new';
+            elements.patientType.dispatchEvent(new Event('change'));
+            
+            setTimeout(() => {
+                console.log('🐛 After setting to "new":');
+                console.log('  - existingSearch display:', elements.existingSearch.style.display);
+                console.log('  - newFields display:', elements.newFields.style.display);
+                
+                elements.patientType.value = '';
+                elements.patientType.dispatchEvent(new Event('change'));
+            }, 100);
+        }, 100);
+    }
+    
+    console.log('🐛 Reinitializing event listeners...');
+    setupEmergencyEventListeners();
+    
+    console.log('🐛 ========== DEBUG COMPLETE ==========');
+    alert('Debug complete! Check console for details.');
+};
+
+// Initialize on module navigation
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('📄 ========== DOM CONTENT LOADED ==========');
+    
+    // Check if emergency module is active
+    const emergencyModule = document.getElementById('emergency-module');
+    console.log('📄 Emergency module found:', !!emergencyModule);
+    console.log('📄 Emergency module active:', emergencyModule?.classList.contains('active'));
+    
+    if (emergencyModule && emergencyModule.classList.contains('active')) {
+        console.log('📄 Initializing emergency module on page load...');
+        initializeEmergencyModule();
+    }
+    
+    // Also initialize after a short delay to ensure DOM is fully ready
+    setTimeout(() => {
+        console.log('📄 ========== DELAYED INITIALIZATION CHECK ==========');
+        const modal = document.getElementById('newEmergencyModal');
+        if (modal) {
+            console.log('📄 Modal found in DOM, setting up listeners...');
+            setupEmergencyEventListeners();
+        } else {
+            console.log('📄 Modal not found yet');
+        }
+    }, 1000);
+});
 
 
 
