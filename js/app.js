@@ -560,12 +560,14 @@ function updateEmergencyStats(emergencyCases) {
     console.log(`📊 Dashboard Emergency Stats Updated: ${dashboardStats.emergencies} critical cases out of ${activeCases.length} active`);
 }
 
-// Update lab statistics
+// Update lab statistics (for dashboard)
 function updateLabStats(requests) {
-    // Pending lab tests
+    // Pending lab tests (pending + in-progress)
     dashboardStats.labTests = requests.filter(r => 
         r.status === 'pending' || r.status === 'in-progress'
     ).length;
+    
+    console.log(`📊 Dashboard Lab Stats: ${dashboardStats.labTests} pending/in-progress (${requests.filter(r => r.status === 'pending').length} pending, ${requests.filter(r => r.status === 'in-progress').length} in-progress)`);
     
     // For pharmacy orders, we'll use a default or load from another source
     // This can be enhanced when pharmacy module is fully implemented
@@ -3388,6 +3390,15 @@ function updateTriageStats() {
     if (triageQueueCount) triageQueueCount.textContent = triageQueue.length;
     if (totalTriagedCount) totalTriagedCount.textContent = triageRecords.length;
     if (todayTriageCount) todayTriageCount.textContent = todayRecords.length;
+    
+    // Update dashboard with total triaged count
+    dashboardStats.triageCases = triageRecords.length;
+    const dashTriageCases = document.getElementById('dashTriageCases');
+    if (dashTriageCases) {
+        dashTriageCases.textContent = dashboardStats.triageCases;
+    }
+    
+    console.log(`🏥 Triage Stats Updated: ${triageRecords.length} total triaged, ${todayRecords.length} today (Dashboard shows total)`);
 }
 
 // Helper functions
@@ -4024,6 +4035,15 @@ function updateDoctorStats() {
     if (queueCountEl) queueCountEl.textContent = doctorStats.queueCount;
     if (patientsTodayEl) patientsTodayEl.textContent = doctorStats.patientsToday;
     if (totalPatientsEl) totalPatientsEl.textContent = doctorStats.totalPatients.toLocaleString();
+    
+    // Update dashboard active consultations with doctor queue count
+    dashboardStats.activeConsultations = doctorStats.queueCount;
+    const dashActiveConsultations = document.getElementById('dashActiveConsultations');
+    if (dashActiveConsultations) {
+        dashActiveConsultations.textContent = dashboardStats.activeConsultations;
+    }
+    
+    console.log(`👨‍⚕️ Doctor Stats Updated: ${doctorStats.queueCount} pending consultations (Dashboard updated)`);
 }
 
 // Render queue
@@ -6859,26 +6879,26 @@ function loadLabRequests() {
                 }
                 
                 labRequests = requests;
-                updateLabStats();
+                updateLabModuleStats();
                 renderLabRequests();
                 renderLabReportsQueue();
             });
         } else {
             console.log('No lab requests available');
             labRequests = [];
-            updateLabStats();
+            updateLabModuleStats();
             renderLabRequests();
         }
     }).catch(error => {
         console.error('Firebase not available:', error);
         labRequests = [];
-        updateLabStats();
+        updateLabModuleStats();
         renderLabRequests();
     });
 }
 
-// Update lab stats
-function updateLabStats() {
+// Update lab stats (Lab Module)
+function updateLabModuleStats() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -6893,10 +6913,25 @@ function updateLabStats() {
         return reqDate >= today && r.status === 'completed';
     }).length;
     
-    document.getElementById('labPendingCount').textContent = labStats.pending;
-    document.getElementById('labInProgressCount').textContent = labStats.inProgress;
-    document.getElementById('labTodayCount').textContent = labStats.today;
-    document.getElementById('labCompletedCount').textContent = labStats.completed;
+    // Update lab module UI
+    const labPendingEl = document.getElementById('labPendingCount');
+    const labInProgressEl = document.getElementById('labInProgressCount');
+    const labTodayEl = document.getElementById('labTodayCount');
+    const labCompletedEl = document.getElementById('labCompletedCount');
+    
+    if (labPendingEl) labPendingEl.textContent = labStats.pending;
+    if (labInProgressEl) labInProgressEl.textContent = labStats.inProgress;
+    if (labTodayEl) labTodayEl.textContent = labStats.today;
+    if (labCompletedEl) labCompletedEl.textContent = labStats.completed;
+    
+    // Also update dashboard stats
+    dashboardStats.labTests = labStats.pending + labStats.inProgress;
+    const dashLabTests = document.getElementById('dashLabTests');
+    if (dashLabTests) {
+        dashLabTests.textContent = dashboardStats.labTests;
+    }
+    
+    console.log(`🔬 Lab Module Stats Updated: ${labStats.pending} pending, ${labStats.inProgress} in-progress (Dashboard shows: ${dashboardStats.labTests} total)`);
 }
 
 // Render lab requests table

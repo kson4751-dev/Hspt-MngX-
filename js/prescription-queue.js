@@ -30,6 +30,24 @@ export function initPrescriptionQueue() {
 window.prescriptionQueue = { initPrescriptionQueue };
 
 /**
+ * Update dashboard pharmacy orders count
+ */
+function updateDashboardPharmacyOrders(count) {
+    // Update dashboard stats if available
+    if (window.dashboardStats) {
+        window.dashboardStats.pharmacyOrders = count;
+    }
+    
+    // Update dashboard display
+    const dashPharmacyOrders = document.getElementById('dashPharmacyOrders');
+    if (dashPharmacyOrders) {
+        dashPharmacyOrders.textContent = count;
+    }
+    
+    console.log(`💊 Pharmacy Orders Updated: ${count} pending prescriptions (Dashboard updated)`);
+}
+
+/**
  * Setup Firestore real-time listener
  */
 function setupQueueListener(container, badge) {
@@ -56,6 +74,10 @@ function setupQueueListener(container, badge) {
                 });
                 
                 console.log(`✓ ${prescriptionQueue.length} prescriptions in queue`);
+                
+                // Update dashboard pharmacy orders
+                updateDashboardPharmacyOrders(prescriptionQueue.length);
+                
                 displayQueue(container, badge);
             },
             (error) => {
