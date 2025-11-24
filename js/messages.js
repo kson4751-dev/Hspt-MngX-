@@ -12,6 +12,7 @@ import {
     getDocs, 
     doc, 
     updateDoc,
+    deleteDoc,
     onSnapshot,
     serverTimestamp,
     getDoc
@@ -143,8 +144,7 @@ function setupEventListeners() {
         viewAllMessages.addEventListener('click', (e) => {
             e.preventDefault();
             messagesDropdown.classList.remove('active');
-            // TODO: Navigate to full messages module if needed
-            alert('Full messages view - coming soon!');
+            openAllMessagesModal();
         });
     }
 }
@@ -798,10 +798,204 @@ function formatFullDate(timestamp) {
     });
 }
 
+// Open all messages modal
+window.openAllMessagesModal = async function() {
+    const modal = document.getElementById('viewAllMessagesModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('active');
+        
+        // Load all messages
+        await loadAllMessages();
+    }
+};
+
+// Close all messages modal
+window.closeAllMessagesModal = function() {
+    const modal = document.getElementById('viewAllMessagesModal');
+    if (modal) {
+        modal.classList.remove('active');
+        setTimeout(() => {
+            modal.style.display = 'none';
+        }, 300);
+    }
+};
+
+// Load all messages for the modal
+let allMessagesData = [];
+let currentFilter = 'all';
+
+async function loadAllMessages() {
+    try {
+        const messagesQuery = query(
+            collection(db, 'messages'),
+            orderBy('timestamp', 'desc')
+        );
+        
+        const snapshot = await getDocs(messagesQuery);
+        allMessagesData = [];
+        
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            // Include if user is recipient or sender
+            if (data.recipients?.includes(currentUserId) || data.senderId === currentUserId) {
+                allMessagesData.push({ id: doc.id, ...data });
+            }
+        });
+        
+        // Display with current filter
+        filterAllMessages(currentFilter);
+        
+        console.log('📬 Loaded', allMessagesData.length, 'messages for modal view');
+    } catch (error) {
+        console.error('Error loading all messages:', error);
+        document.getElementById('allMessagesList').innerHTML = `
+            <div class="messages-empty">
+                <i class="fas fa-exclamation-circle"></i>
+                <p>Error loading messages</p>
+            </div>
+        `;
+    }
+}
+
+// Filter all messages
+window.filterAllMessages = function(filter) {
+    currentFilter = filter;
+    
+    // Update active tab
+    document.querySelectorAll('.filter-tab').forEach(tab => {
+        tab.classList.remove('active');
+        if (tab.dataset.filter === filter) {
+            tab.classList.add('active');
+        }
+    });
+    
+    // Filter messages
+    let filteredMessages = allMessagesData;
+    
+    if (filter === 'unread') {
+        filteredMessages = allMessagesData.filter(msg => 
+            msg.recipients?.includes(currentUserId) &&
+            (!msg.readBy || !msg.readBy.includes(currentUserId))
+        );
+    } else if (filter === 'sent') {
+        filteredMessages = allMessagesData.filter(msg => 
+            msg.senderId === currentUserId
+        );
+    }
+    
+    displayAllMessages(filteredMessages);
+};
+
+// Search all messages
+window.searchAllMessages = function() {
+    const searchTerm = document.getElementById('allMessagesSearch').value.toLowerCase();
+    
+    let filteredMessages = allMessagesData;
+    
+    // Apply current filter
+    if (currentFilter === 'unread') {
+        filteredMessages = filteredMessages.filter(msg => 
+            msg.recipients?.includes(currentUserId) &&
+            (!msg.readBy || !msg.readBy.includes(currentUserId))
+        );
+    } else if (currentFilter === 'sent') {
+        filteredMessages = filteredMessages.filter(msg => 
+            msg.senderId === currentUserId
+        );
+    }
+    
+    // Apply search
+    if (searchTerm) {
+        filteredMessages = filteredMessages.filter(msg => {
+            const subject = msg.subject?.toLowerCase() || '';
+            const content = msg.content?.toLowerCase() || '';
+            const sender = msg.senderName?.toLowerCase() || '';
+            
+            return subject.includes(searchTerm) || 
+                   content.includes(searchTerm) || 
+                   sender.includes(searchTerm);
+        });
+    }
+    
+    displayAllMessages(filteredMessages);
+};
+
+// Display all messages
+function displayAllMessages(messages) {
+    const messagesList = document.getElementById('allMessagesList');
+    
+    if (!messages || messages.length === 0) {
+        messagesList.innerHTML = `
+            <div class="messages-empty">
+                <i class="fas fa-inbox"></i>
+                <p>No messages found</p>
+            </div>
+        `;
+        return;
+    }
+    
+    messagesList.innerHTML = messages.map(message => {
+        const isUnread = message.recipients?.includes(currentUserId) && 
+                        (!message.readBy || !message.readBy.includes(currentUserId));
+        const time = formatFullDate(message.timestamp);
+        const senderInitials = getInitials(message.senderName);
+        const isSent = message.senderId === currentUserId;
+        
+        // Read receipt for sent messages
+        let readStatus = '';
+        if (isSent) {
+            const readCount = message.readBy ? message.readBy.length : 0;
+            const totalRecipients = message.recipients ? message.recipients.length : 0;
+            
+            if (readCount === 0) {
+                readStatus = `<div class="read-receipt sent"><i class="fas fa-check"></i> Sent</div>`;
+            } else if (readCount < totalRecipients) {
+                readStatus = `<div class="read-receipt delivered"><i class="fas fa-check-double"></i> ${readCount}/${totalRecipients}</div>`;
+            } else {
+                readStatus = `<div class="read-receipt read"><i class="fas fa-check-double"></i> All read</div>`;
+            }
+        }
+        
+        return `
+            <div class="message-item-full ${isUnread ? 'unread' : ''}" onclick="viewMessageFromModal('${message.id}')">
+                <div class="message-avatar">${senderInitials}</div>
+                <div class="message-details-full">
+                    <div class="message-header-full">
+                        <span class="message-sender-full">
+                            ${isSent ? '→ ' : ''}${message.senderName}
+                            ${message.isUrgent ? '<i class="fas fa-exclamation-triangle" style="color: var(--error-color); margin-left: 8px;"></i>' : ''}
+                        </span>
+                        <span class="message-time-full">${time}</span>
+                    </div>
+                    <div class="message-subject-full">${message.subject}</div>
+                    <div class="message-preview-full">${message.content}</div>
+                    ${readStatus}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// View message from modal
+window.viewMessageFromModal = async function(messageId) {
+    closeAllMessagesModal();
+    await viewMessage(messageId);
+};
+
+// Open compose from all messages modal
+window.openComposeFromAllMessages = function() {
+    closeAllMessagesModal();
+    setTimeout(() => {
+        openComposeMessageModal();
+    }, 300);
+};
+
 // Close modals when clicking outside
 window.addEventListener('click', (e) => {
     const composeModal = document.getElementById('composeMessageModal');
     const viewModal = document.getElementById('viewMessageModal');
+    const allMessagesModal = document.getElementById('viewAllMessagesModal');
     
     if (e.target === composeModal) {
         closeComposeMessageModal();
@@ -809,6 +1003,10 @@ window.addEventListener('click', (e) => {
     
     if (e.target === viewModal) {
         closeViewMessageModal();
+    }
+    
+    if (e.target === allMessagesModal) {
+        closeAllMessagesModal();
     }
 });
 
