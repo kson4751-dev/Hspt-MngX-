@@ -977,15 +977,56 @@ function refreshDashboard() {
     const icon = btn?.querySelector('i');
     
     if (icon) {
-        icon.style.animation = 'spin 1s linear';
-        setTimeout(() => {
-            icon.style.animation = '';
-        }, 1000);
+        icon.style.animation = 'spin 1s linear infinite';
     }
     
-    // Reload all dashboard data
+    console.log('🔄 Starting comprehensive system refresh...');
+    
+    // Show loading notification
+    showNotification('Syncing System', 'Refreshing all modules from Firebase...', 'info');
+    
+    // Reload dashboard data
     loadDashboardStats();
     loadRecentActivities();
+    
+    // Refresh all module data that have real-time listeners
+    // These will trigger their Firebase subscriptions to re-sync
+    
+    // 1. Triage Module
+    if (typeof loadTriageData === 'function') {
+        console.log('🏥 Refreshing Triage Module...');
+        loadTriageData();
+    }
+    
+    // 2. Doctor Module
+    if (typeof loadDoctorDataFromFirebase === 'function') {
+        console.log('👨‍⚕️ Refreshing Doctor Module...');
+        loadDoctorDataFromFirebase();
+    }
+    
+    // 3. Lab Module
+    if (typeof loadLabRequests === 'function') {
+        console.log('🔬 Refreshing Lab Module...');
+        loadLabRequests();
+    }
+    
+    // 4. Emergency Module
+    if (typeof loadEmergencyData === 'function') {
+        console.log('🚨 Refreshing Emergency Module...');
+        loadEmergencyData();
+    }
+    
+    // 5. Prescription Queue (Pharmacy)
+    if (window.prescriptionQueue && typeof window.prescriptionQueue.initPrescriptionQueue === 'function') {
+        console.log('💊 Refreshing Prescription Queue...');
+        window.prescriptionQueue.initPrescriptionQueue();
+    }
+    
+    // 6. Ward Module
+    if (window.wardNursing && typeof window.wardNursing.refreshWardData === 'function') {
+        console.log('🏨 Refreshing Ward Module...');
+        window.wardNursing.refreshWardData();
+    }
     
     // Clear search
     const searchInput = document.getElementById('dashboardSearchInput');
@@ -994,7 +1035,14 @@ function refreshDashboard() {
     }
     clearDashboardSearch();
     
-    showNotification('Dashboard Refreshed', 'All data has been updated', 'success');
+    // Stop animation and show success after 2 seconds
+    setTimeout(() => {
+        if (icon) {
+            icon.style.animation = '';
+        }
+        showNotification('System Synced', 'All modules refreshed from Firebase database', 'success');
+        console.log('✅ System refresh completed');
+    }, 2000);
 }
 
 // Expose dashboard function globally
@@ -7392,10 +7440,10 @@ function showSuccessNotification(message) {
 // Generic notification function
 function showNotification(title, message, type = 'success') {
     const colors = {
-        success: { bg: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', icon: 'fa-check-circle' },
-        error: { bg: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', icon: 'fa-exclamation-circle' },
-        warning: { bg: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', icon: 'fa-exclamation-triangle' },
-        info: { bg: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', icon: 'fa-info-circle' }
+        success: { bg: '#10b981', border: '#059669', icon: 'fa-check-circle' },
+        error: { bg: '#ef4444', border: '#dc2626', icon: 'fa-exclamation-circle' },
+        warning: { bg: '#f59e0b', border: '#d97706', icon: 'fa-exclamation-triangle' },
+        info: { bg: '#3b82f6', border: '#2563eb', icon: 'fa-info-circle' }
     };
     
     const config = colors[type] || colors.success;
@@ -7406,37 +7454,57 @@ function showNotification(title, message, type = 'success') {
         position: fixed;
         top: 80px;
         right: 20px;
-        background: ${config.bg};
-        color: white;
-        padding: 16px 24px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        background: white;
+        color: #1f2937;
+        padding: 18px 20px;
+        border-radius: 12px;
+        border-left: 4px solid ${config.bg};
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
         z-index: 10000;
         display: flex;
-        align-items: center;
-        gap: 12px;
-        animation: slideInRight 0.3s ease-out;
-        max-width: 400px;
+        align-items: start;
+        gap: 14px;
+        animation: slideInRight 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        max-width: 420px;
+        min-width: 320px;
+        backdrop-filter: blur(10px);
+        cursor: pointer;
+        transition: all 0.2s ease;
     `;
     
     notification.innerHTML = `
-        <i class="fas ${config.icon}" style="font-size: 24px;"></i>
-        <div style="flex: 1;">
-            <strong style="display: block; margin-bottom: 4px;">${title}</strong>
-            <span>${message}</span>
+        <div style="background: ${config.bg}; color: white; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <i class="fas ${config.icon}" style="font-size: 18px;"></i>
         </div>
-        <button onclick="this.parentElement.remove()" style="background: none; border: none; color: white; cursor: pointer; font-size: 18px;">
+        <div style="flex: 1; padding-top: 2px;">
+            <strong style="display: block; margin-bottom: 4px; font-size: 15px; color: #111827;">${title}</strong>
+            <span style="font-size: 13px; color: #6b7280; line-height: 1.5;">${message}</span>
+        </div>
+        <button onclick="this.parentElement.remove(); event.stopPropagation();" style="background: none; border: none; color: #9ca3af; cursor: pointer; font-size: 16px; padding: 4px; flex-shrink: 0; transition: color 0.2s;" onmouseover="this.style.color='#374151'" onmouseout="this.style.color='#9ca3af'">
             <i class="fas fa-times"></i>
         </button>
     `;
     
+    // Add hover effect
+    notification.onmouseenter = () => {
+        notification.style.transform = 'translateX(-4px)';
+        notification.style.boxShadow = '0 12px 32px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.15)';
+    };
+    notification.onmouseleave = () => {
+        notification.style.transform = 'translateX(0)';
+        notification.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1)';
+    };
+    
+    // Click to dismiss
+    notification.onclick = () => notification.remove();
+    
     document.body.appendChild(notification);
     
-    // Auto remove after 5 seconds
+    // Auto remove after 3 seconds
     setTimeout(() => {
-        notification.style.animation = 'slideOutRight 0.3s ease-out';
-        setTimeout(() => notification.remove(), 300);
-    }, 5000);
+        notification.style.animation = 'slideOutRight 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+        setTimeout(() => notification.remove(), 400);
+    }, 3000);
 }
 
 // Send results to doctor (from table action button)
