@@ -5821,15 +5821,20 @@ document.addEventListener('click', function(e) {
 
 // Medication Cart Management
 function addMedicationToCart() {
-    const name = document.getElementById('selectedMedicationName').value;
+    const name = document.getElementById('selectedMedicationName').value.trim();
     const itemId = document.getElementById('selectedMedicationName').dataset.itemId;
     const dosage = document.getElementById('medicationDosage').value;
     const duration = document.getElementById('medicationDuration').value;
     const route = document.getElementById('medicationRoute').value;
     const instructions = document.getElementById('medicationInstructions').value;
     
-    if (!name || !dosage || !duration || !route) {
-        alert('Please fill in all required fields');
+    if (!name) {
+        alert('Please select a medication from the search results');
+        return;
+    }
+    
+    if (!duration || parseInt(duration) < 1) {
+        alert('Please enter a valid duration (minimum 1 day)');
         return;
     }
     
@@ -5959,6 +5964,12 @@ async function sendToPharmacy() {
     
     console.log('Sending to Pharmacy:', rxData);
     
+    // Save prescription to Firebase first
+    const saveResult = await savePrescriptionToFirebase(rxData);
+    if (!saveResult.success) {
+        alert('Warning: Failed to save prescription to database. ' + saveResult.error);
+    }
+    
     // Use the prescription queue system if available
     if (window.sendPrescriptionToPharmacy) {
         try {
@@ -6006,6 +6017,12 @@ async function sendToNurse() {
     console.log('📦 Collected Rx Data:', rxData);
     
     try {
+        // Save prescription to Firebase first
+        const saveResult = await savePrescriptionToFirebase(rxData);
+        if (!saveResult.success) {
+            console.warn('Warning: Failed to save prescription:', saveResult.error);
+        }
+        
         // Import Firebase functions
         const { db, collection, addDoc, serverTimestamp } = await import('./firebase-config.js');
         console.log('✅ Firebase imported successfully');
@@ -6069,6 +6086,12 @@ async function referToWard() {
     console.log('📦 Collected Rx Data:', rxData);
     
     try {
+        // Save prescription to Firebase first
+        const saveResult = await savePrescriptionToFirebase(rxData);
+        if (!saveResult.success) {
+            console.warn('Warning: Failed to save prescription:', saveResult.error);
+        }
+        
         // Import Firebase functions
         const { db, collection, addDoc, serverTimestamp } = await import('./firebase-config.js');
         console.log('✅ Firebase imported successfully');
@@ -6119,6 +6142,13 @@ function sendToBilling() {
     
     console.log('Sending to Billing:', rxData);
     
+    // Save prescription to Firebase
+    savePrescriptionToFirebase(rxData).then(result => {
+        if (!result.success) {
+            console.warn('Warning: Failed to save prescription:', result.error);
+        }
+    });
+    
     // TODO: Integrate with Firebase
     alert(`Treatment details sent to Billing!\n\nPatient: ${currentRxReport.patientName}\nMedications: ${medicationCart.length}\n\nBilling department will process the charges.`);
     
@@ -6155,6 +6185,198 @@ function collectRxData() {
         prescribedAt: new Date().toISOString()
     };
 }
+
+// Save prescription to Firebase
+async function savePrescriptionToFirebase(rxData) {
+    try {
+        const { db, collection, addDoc, serverTimestamp } = await import('./firebase-config.js');
+        
+        const prescriptionData = {
+            ...rxData,
+            timestamp: serverTimestamp(),
+            createdAt: new Date().toISOString()
+        };
+        
+        const docRef = await addDoc(collection(db, 'prescriptions'), prescriptionData);
+        console.log('Prescription saved with ID:', docRef.id);
+        
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('Error saving prescription:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// Open View Prescriptions Modal
+async function openViewPrescriptionsModal() {
+    if (!currentRxReport || !currentRxReport.patientId) {
+        alert('No patient selected');
+        return;
+    }
+    
+    const modal = document.getElementById('viewPrescriptionsModal');
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+    
+    // Set patient info
+    document.getElementById('prescHistoryPatientName').textContent = currentRxReport.patientName || '-';
+    document.getElementById('prescHistoryPatientId').textContent = currentRxReport.patientId || '-';
+    document.getElementById('prescHistoryPatientAge').textContent = currentRxReport.age || '-';
+    document.getElementById('prescHistoryPatientGender').textContent = currentRxReport.gender || '-';
+    
+    // Load prescriptions from Firebase
+    await loadPatientPrescriptions(currentRxReport.patientId);
+}
+
+// Close View Prescriptions Modal
+function closeViewPrescriptionsModal() {
+    const modal = document.getElementById('viewPrescriptionsModal');
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+}
+
+// Load patient prescriptions from Firebase
+async function loadPatientPrescriptions(patientId) {
+    const container = document.getElementById('prescriptionsListContainer');
+    
+    try {
+        const { db, collection, query, where, getDocs } = await import('./firebase-config.js');
+        
+        const prescriptionsRef = collection(db, 'prescriptions');
+        const q = query(prescriptionsRef, where('patientId', '==', patientId));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 60px 40px; color: var(--text-secondary);">
+                    <i class="fas fa-prescription" style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
+                    <h3 style="margin: 0 0 8px 0;">No Prescriptions Found</h3>
+                    <p style="margin: 0;">This patient has no prescription history yet.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const prescriptions = [];
+        querySnapshot.forEach((doc) => {
+            prescriptions.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        
+        // Sort prescriptions by date (newest first) in JavaScript
+        prescriptions.sort((a, b) => {
+            const dateA = new Date(a.prescribedAt || a.createdAt);
+            const dateB = new Date(b.prescribedAt || b.createdAt);
+            return dateB - dateA;
+        });
+        
+        // Render prescriptions
+        container.innerHTML = prescriptions.map((presc, index) => {
+            const prescDate = new Date(presc.prescribedAt || presc.createdAt);
+            const formattedDate = prescDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            const formattedTime = prescDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            
+            return `
+                <div class="prescription-card" style="background: var(--sidebar-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 20px;">
+                        <div>
+                            <h3 style="margin: 0 0 8px 0; color: var(--primary-color); font-size: 16px;">
+                                <i class="fas fa-file-prescription"></i> Prescription #${index + 1}
+                            </h3>
+                            <p style="margin: 0; color: var(--text-secondary); font-size: 14px;">
+                                <i class="fas fa-calendar"></i> ${formattedDate} at ${formattedTime}
+                            </p>
+                        </div>
+                        <div style="text-align: right;">
+                            <p style="margin: 0; font-size: 13px; color: var(--text-secondary);">
+                                <i class="fas fa-user-md"></i> ${presc.prescribedBy || 'Doctor'}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    ${presc.diagnosis && presc.diagnosis.length > 0 ? `
+                    <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-color); border-radius: 8px; border-left: 4px solid var(--primary-color);">
+                        <h4 style="margin: 0 0 8px 0; font-size: 14px; color: var(--text-primary);">
+                            <i class="fas fa-stethoscope"></i> Diagnosis
+                        </h4>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            ${presc.diagnosis.map(diag => `
+                                <span style="background: var(--primary-color); color: white; padding: 4px 12px; border-radius: 16px; font-size: 13px;">
+                                    ${diag}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
+                    
+                    ${presc.medications && presc.medications.length > 0 ? `
+                    <div style="margin-bottom: 16px;">
+                        <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-primary);">
+                            <i class="fas fa-pills"></i> Medications (${presc.medications.length})
+                        </h4>
+                        <div style="display: grid; gap: 12px;">
+                            ${presc.medications.map(med => `
+                                <div style="background: var(--bg-color); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+                                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 6px;">
+                                        <i class="fas fa-capsules" style="color: var(--primary-color);"></i> ${med.name}
+                                    </div>
+                                    <div style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary);">
+                                        <span><i class="fas fa-clock"></i> ${med.dosage}</span>
+                                        <span><i class="fas fa-calendar"></i> ${med.duration} days</span>
+                                        <span><i class="fas fa-syringe"></i> ${med.route}</span>
+                                    </div>
+                                    ${med.instructions ? `
+                                    <div style="margin-top: 6px; font-size: 13px; color: var(--text-secondary); font-style: italic;">
+                                        <i class="fas fa-info-circle"></i> ${med.instructions}
+                                    </div>
+                                    ` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
+                    
+                    ${presc.managementNotes ? `
+                    <div style="margin-bottom: 12px; padding: 12px; background: var(--bg-color); border-radius: 8px;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 14px; color: var(--text-primary);">
+                            <i class="fas fa-notes-medical"></i> Management Plan
+                        </h4>
+                        <p style="margin: 0; font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+                            ${presc.managementNotes}
+                        </p>
+                    </div>
+                    ` : ''}
+                    
+                    ${presc.followUpNotes ? `
+                    <div style="padding: 12px; background: var(--bg-color); border-radius: 8px;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 14px; color: var(--text-primary);">
+                            <i class="fas fa-calendar-check"></i> Follow-up Instructions
+                        </h4>
+                        <p style="margin: 0; font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+                            ${presc.followUpNotes}
+                        </p>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+        
+    } catch (error) {
+        console.error('Error loading prescriptions:', error);
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: var(--danger-color);">
+                <i class="fas fa-exclamation-triangle" style="font-size: 32px; margin-bottom: 16px;"></i>
+                <p>Error loading prescriptions: ${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+// Expose functions globally
+window.openViewPrescriptionsModal = openViewPrescriptionsModal;
+window.closeViewPrescriptionsModal = closeViewPrescriptionsModal;
 
 // Print lab report from table
 function printDoctorLabReportFromTable(reportId) {

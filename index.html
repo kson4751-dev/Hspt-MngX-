@@ -7592,10 +7592,16 @@
             </div>
 
             <div class="modal-footer" style="display: flex; gap: 10px; justify-content: space-between;">
-                <button class="btn btn-secondary" onclick="closeRxTreatmentModal()">
-                    <i class="fas fa-times"></i>
-                    Cancel
-                </button>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-secondary" onclick="closeRxTreatmentModal()">
+                        <i class="fas fa-times"></i>
+                        Cancel
+                    </button>
+                    <button class="btn btn-info" onclick="openViewPrescriptionsModal()" style="background: #0ea5e9;">
+                        <i class="fas fa-eye"></i>
+                        View Prescriptions
+                    </button>
+                </div>
                 <div style="display: flex; gap: 10px;">
                     <button class="btn btn-success" onclick="sendToPharmacy()" style="font-size: 14px; padding: 10px 18px;">
                         <i class="fas fa-paper-plane" style="font-size: 13px; margin-right: 6px;"></i>
@@ -7614,6 +7620,35 @@
                         Billing
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Prescriptions Modal -->
+    <div class="modal" id="viewPrescriptionsModal">
+        <div class="modal-content" style="max-width: 1200px;">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-prescription"></i>
+                    Patient Prescription History
+                </h2>
+                <button class="modal-close" onclick="closeViewPrescriptionsModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="patient-info-banner" id="prescriptionPatientInfo" style="background: #2563eb; padding: 20px; border-radius: 8px; margin-bottom: 24px; color: white;">
+                    <h3 style="margin: 0 0 8px 0; font-size: 18px;"><i class="fas fa-user"></i> <span id="prescHistoryPatientName">-</span></h3>
+                    <p style="margin: 0; opacity: 0.9;">ID: <span id="prescHistoryPatientId">-</span> | Age: <span id="prescHistoryPatientAge">-</span> | Gender: <span id="prescHistoryPatientGender">-</span></p>
+                </div>
+
+                <div id="prescriptionsListContainer">
+                    <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 16px;"></i>
+                        <p>Loading prescriptions...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeViewPrescriptionsModal()">Close</button>
             </div>
         </div>
     </div>
