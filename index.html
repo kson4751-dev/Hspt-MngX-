@@ -4986,6 +4986,12 @@
                     <button class="admin-tab active" data-tab="users">
                         <i class="fas fa-users"></i> User Management
                     </button>
+                    <button class="admin-tab" data-tab="sessions">
+                        <i class="fas fa-user-clock"></i> Active Sessions
+                    </button>
+                    <button class="admin-tab" data-tab="departments">
+                        <i class="fas fa-building"></i> Departments
+                    </button>
                     <button class="admin-tab" data-tab="system">
                         <i class="fas fa-cog"></i> System Settings
                     </button>
@@ -5024,6 +5030,69 @@
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Sessions Tab -->
+                <div class="admin-tab-content" id="sessions-tab">
+                    <div class="content-section">
+                        <div class="section-header">
+                            <h2>Active User Sessions</h2>
+                            <button class="btn btn-secondary" id="refreshSessionsBtn">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+
+                        <div class="active-sessions-card">
+                            <div class="active-sessions-header">
+                                <h3>
+                                    <i class="fas fa-users"></i>
+                                    Currently Active Users
+                                    <span class="session-count-badge" id="activeSessionCount">0</span>
+                                </h3>
+                            </div>
+                            <div class="sessions-grid" id="activeSessionsGrid">
+                                <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                                    <i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i>
+                                    <p style="margin-top: 16px;">Loading active sessions...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Login Activity -->
+                        <div class="active-sessions-card">
+                            <div class="active-sessions-header">
+                                <h3><i class="fas fa-history"></i> Recent Login Activity</h3>
+                            </div>
+                            <div class="logs-timeline" id="recentLoginsTimeline">
+                                <div class="log-item">
+                                    <div class="log-icon log-icon-info">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                    </div>
+                                    <div class="log-content">
+                                        <p>Loading login activity...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Departments Tab -->
+                <div class="admin-tab-content" id="departments-tab">
+                    <div class="content-section">
+                        <div class="section-header">
+                            <h2>Department Activity Overview</h2>
+                        </div>
+
+                        <div class="department-activity-card">
+                            <div class="department-grid" id="departmentActivityGrid">
+                                <div style="text-align: center; padding: 40px; color: var(--text-secondary); grid-column: 1/-1;">
+                                    <i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i>
+                                    <p style="margin-top: 16px;">Loading department activity...</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

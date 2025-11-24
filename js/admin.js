@@ -1,9 +1,10 @@
-// Admin Module - User Management
+// Admin Module - User Management with Real-time Sessions and Audit Trail
 // Real-time user creation with Firebase Auth and Firestore
 
 import { auth, db } from './firebase-config.js';
 import { createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, orderBy, where, startAfter, limit, addDoc, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { loadActiveSessions, loadRecentLogins, loadDepartmentActivity, setupActiveSessions } from './admin-sessions.js';
 
 let usersUnsubscribe = null;
 let logsUnsubscribe = null;
@@ -14,6 +15,7 @@ export function initAdminModule() {
     setupUserModal();
     setupSystemSettings();
     setupActivityLogs();
+    setupActiveSessions();
     loadUsers();
 }
 
@@ -33,6 +35,14 @@ function setupAdminTabs() {
             // Add active to selected
             tab.classList.add('active');
             document.getElementById(`${targetTab}-tab`).classList.add('active');
+            
+            // Load specific tab data
+            if (targetTab === 'sessions') {
+                loadActiveSessions();
+                loadRecentLogins();
+            } else if (targetTab === 'departments') {
+                loadDepartmentActivity();
+            }
         });
     });
 }

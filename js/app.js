@@ -634,6 +634,17 @@ function navigateToModule(module, submodule = null) {
     const navDropdownItems = document.querySelectorAll('.nav-dropdown-item');
     const modules = document.querySelectorAll('.module');
     
+    // Check permissions before navigating
+    const targetModule = submodule || module;
+    
+    // Use the auth system to check permissions
+    if (window.authSystem && typeof window.authSystem.checkModulePermission === 'function') {
+        if (!window.authSystem.checkModulePermission(targetModule)) {
+            console.warn('Access denied to module:', targetModule);
+            return; // Block navigation
+        }
+    }
+    
     // Remove active from all
     navItems.forEach(nav => nav.classList.remove('active'));
     navDropdownItems.forEach(nav => nav.classList.remove('active'));
