@@ -1106,6 +1106,18 @@ function getCurrentUserInfo() {
                 userName: user.displayName || user.name || user.email?.split('@')[0] || 'User'
             };
         }
+        
+        // Fallback to individual storage items
+        const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
+        const userName = localStorage.getItem('userName') || sessionStorage.getItem('userName');
+        const userEmail = localStorage.getItem('userEmail') || sessionStorage.getItem('userEmail');
+        
+        if (userId) {
+            return {
+                userId: userId,
+                userName: userName || userEmail?.split('@')[0] || 'User'
+            };
+        }
     } catch (error) {
         console.error('Error getting user info:', error);
     }

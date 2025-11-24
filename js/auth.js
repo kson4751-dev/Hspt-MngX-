@@ -53,6 +53,13 @@ function getCurrentUser() {
             permissions: JSON.parse(storageType.getItem('userPermissions') || '[]'),
             sessionId: storageType.getItem('sessionId')
         };
+        
+        // Store as JSON for easy retrieval by other modules
+        try {
+            storageType.setItem('currentUser', JSON.stringify(currentUser));
+        } catch (e) {
+            console.error('Error storing currentUser JSON:', e);
+        }
     }
 
     return currentUser;
