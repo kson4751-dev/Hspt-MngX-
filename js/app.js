@@ -10855,6 +10855,484 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1000);
 });
 
+// ==================== REPORTS MODULE ====================
+
+let currentReportData = null;
+let currentReportType = null;
+
+// Initialize Reports Module
+function initializeReportsModule() {
+    console.log('📊 Initializing Reports Module...');
+    
+    // Date range change handler
+    const dateRangeSelect = document.getElementById('reportDateRange');
+    if (dateRangeSelect) {
+        dateRangeSelect.addEventListener('change', (e) => {
+            const customDateRange = document.getElementById('customDateRange');
+            const customDateRangeEnd = document.getElementById('customDateRangeEnd');
+            
+            if (e.target.value === 'custom') {
+                customDateRange.style.display = 'block';
+                customDateRangeEnd.style.display = 'block';
+            } else {
+                customDateRange.style.display = 'none';
+                customDateRangeEnd.style.display = 'none';
+            }
+        });
+    }
+}
+
+// Generate Report
+window.generateReport = async function() {
+    const reportType = document.getElementById('reportType').value;
+    const dateRange = document.getElementById('reportDateRange').value;
+    
+    if (!reportType) {
+        alert('Please select a report type');
+        return;
+    }
+    
+    if (!dateRange) {
+        alert('Please select a date range');
+        return;
+    }
+    
+    console.log(`📊 Generating ${reportType} report for ${dateRange}...`);
+    
+    // Show loading state
+    const reportContent = document.getElementById('reportContent');
+    const reportEmptyState = document.getElementById('reportEmptyState');
+    const reportStats = document.getElementById('reportStats');
+    
+    reportEmptyState.style.display = 'none';
+    reportContent.style.display = 'none';
+    reportStats.style.display = 'none';
+    
+    try {
+        // Get date range
+        const { startDate, endDate } = getDateRange(dateRange);
+        
+        // Fetch data based on report type
+        let data = await fetchReportData(reportType, startDate, endDate);
+        
+        if (!data || data.length === 0) {
+            alert('No data found for the selected criteria');
+            reportEmptyState.style.display = 'flex';
+            return;
+        }
+        
+        // Store current report data
+        currentReportData = data;
+        currentReportType = reportType;
+        
+        // Update stats
+        updateReportStats(data, reportType, startDate, endDate);
+        
+        // Generate table
+        generateReportTable(data, reportType);
+        
+        // Show report
+        reportStats.style.display = 'grid';
+        reportContent.style.display = 'block';
+        
+        // Enable export buttons
+        document.getElementById('exportPdfBtn').disabled = false;
+        document.getElementById('exportExcelBtn').disabled = false;
+        document.getElementById('exportCsvBtn').disabled = false;
+        document.getElementById('printReportBtn').disabled = false;
+        
+        alert('✅ Report generated successfully!');
+        
+    } catch (error) {
+        console.error('Error generating report:', error);
+        alert('❌ Error generating report: ' + error.message);
+        reportEmptyState.style.display = 'flex';
+    }
+};
+
+// Get date range based on selection
+function getDateRange(range) {
+    const now = new Date();
+    let startDate, endDate = new Date();
+    
+    switch(range) {
+        case 'today':
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            break;
+        case 'yesterday':
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+            endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
+            break;
+        case 'week':
+            const weekStart = now.getDate() - now.getDay();
+            startDate = new Date(now.getFullYear(), now.getMonth(), weekStart);
+            break;
+        case 'month':
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            break;
+        case 'quarter':
+            const quarter = Math.floor(now.getMonth() / 3);
+            startDate = new Date(now.getFullYear(), quarter * 3, 1);
+            break;
+        case 'year':
+            startDate = new Date(now.getFullYear(), 0, 1);
+            break;
+        case 'custom':
+            const startInput = document.getElementById('reportStartDate').value;
+            const endInput = document.getElementById('reportEndDate').value;
+            if (!startInput || !endInput) {
+                throw new Error('Please select custom date range');
+            }
+            startDate = new Date(startInput);
+            endDate = new Date(endInput);
+            endDate.setHours(23, 59, 59);
+            break;
+        default:
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    }
+    
+    return { startDate, endDate };
+}
+
+// Fetch report data from Firebase
+async function fetchReportData(reportType, startDate, endDate) {
+    const helpers = await import('./firebase-helpers.js');
+    const { db } = await import('./firebase-config.js');
+    const { collection, query, where, getDocs } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+    
+    let collectionName, data = [];
+    
+    switch(reportType) {
+        case 'patients':
+            collectionName = 'patients';
+            break;
+        case 'emergency':
+            collectionName = 'emergency_cases';
+            break;
+        case 'ward':
+            collectionName = 'ward_admissions';
+            break;
+        case 'pharmacy':
+            collectionName = 'pharmacy_sales';
+            break;
+        case 'lab':
+            collectionName = 'lab_requests';
+            break;
+        case 'billing':
+            collectionName = 'billing_invoices';
+            break;
+        case 'activities':
+            collectionName = 'activities';
+            break;
+        default:
+            throw new Error('Invalid report type');
+    }
+    
+    console.log(`📊 Fetching data from ${collectionName} between ${startDate} and ${endDate}`);
+    
+    const q = query(
+        collection(db, collectionName),
+        where('timestamp', '>=', startDate),
+        where('timestamp', '<=', endDate)
+    );
+    
+    const snapshot = await getDocs(q);
+    data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    console.log(`📊 Found ${data.length} records`);
+    return data;
+}
+
+// Update report stats
+function updateReportStats(data, reportType, startDate, endDate) {
+    document.getElementById('reportTotalRecords').textContent = data.length;
+    document.getElementById('reportTypeDisplay').textContent = reportType.charAt(0).toUpperCase() + reportType.slice(1);
+    document.getElementById('reportDateRangeDisplay').textContent = 
+        `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+    
+    document.getElementById('reportGeneratedDate').textContent = new Date().toLocaleString();
+    document.getElementById('reportPeriod').textContent = 
+        `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+    document.getElementById('reportTitle').textContent = 
+        `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report`;
+}
+
+// Generate report table
+function generateReportTable(data, reportType) {
+    const thead = document.getElementById('reportTableHead');
+    const tbody = document.getElementById('reportTableBody');
+    
+    // Clear existing content
+    thead.innerHTML = '';
+    tbody.innerHTML = '';
+    
+    if (data.length === 0) return;
+    
+    // Generate headers and rows based on report type
+    let headers = [];
+    let rowGenerator;
+    
+    switch(reportType) {
+        case 'patients':
+            headers = ['Patient ID', 'Name', 'Age', 'Gender', 'Phone', 'Registration Date', 'Status'];
+            rowGenerator = (item) => `
+                <tr>
+                    <td>${item.patientId || '-'}</td>
+                    <td>${item.firstName} ${item.lastName}</td>
+                    <td>${item.age || '-'}</td>
+                    <td>${item.gender || '-'}</td>
+                    <td>${item.phone || '-'}</td>
+                    <td>${item.registrationDate ? new Date(item.registrationDate).toLocaleDateString() : '-'}</td>
+                    <td><span class="activity-badge ${item.status}">${item.status || 'Active'}</span></td>
+                </tr>
+            `;
+            break;
+        case 'emergency':
+            headers = ['Case #', 'Patient', 'Case Type', 'Severity', 'Arrival Time', 'Status'];
+            rowGenerator = (item) => `
+                <tr>
+                    <td>${item.caseNumber || '-'}</td>
+                    <td>${item.patientName}</td>
+                    <td>${item.caseType}</td>
+                    <td><span class="activity-badge" style="background-color: ${getSeverityColor(item.severity)}20; color: ${getSeverityColor(item.severity)};">${item.severity.toUpperCase()}</span></td>
+                    <td>${new Date(item.arrivalTime).toLocaleString()}</td>
+                    <td><span class="activity-badge ${item.status}">${item.status}</span></td>
+                </tr>
+            `;
+            break;
+        case 'pharmacy':
+            headers = ['Sale ID', 'Patient', 'Medication', 'Quantity', 'Amount', 'Date'];
+            rowGenerator = (item) => `
+                <tr>
+                    <td>${item.saleId || item.id}</td>
+                    <td>${item.patientName || '-'}</td>
+                    <td>${item.medicationName || item.items?.map(i => i.name).join(', ')}</td>
+                    <td>${item.quantity || '-'}</td>
+                    <td>₦${parseFloat(item.totalAmount || 0).toLocaleString()}</td>
+                    <td>${new Date(item.timestamp || item.saleDate).toLocaleDateString()}</td>
+                </tr>
+            `;
+            break;
+        case 'activities':
+            headers = ['Time', 'Module', 'Type', 'User', 'Action', 'Details'];
+            rowGenerator = (item) => `
+                <tr>
+                    <td>${new Date(item.timestamp).toLocaleString()}</td>
+                    <td><span class="module-badge">${item.module}</span></td>
+                    <td><span class="activity-badge ${item.type}">${item.type}</span></td>
+                    <td>${item.userName || item.userId}</td>
+                    <td>${item.action}</td>
+                    <td>${item.details || '-'}</td>
+                </tr>
+            `;
+            break;
+        default:
+            // Generic table for other types
+            headers = Object.keys(data[0]).filter(key => key !== 'id' && !key.startsWith('_')).slice(0, 8);
+            rowGenerator = (item) => `
+                <tr>
+                    ${headers.map(header => `<td>${formatValue(item[header])}</td>`).join('')}
+                </tr>
+            `;
+    }
+    
+    // Create table header
+    thead.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
+    
+    // Create table rows
+    tbody.innerHTML = data.map(rowGenerator).join('');
+}
+
+// Helper function to get severity color
+function getSeverityColor(severity) {
+    const colors = {
+        critical: '#dc2626',
+        severe: '#f59e0b',
+        moderate: '#3b82f6',
+        minor: '#10b981'
+    };
+    return colors[severity] || '#6b7280';
+}
+
+// Helper function to format values
+function formatValue(value) {
+    if (value === null || value === undefined) return '-';
+    if (value instanceof Date || (typeof value === 'string' && !isNaN(Date.parse(value)))) {
+        return new Date(value).toLocaleString();
+    }
+    if (typeof value === 'object') return JSON.stringify(value);
+    return value;
+}
+
+// Export to PDF
+window.exportReportPDF = function() {
+    if (!currentReportData) {
+        alert('Please generate a report first');
+        return;
+    }
+    
+    alert('📄 PDF export requires jsPDF library. For now, use Print function which can save as PDF.');
+    window.printReport();
+};
+
+// Export to Excel
+window.exportReportExcel = function() {
+    if (!currentReportData) {
+        alert('Please generate a report first');
+        return;
+    }
+    
+    console.log('📊 Exporting to Excel...');
+    
+    // Create worksheet data
+    const worksheet = [];
+    const table = document.getElementById('reportTable');
+    
+    // Add headers
+    const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent);
+    worksheet.push(headers);
+    
+    // Add data rows
+    table.querySelectorAll('tbody tr').forEach(tr => {
+        const row = Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim());
+        worksheet.push(row);
+    });
+    
+    // Convert to TSV (Tab Separated Values) for Excel compatibility
+    const tsvContent = worksheet.map(row => row.join('\t')).join('\n');
+    
+    // Create blob and download
+    const blob = new Blob([tsvContent], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${currentReportType}_report_${new Date().toISOString().split('T')[0]}.xls`;
+    link.click();
+    URL.revokeObjectURL(url);
+    
+    console.log('✅ Excel file downloaded');
+    alert('✅ Excel file downloaded successfully!');
+};
+
+// Export to CSV
+window.exportReportCSV = function() {
+    if (!currentReportData) {
+        alert('Please generate a report first');
+        return;
+    }
+    
+    console.log('📊 Exporting to CSV...');
+    
+    // Create CSV data
+    const csv = [];
+    const table = document.getElementById('reportTable');
+    
+    // Add headers
+    const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent);
+    csv.push(headers.join(','));
+    
+    // Add data rows
+    table.querySelectorAll('tbody tr').forEach(tr => {
+        const row = Array.from(tr.querySelectorAll('td')).map(td => {
+            // Escape quotes and wrap in quotes if contains comma
+            let value = td.textContent.trim();
+            if (value.includes(',') || value.includes('"')) {
+                value = `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+        });
+        csv.push(row.join(','));
+    });
+    
+    // Create blob and download
+    const csvContent = csv.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${currentReportType}_report_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    
+    console.log('✅ CSV file downloaded');
+    alert('✅ CSV file downloaded successfully!');
+};
+
+// Print Report
+window.printReport = function() {
+    if (!currentReportData) {
+        alert('Please generate a report first');
+        return;
+    }
+    
+    console.log('🖨️ Printing report...');
+    
+    const printWindow = window.open('', '_blank');
+    const reportContent = document.getElementById('reportContent').cloneNode(true);
+    
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>${currentReportType.charAt(0).toUpperCase() + currentReportType.slice(1)} Report</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    padding: 20px;
+                    color: #000;
+                }
+                .report-header {
+                    display: flex;
+                    justify-content: space-between;
+                    margin-bottom: 30px;
+                    padding-bottom: 15px;
+                    border-bottom: 2px solid #333;
+                }
+                .report-header h2 {
+                    margin: 0;
+                    color: #2563eb;
+                }
+                .report-header p {
+                    margin: 5px 0;
+                    font-size: 14px;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 10px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #2563eb;
+                    color: white;
+                    font-weight: bold;
+                }
+                tr:nth-child(even) {
+                    background-color: #f9f9f9;
+                }
+                @media print {
+                    body { padding: 0; }
+                }
+            </style>
+        </head>
+        <body>
+            ${reportContent.innerHTML}
+        </body>
+        </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.focus();
+    
+    setTimeout(() => {
+        printWindow.print();
+    }, 500);
+};
+
 
 
 
