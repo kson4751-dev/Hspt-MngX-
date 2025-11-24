@@ -6,6 +6,7 @@ import {
     subscribeToWardPatients, 
     admitPatientToWard, 
     updateWardQueueStatus,
+    updateWardPatient,
     getPatient
 } from './firebase-helpers.js';
 
@@ -415,24 +416,122 @@ window.admitPatient = async function(queueId) {
 
 // View ward patient details
 window.viewWardPatient = function(patientId) {
+    console.log('👁️ Opening view modal for patient:', patientId);
+    
     const patient = wardPatients.find(p => p.id === patientId);
     if (!patient) {
         alert('Patient not found');
+        console.error('❌ Patient not found:', patientId);
         return;
     }
     
-    alert(`Patient: ${patient.patientName}\nID: ${patient.patientId}\nBed: ${patient.bedNumber}\nDiagnosis: ${patient.diagnosis || 'N/A'}\nStatus: ${patient.status || 'N/A'}`);
+    console.log('✅ Patient data:', patient);
+    
+    // Populate modal fields
+    document.getElementById('viewWardPatientId').textContent = patient.patientId || 'N/A';
+    document.getElementById('viewWardPatientName').textContent = patient.patientName || 'N/A';
+    document.getElementById('viewWardPatientAge').textContent = patient.age ? `${patient.age} years` : 'N/A';
+    document.getElementById('viewWardPatientGender').textContent = patient.gender || 'N/A';
+    document.getElementById('viewWardBedNumber').textContent = patient.bedNumber || 'Unassigned';
+    document.getElementById('viewWardAdmissionDate').textContent = patient.admissionDate ? formatDate(patient.admissionDate) : 'N/A';
+    document.getElementById('viewWardReferringDoctor').textContent = patient.referringDoctor || 'N/A';
+    document.getElementById('viewWardStatus').textContent = formatStatus(patient.status);
+    document.getElementById('viewWardDiagnosis').textContent = patient.diagnosis || 'No diagnosis recorded';
+    document.getElementById('viewWardTreatmentPlan').textContent = patient.treatmentPlan || 'No treatment plan recorded';
+    
+    // Store patient ID for print function
+    window.currentViewingWardPatient = patient;
+    
+    // Show modal
+    document.getElementById('viewWardPatientModal').classList.add('active');
+    console.log('✅ View modal opened');
+};
+
+window.closeViewWardPatientModal = function() {
+    document.getElementById('viewWardPatientModal').classList.remove('active');
+    window.currentViewingWardPatient = null;
+};
+
+window.printWardPatientFromModal = function() {
+    if (window.currentViewingWardPatient) {
+        printWardPatientData(window.currentViewingWardPatient);
+    }
 };
 
 // Edit ward patient
 window.editWardPatient = function(patientId) {
+    console.log('✏️ Opening edit modal for patient:', patientId);
+    
     const patient = wardPatients.find(p => p.id === patientId);
     if (!patient) {
         alert('Patient not found');
+        console.error('❌ Patient not found:', patientId);
         return;
     }
     
-    alert('Edit ward patient - Feature ready for implementation');
+    console.log('✅ Patient data:', patient);
+    
+    // Store patient document ID
+    document.getElementById('editWardPatientDocId').value = patientId;
+    
+    // Populate read-only fields
+    document.getElementById('editWardPatientIdDisplay').textContent = patient.patientId || 'N/A';
+    document.getElementById('editWardPatientNameDisplay').textContent = patient.patientName || 'N/A';
+    
+    // Populate editable fields
+    document.getElementById('editWardBedNumber').value = patient.bedNumber || '';
+    document.getElementById('editWardStatus').value = patient.status || 'admitted';
+    document.getElementById('editWardDiagnosis').value = patient.diagnosis || '';
+    document.getElementById('editWardTreatmentPlan').value = patient.treatmentPlan || '';
+    
+    // Show modal
+    document.getElementById('editWardPatientModal').classList.add('active');
+    console.log('✅ Edit modal opened');
+};
+
+window.closeEditWardPatientModal = function() {
+    document.getElementById('editWardPatientModal').classList.remove('active');
+};
+
+window.saveWardPatientChanges = async function() {
+    console.log('💾 Saving ward patient changes...');
+    
+    const patientId = document.getElementById('editWardPatientDocId').value;
+    if (!patientId) {
+        alert('Error: Patient ID not found');
+        return;
+    }
+    
+    // Get updated values
+    const updates = {
+        bedNumber: document.getElementById('editWardBedNumber').value.trim(),
+        status: document.getElementById('editWardStatus').value,
+        diagnosis: document.getElementById('editWardDiagnosis').value.trim(),
+        treatmentPlan: document.getElementById('editWardTreatmentPlan').value.trim()
+    };
+    
+    console.log('📝 Updates to save:', updates);
+    
+    if (!updates.bedNumber) {
+        alert('Bed number is required');
+        return;
+    }
+    
+    try {
+        const result = await updateWardPatient(patientId, updates);
+        
+        if (result.success) {
+            console.log('✅ Patient updated successfully');
+            alert('✅ Patient information updated successfully!');
+            closeEditWardPatientModal();
+        } else {
+            console.error('❌ Update failed:', result.error);
+            alert('❌ Error updating patient: ' + result.error);
+        }
+    } catch (error) {
+        console.error('❌ Error saving changes:', error);
+        alert('❌ Error saving changes: ' + error.message);
+    }
 };
 
 // Print ward patient
@@ -443,19 +542,141 @@ window.printWardPatient = function(patientId) {
         return;
     }
     
-    const printWindow = window.open('', '', 'height=600,width=800');
-    printWindow.document.write('<html><head><title>Ward Patient - ' + patient.patientId + '</title>');
-    printWindow.document.write('<style>body{font-family:Arial,sans-serif;padding:20px;}</style>');
-    printWindow.document.write('</head><body>');
-    printWindow.document.write('<h2>Ward Patient Record</h2>');
-    printWindow.document.write('<p><strong>Patient ID:</strong> ' + patient.patientId + '</p>');
-    printWindow.document.write('<p><strong>Name:</strong> ' + patient.patientName + '</p>');
-    printWindow.document.write('<p><strong>Bed:</strong> ' + (patient.bedNumber || 'N/A') + '</p>');
-    printWindow.document.write('<p><strong>Diagnosis:</strong> ' + (patient.diagnosis || 'N/A') + '</p>');
-    printWindow.document.write('</body></html>');
-    printWindow.document.close();
-    printWindow.print();
+    printWardPatientData(patient);
 };
+
+// Helper function to print patient data
+function printWardPatientData(patient) {
+    const printWindow = window.open('', '', 'height=600,width=800');
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Ward Patient - ${patient.patientId}</title>
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    padding: 30px; 
+                    line-height: 1.6;
+                }
+                .header {
+                    text-align: center;
+                    border-bottom: 2px solid #333;
+                    padding-bottom: 15px;
+                    margin-bottom: 25px;
+                }
+                .section {
+                    margin-bottom: 20px;
+                }
+                .section-title {
+                    font-weight: bold;
+                    font-size: 16px;
+                    color: #2563eb;
+                    border-bottom: 1px solid #ddd;
+                    padding-bottom: 5px;
+                    margin-bottom: 10px;
+                }
+                .info-row {
+                    display: flex;
+                    padding: 8px 0;
+                    border-bottom: 1px solid #f0f0f0;
+                }
+                .info-label {
+                    font-weight: bold;
+                    width: 180px;
+                    color: #555;
+                }
+                .info-value {
+                    flex: 1;
+                    color: #333;
+                }
+                .urgent {
+                    background: #ef4444;
+                    color: white;
+                    padding: 2px 8px;
+                    border-radius: 3px;
+                    font-size: 12px;
+                }
+                @media print {
+                    body { padding: 0; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h2>Ward Patient Information</h2>
+                <p>Patient ID: ${patient.patientId}</p>
+                <p>Print Date: ${new Date().toLocaleString()}</p>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Patient Information</div>
+                <div class="info-row">
+                    <div class="info-label">Patient Name:</div>
+                    <div class="info-value">${patient.patientName || patient.name || 'N/A'}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Age:</div>
+                    <div class="info-value">${patient.age || 'N/A'}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Gender:</div>
+                    <div class="info-value">${patient.gender || 'N/A'}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Priority:</div>
+                    <div class="info-value">
+                        ${patient.priority === 'urgent' ? '<span class="urgent">URGENT</span>' : 'Normal'}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Admission Details</div>
+                <div class="info-row">
+                    <div class="info-label">Bed Number:</div>
+                    <div class="info-value">${patient.bedNumber || 'Not assigned'}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Admission Date:</div>
+                    <div class="info-value">${patient.admissionDate || 'N/A'}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Admitted By:</div>
+                    <div class="info-value">${patient.admittedBy || 'N/A'}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Status:</div>
+                    <div class="info-value">${patient.status || 'N/A'}</div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Clinical Information</div>
+                <div class="info-row">
+                    <div class="info-label">Diagnosis:</div>
+                    <div class="info-value">${patient.diagnosis || 'N/A'}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Treatment Plan:</div>
+                    <div class="info-value">${patient.treatmentPlan || 'N/A'}</div>
+                </div>
+                ${patient.notes ? `
+                <div class="info-row">
+                    <div class="info-label">Notes:</div>
+                    <div class="info-value">${patient.notes}</div>
+                </div>
+                ` : ''}
+            </div>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+        printWindow.print();
+    }, 250);
+}
+
 
 // Manage patient (full management interface)
 window.managePatient = function(patientId) {

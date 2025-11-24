@@ -1982,6 +1982,182 @@
             </div>
         </div>
 
+        <!-- View Ward Patient Modal -->
+        <div class="modal" id="viewWardPatientModal">
+            <div class="modal-overlay" onclick="closeViewWardPatientModal()"></div>
+            <div class="modal-content" style="max-width: 700px;">
+                <div class="modal-header">
+                    <h2 class="modal-title">
+                        <i class="fas fa-user-injured"></i>
+                        Ward Patient Details
+                    </h2>
+                    <button class="modal-close" onclick="closeViewWardPatientModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <!-- Patient Information -->
+                    <div class="info-section">
+                        <h3 class="info-section-title">
+                            <i class="fas fa-id-card"></i>
+                            Patient Information
+                        </h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Patient ID:</span>
+                                <span class="info-value" id="viewWardPatientId">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Patient Name:</span>
+                                <span class="info-value" id="viewWardPatientName">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Age:</span>
+                                <span class="info-value" id="viewWardPatientAge">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Gender:</span>
+                                <span class="info-value" id="viewWardPatientGender">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Admission Details -->
+                    <div class="info-section">
+                        <h3 class="info-section-title">
+                            <i class="fas fa-hospital"></i>
+                            Admission Details
+                        </h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Bed Number:</span>
+                                <span class="info-value" id="viewWardBedNumber">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Admission Date:</span>
+                                <span class="info-value" id="viewWardAdmissionDate">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Referring Doctor:</span>
+                                <span class="info-value" id="viewWardReferringDoctor">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Status:</span>
+                                <span class="info-value" id="viewWardStatus">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Clinical Information -->
+                    <div class="info-section">
+                        <h3 class="info-section-title">
+                            <i class="fas fa-stethoscope"></i>
+                            Clinical Information
+                        </h3>
+                        <div class="info-item" style="display: block;">
+                            <span class="info-label">Diagnosis:</span>
+                            <p class="info-value" id="viewWardDiagnosis" style="margin-top: 8px; line-height: 1.6;">-</p>
+                        </div>
+                        <div class="info-item" style="display: block; margin-top: 15px;">
+                            <span class="info-label">Treatment Plan:</span>
+                            <p class="info-value" id="viewWardTreatmentPlan" style="margin-top: 8px; line-height: 1.6;">-</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeViewWardPatientModal()">
+                        <i class="fas fa-times"></i>
+                        Close
+                    </button>
+                    <button class="btn btn-primary" onclick="printWardPatientFromModal()">
+                        <i class="fas fa-print"></i>
+                        Print
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Ward Patient Modal -->
+        <div class="modal" id="editWardPatientModal">
+            <div class="modal-overlay" onclick="closeEditWardPatientModal()"></div>
+            <div class="modal-content" style="max-width: 700px;">
+                <div class="modal-header">
+                    <h2 class="modal-title">
+                        <i class="fas fa-edit"></i>
+                        Edit Ward Patient
+                    </h2>
+                    <button class="modal-close" onclick="closeEditWardPatientModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <!-- Hidden field for patient ID -->
+                    <input type="hidden" id="editWardPatientDocId">
+
+                    <!-- Patient Information (Read-only) -->
+                    <div class="info-section">
+                        <h3 class="info-section-title">
+                            <i class="fas fa-user"></i>
+                            Patient Information
+                        </h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Patient ID:</span>
+                                <span class="info-value" id="editWardPatientIdDisplay">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Patient Name:</span>
+                                <span class="info-value" id="editWardPatientNameDisplay">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Editable Fields -->
+                    <div class="form-section">
+                        <h3 class="info-section-title">
+                            <i class="fas fa-hospital-user"></i>
+                            Ward Details
+                        </h3>
+                        
+                        <div class="form-group">
+                            <label for="editWardBedNumber">Bed Number</label>
+                            <input type="text" class="form-control" id="editWardBedNumber" placeholder="e.g., B-12, Ward A-5">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="editWardStatus">Status</label>
+                            <select class="form-control" id="editWardStatus">
+                                <option value="admitted">Admitted</option>
+                                <option value="stable">Stable</option>
+                                <option value="critical">Critical</option>
+                                <option value="discharged">Discharged</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="editWardDiagnosis">Diagnosis</label>
+                            <textarea class="form-control" id="editWardDiagnosis" rows="3" placeholder="Enter diagnosis"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="editWardTreatmentPlan">Treatment Plan</label>
+                            <textarea class="form-control" id="editWardTreatmentPlan" rows="3" placeholder="Enter treatment plan"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeEditWardPatientModal()">
+                        <i class="fas fa-times"></i>
+                        Cancel
+                    </button>
+                    <button class="btn btn-success" onclick="saveWardPatientChanges()">
+                        <i class="fas fa-save"></i>
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Laboratory Module -->
         <div class="module" id="laboratory-module">
             <div class="module-header">
