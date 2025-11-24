@@ -12,7 +12,7 @@
  * - Offline: Shows cached image from localStorage until online
  */
 
-import { db, storage } from './firebase-config.js';
+import { db, storage, auth } from './firebase-config.js';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
@@ -489,7 +489,7 @@ function applySoundSettings(enabled) {
     console.log('✅ Sound settings applied');
 }
 
-// Setup security form
+// Setup security form with real-time password change
 function setupSecurityForm() {
     const form = document.getElementById('securityForm');
     
@@ -497,6 +497,10 @@ function setupSecurityForm() {
         console.warn('⚠️ Security form not found');
         return;
     }
+    
+    // Update session info in real-time
+    updateSessionInfo();
+    setInterval(updateSessionInfo, 60000); // Update every minute
     
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -509,6 +513,7 @@ function setupSecurityForm() {
             const newPassword = document.getElementById('newPassword').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
             
+            // Validation
             if (!currentPassword || !newPassword || !confirmPassword) {
                 showNotification('Validation Error', 'All password fields are required', 'warning');
                 return;
@@ -524,28 +529,138 @@ function setupSecurityForm() {
                 return;
             }
             
+            if (currentPassword === newPassword) {
+                showNotification('Validation Error', 'New password must be different from current password', 'warning');
+                return;
+            }
+            
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Changing Password...';
             
-            console.log('🔐 Attempting password change...');
+            console.log('🔐 Attempting password change with Firebase Auth...');
             
-            // This requires Firebase Auth - simplified for now
-            showNotification('Coming Soon', 'Password change functionality requires Firebase Auth integration', 'info');
+            // Get current Firebase user
+            const user = auth.currentUser;
+            
+            if (!user) {
+                throw new Error('No authenticated user found. Please log in again.');
+            }
+            
+            // Re-authenticate user with current password
+            const credential = EmailAuthProvider.credential(user.email, currentPassword);
+            console.log('🔑 Re-authenticating user...');
+            await reauthenticateWithCredential(user, credential);
+            console.log('✅ Re-authentication successful');
+            
+            // Update password
+            console.log('🔄 Updating password...');
+            await updatePassword(user, newPassword);
+            console.log('✅ Password updated successfully');
+            
+            // Update Firestore with password change timestamp
+            const userLocalData = getCurrentUser();
+            await updateDoc(doc(db, 'users', userLocalData.uid), {
+                passwordChangedAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+            
+            // Log security activity
+            await logSecurityActivity('password_changed');
             
             // Clear form
             form.reset();
-            console.log('ℹ️ Security form reset');
+            
+            showNotification('Password Changed', 'Your password has been updated successfully', 'success');
+            console.log('✅ Password change completed');
             
         } catch (error) {
             console.error('❌ Error changing password:', error);
-            showNotification('Update Error', 'Failed to change password: ' + error.message, 'error');
+            
+            let errorMessage = 'Failed to change password';
+            
+            // Handle specific Firebase Auth errors
+            if (error.code === 'auth/wrong-password') {
+                errorMessage = 'Current password is incorrect';
+            } else if (error.code === 'auth/weak-password') {
+                errorMessage = 'Password is too weak. Use a stronger password';
+            } else if (error.code === 'auth/requires-recent-login') {
+                errorMessage = 'Please log out and log back in before changing password';
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+            
+            showNotification('Password Change Failed', errorMessage, 'error');
         } finally {
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalBtnText;
         }
     });
     
-    console.log('✅ Security form handler attached');
+    console.log('✅ Security form handler attached with real-time features');
+}
+
+// Update session info in real-time
+function updateSessionInfo() {
+    try {
+        const lastLoginEl = document.getElementById('lastLoginTime');
+        const sessionStartEl = document.getElementById('sessionStartTime');
+        const sessionDurationEl = document.getElementById('sessionDuration');
+        
+        // Last login time
+        if (lastLoginEl) {
+            const lastLogin = sessionStorage.getItem('lastLoginTime');
+            if (lastLogin) {
+                lastLoginEl.textContent = new Date(lastLogin).toLocaleString();
+            } else {
+                lastLoginEl.textContent = 'Current session';
+            }
+        }
+        
+        // Session start time
+        if (sessionStartEl) {
+            const sessionStart = sessionStorage.getItem('sessionStartTime');
+            if (sessionStart) {
+                sessionStartEl.textContent = new Date(sessionStart).toLocaleString();
+            } else {
+                const now = new Date().toISOString();
+                sessionStorage.setItem('sessionStartTime', now);
+                sessionStartEl.textContent = new Date(now).toLocaleString();
+            }
+        }
+        
+        // Calculate and display session duration
+        if (sessionDurationEl) {
+            const sessionStart = sessionStorage.getItem('sessionStartTime');
+            if (sessionStart) {
+                const duration = Date.now() - new Date(sessionStart).getTime();
+                const hours = Math.floor(duration / (1000 * 60 * 60));
+                const minutes = Math.floor((duration % (1000 * 60 * 60)) / (1000 * 60));
+                sessionDurationEl.textContent = `${hours}h ${minutes}m`;
+            }
+        }
+        
+        console.log('🕐 Session info updated');
+    } catch (error) {
+        console.error('❌ Error updating session info:', error);
+    }
+}
+
+// Log security-related activities
+async function logSecurityActivity(activityType) {
+    try {
+        const user = getCurrentUser();
+        await setDoc(doc(db, 'security_logs', `${user.uid}_${Date.now()}`), {
+            userId: user.uid,
+            userEmail: user.email,
+            activityType: activityType,
+            timestamp: serverTimestamp(),
+            ipAddress: 'N/A', // Would need backend for real IP
+            userAgent: navigator.userAgent
+        });
+        console.log('📝 Security activity logged:', activityType);
+    } catch (error) {
+        console.error('❌ Error logging security activity:', error);
+    }
 }
 
 // Setup photo upload
