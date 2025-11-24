@@ -5610,6 +5610,7 @@ function quickMarkAsReviewed(reportId) {
 let currentRxReport = null;
 let rxDiagnosisList = [];
 let medicationCart = [];
+let prescriptionSavedForCurrentSession = false;
 
 function openRxTreatment(reportId) {
     const report = doctorLabReports.find(r => r.id === reportId);
@@ -5621,6 +5622,7 @@ function openRxTreatment(reportId) {
     currentRxReport = report;
     rxDiagnosisList = [];
     medicationCart = [];
+    prescriptionSavedForCurrentSession = false;
     
     // Populate patient info
     document.getElementById('rxPatientName').textContent = report.patientName;
@@ -5655,6 +5657,7 @@ function closeRxTreatmentModal() {
     currentRxReport = null;
     rxDiagnosisList = [];
     medicationCart = [];
+    prescriptionSavedForCurrentSession = false;
 }
 
 // Diagnosis Management
@@ -6188,6 +6191,12 @@ function collectRxData() {
 
 // Save prescription to Firebase
 async function savePrescriptionToFirebase(rxData) {
+    // Prevent duplicate saves for the same session
+    if (prescriptionSavedForCurrentSession) {
+        console.log('Prescription already saved for this session');
+        return { success: true, duplicate: true };
+    }
+    
     try {
         const { db, collection, addDoc, serverTimestamp } = await import('./firebase-config.js');
         
@@ -6199,6 +6208,9 @@ async function savePrescriptionToFirebase(rxData) {
         
         const docRef = await addDoc(collection(db, 'prescriptions'), prescriptionData);
         console.log('Prescription saved with ID:', docRef.id);
+        
+        // Mark as saved for this session
+        prescriptionSavedForCurrentSession = true;
         
         return { success: true, id: docRef.id };
     } catch (error) {
