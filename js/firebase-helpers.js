@@ -937,5 +937,150 @@ export async function updateWardPatient(patientId, updates) {
     }
 }
 
+// ==================== ACTIVITY TRACKING ====================
+
+// Add activity to Firebase
+export async function logActivity(activityData) {
+    try {
+        const activitiesRef = collection(db, 'activities');
+        const docRef = await addDoc(activitiesRef, {
+            ...activityData,
+            timestamp: serverTimestamp(),
+            createdAt: serverTimestamp()
+        });
+        console.log('Activity logged with ID:', docRef.id);
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('Error logging activity:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// Subscribe to activities (realtime) - get latest activities
+export function subscribeToActivities(callback, limit = 50) {
+    const activitiesRef = collection(db, 'activities');
+    const q = query(activitiesRef, orderBy('timestamp', 'desc'));
+    
+    return onSnapshot(q, (snapshot) => {
+        const activities = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            activities.push({ 
+                id: doc.id, 
+                ...data,
+                // Convert Firestore timestamp to JS Date for display
+                timestamp: data.timestamp?.toDate() || new Date()
+            });
+        });
+        callback(activities.slice(0, limit));
+    }, (error) => {
+        console.error('Error fetching activities:', error);
+        callback([]);
+    });
+}
+
+// Get activities by module
+export function subscribeToActivitiesByModule(module, callback, limit = 20) {
+    const activitiesRef = collection(db, 'activities');
+    const q = query(
+        activitiesRef, 
+        where('module', '==', module),
+        orderBy('timestamp', 'desc')
+    );
+    
+    return onSnapshot(q, (snapshot) => {
+        const activities = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            activities.push({ 
+                id: doc.id, 
+                ...data,
+                timestamp: data.timestamp?.toDate() || new Date()
+            });
+        });
+        callback(activities.slice(0, limit));
+    }, (error) => {
+        console.error('Error fetching module activities:', error);
+        callback([]);
+    });
+}
+
+// Get activities by user
+export function subscribeToActivitiesByUser(userId, callback, limit = 20) {
+    const activitiesRef = collection(db, 'activities');
+    const q = query(
+        activitiesRef, 
+        where('userId', '==', userId),
+        orderBy('timestamp', 'desc')
+    );
+    
+    return onSnapshot(q, (snapshot) => {
+        const activities = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            activities.push({ 
+                id: doc.id, 
+                ...data,
+                timestamp: data.timestamp?.toDate() || new Date()
+            });
+        });
+        callback(activities.slice(0, limit));
+    }, (error) => {
+        console.error('Error fetching user activities:', error);
+        callback([]);
+    });
+}
+
+// Get activities by patient
+export function subscribeToActivitiesByPatient(patientId, callback) {
+    const activitiesRef = collection(db, 'activities');
+    const q = query(
+        activitiesRef, 
+        where('patientId', '==', patientId),
+        orderBy('timestamp', 'desc')
+    );
+    
+    return onSnapshot(q, (snapshot) => {
+        const activities = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            activities.push({ 
+                id: doc.id, 
+                ...data,
+                timestamp: data.timestamp?.toDate() || new Date()
+            });
+        });
+        callback(activities);
+    }, (error) => {
+        console.error('Error fetching patient activities:', error);
+        callback([]);
+    });
+}
+
+// Delete old activities (for maintenance)
+export async function deleteOldActivities(daysOld = 30) {
+    try {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+        
+        const activitiesRef = collection(db, 'activities');
+        const q = query(activitiesRef, where('timestamp', '<', cutoffDate));
+        const snapshot = await getDocs(q);
+        
+        const deletePromises = [];
+        snapshot.forEach((doc) => {
+            deletePromises.push(deleteDoc(doc.ref));
+        });
+        
+        await Promise.all(deletePromises);
+        console.log(`Deleted ${deletePromises.length} old activities`);
+        return { success: true, count: deletePromises.length };
+    } catch (error) {
+        console.error('Error deleting old activities:', error);
+        return { success: false, error: error.message };
+    }
+}
+
 console.log('Firebase helper functions loaded');
+
 

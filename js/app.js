@@ -646,6 +646,11 @@ function navigateToModule(module, submodule = null) {
         const moduleElement = document.getElementById(`${module}-module`);
         if (moduleElement) {
             moduleElement.classList.add('active');
+            
+            // Special handling for all-activities module
+            if (module === 'all-activities') {
+                navigateToAllActivitiesModule();
+            }
         }
     }
     
@@ -891,29 +896,90 @@ window.refreshDashboard = refreshDashboard;
 // ==========================================
 
 let recentActivities = [];
+let activitiesUnsubscribe = null;
 
-// Load recent activities
-function loadRecentActivities() {
-    // This will be populated from various modules
-    // For now, we'll show a message
-    updateRecentActivitiesDisplay();
+// Get current user info
+function getCurrentUserInfo() {
+    try {
+        // Try to get from session/local storage first
+        const userStr = sessionStorage.getItem('currentUser') || localStorage.getItem('currentUser');
+        if (userStr) {
+            const user = JSON.parse(userStr);
+            return {
+                userId: user.uid || user.id,
+                userName: user.displayName || user.name || user.email?.split('@')[0] || 'User'
+            };
+        }
+    } catch (error) {
+        console.error('Error getting user info:', error);
+    }
+    return {
+        userId: 'system',
+        userName: 'System'
+    };
 }
 
-// Add activity to recent activities
-function addActivity(activity) {
-    const activityData = {
-        timestamp: new Date().toISOString(),
-        ...activity
-    };
-    
-    recentActivities.unshift(activityData);
-    
-    // Keep only last 10 activities
-    if (recentActivities.length > 10) {
-        recentActivities = recentActivities.slice(0, 10);
+// Load recent activities from Firebase (realtime)
+async function loadRecentActivities() {
+    try {
+        // Import the subscribe function from firebase-helpers
+        const { subscribeToActivities } = await import('./firebase-helpers.js');
+        
+        // Unsubscribe from previous listener if exists
+        if (activitiesUnsubscribe) {
+            activitiesUnsubscribe();
+        }
+        
+        // Subscribe to activities with real-time updates
+        activitiesUnsubscribe = subscribeToActivities((activities) => {
+            console.log(`📊 Received ${activities.length} activities from Firebase`);
+            recentActivities = activities;
+            updateRecentActivitiesDisplay();
+            
+            // Also update the All Activities table if it's currently displayed
+            const allActivitiesModule = document.getElementById('all-activities-module');
+            if (allActivitiesModule && allActivitiesModule.classList.contains('active')) {
+                displayAllActivitiesTable();
+            }
+        }, 100); // Get latest 100 activities for the all activities view
+        
+        console.log('✅ Subscribed to real-time activities from Firebase');
+    } catch (error) {
+        console.error('❌ Error loading activities:', error);
+        updateRecentActivitiesDisplay();
     }
-    
-    updateRecentActivitiesDisplay();
+}
+
+// Add activity to Firebase and track locally
+async function addActivity(activity) {
+    try {
+        const userInfo = getCurrentUserInfo();
+        
+        const activityData = {
+            action: activity.action,
+            patient: activity.patient || null,
+            patientId: activity.patientId || null,
+            module: activity.module,
+            userId: userInfo.userId,
+            userName: activity.user || userInfo.userName,
+            status: activity.status || 'info',
+            statusText: activity.statusText || 'Completed',
+            description: activity.description || null,
+            metadata: activity.metadata || {}
+        };
+        
+        // Import and call the Firebase function
+        const { logActivity } = await import('./firebase-helpers.js');
+        const result = await logActivity(activityData);
+        
+        if (result.success) {
+            console.log('Activity logged successfully:', activity.action);
+        } else {
+            console.error('Failed to log activity:', result.error);
+        }
+    } catch (error) {
+        console.error('Error adding activity:', error);
+    }
 }
 
 // Update recent activities display
@@ -933,18 +999,35 @@ function updateRecentActivitiesDisplay() {
         return;
     }
     
-    tbody.innerHTML = recentActivities.slice(0, 5).map(activity => {
+    tbody.innerHTML = recentActivities.slice(0, 10).map(activity => {
         const time = new Date(activity.timestamp);
-        const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const now = new Date();
+        const diffMs = now - time;
+        const diffMins = Math.floor(diffMs / 60000);
+        
+        let timeStr;
+        if (diffMins < 1) {
+            timeStr = 'Just now';
+        } else if (diffMins < 60) {
+            timeStr = `${diffMins}m ago`;
+        } else if (diffMins < 1440) {
+            const hours = Math.floor(diffMins / 60);
+            timeStr = `${hours}h ago`;
+        } else {
+            timeStr = time.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        }
+        
+        // Status badge styling
+        const statusClass = activity.status || 'info';
         
         return `
             <tr>
                 <td><span class="activity-time">${timeStr}</span></td>
-                <td>${activity.action}</td>
+                <td><strong>${activity.action}</strong></td>
                 <td>${activity.patient || 'N/A'}</td>
-                <td>${activity.module}</td>
-                <td>${activity.user || 'System'}</td>
-                <td><span class="activity-badge ${activity.status}">${activity.statusText}</span></td>
+                <td><span class="module-badge">${activity.module}</span></td>
+                <td>${activity.userName || 'System'}</td>
+                <td><span class="activity-badge ${statusClass}">${activity.statusText}</span></td>
             </tr>
         `;
     }).join('');
@@ -952,43 +1035,308 @@ function updateRecentActivitiesDisplay() {
 
 // View all activities
 function viewAllActivities() {
-    alert('All activities view will be implemented');
-    // This can navigate to a dedicated activities module
+    navigateToModule('all-activities');
 }
 
-// Example: Track patient registration
-function trackPatientRegistration(patientName) {
+// Navigate to all activities module and display filtered activities
+function navigateToAllActivitiesModule() {
+    // Show loading state first
+    const tbody = document.getElementById('allActivitiesTableBody');
+    if (tbody) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 10px; display: block;"></i>
+                    <p>Loading activities from Firebase...</p>
+                </td>
+            </tr>
+        `;
+    }
+    
+    // Display current activities if already loaded
+    if (recentActivities.length > 0) {
+        displayAllActivitiesTable();
+    }
+    
+    setupActivityFilters();
+}
+
+// Display all activities in the dedicated module
+function displayAllActivitiesTable(filteredActivities = null) {
+    const tbody = document.getElementById('allActivitiesTableBody');
+    if (!tbody) return;
+    
+    const activitiesToDisplay = filteredActivities || recentActivities;
+    
+    if (activitiesToDisplay.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                    <i class="fas fa-inbox" style="font-size: 32px; margin-bottom: 10px; display: block;"></i>
+                    <p>No activities found</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = activitiesToDisplay.map(activity => {
+        const time = new Date(activity.timestamp);
+        const timeStr = time.toLocaleString([], { 
+            month: 'short', 
+            day: 'numeric', 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+        const statusClass = activity.status || 'info';
+        
+        return `
+            <tr>
+                <td><span class="activity-time">${timeStr}</span></td>
+                <td><strong>${activity.action}</strong></td>
+                <td>${activity.patient || 'N/A'}</td>
+                <td><span class="module-badge">${activity.module}</span></td>
+                <td>${activity.userName || 'System'}</td>
+                <td><span class="activity-badge ${statusClass}">${activity.statusText}</span></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Setup activity filters
+function setupActivityFilters() {
+    const moduleFilter = document.getElementById('activityModuleFilter');
+    const statusFilter = document.getElementById('activityStatusFilter');
+    const searchInput = document.getElementById('activitySearchInput');
+    
+    const applyFilters = () => {
+        let filtered = [...recentActivities];
+        
+        // Module filter
+        if (moduleFilter && moduleFilter.value) {
+            filtered = filtered.filter(a => a.module === moduleFilter.value);
+        }
+        
+        // Status filter
+        if (statusFilter && statusFilter.value) {
+            filtered = filtered.filter(a => a.status === statusFilter.value);
+        }
+        
+        // Search filter
+        if (searchInput && searchInput.value.trim()) {
+            const searchTerm = searchInput.value.toLowerCase().trim();
+            filtered = filtered.filter(a => 
+                a.action.toLowerCase().includes(searchTerm) ||
+                (a.patient && a.patient.toLowerCase().includes(searchTerm)) ||
+                (a.userName && a.userName.toLowerCase().includes(searchTerm)) ||
+                a.module.toLowerCase().includes(searchTerm)
+            );
+        }
+        
+        displayAllActivitiesTable(filtered);
+    };
+    
+    if (moduleFilter) moduleFilter.addEventListener('change', applyFilters);
+    if (statusFilter) statusFilter.addEventListener('change', applyFilters);
+    if (searchInput) {
+        let searchTimeout;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(applyFilters, 300);
+        });
+    }
+}
+
+// Refresh all activities
+function refreshAllActivities() {
+    const moduleFilter = document.getElementById('activityModuleFilter');
+    const statusFilter = document.getElementById('activityStatusFilter');
+    const searchInput = document.getElementById('activitySearchInput');
+    
+    // Reset filters
+    if (moduleFilter) moduleFilter.value = '';
+    if (statusFilter) statusFilter.value = '';
+    if (searchInput) searchInput.value = '';
+    
+    // Reload activities
+    displayAllActivitiesTable();
+}
+
+// Show all activities in a modal (legacy - kept for backwards compatibility)
+function showAllActivitiesModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.innerHTML = `
+        <div class="modal-overlay" onclick="this.parentElement.remove()"></div>
+        <div class="modal-content" style="max-width: 1200px; max-height: 80vh;">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-history"></i>
+                    All Recent Activities
+                </h2>
+                <button class="modal-close" onclick="this.closest('.modal').remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 0; overflow-y: auto;">
+                <table class="activities-table" style="margin: 0;">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Activity</th>
+                            <th>Patient</th>
+                            <th>Module</th>
+                            <th>User</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${recentActivities.map(activity => {
+                            const time = new Date(activity.timestamp);
+                            const timeStr = time.toLocaleString([], { 
+                                month: 'short', 
+                                day: 'numeric', 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                            });
+                            const statusClass = activity.status || 'info';
+                            
+                            return `
+                                <tr>
+                                    <td><span class="activity-time">${timeStr}</span></td>
+                                    <td><strong>${activity.action}</strong></td>
+                                    <td>${activity.patient || 'N/A'}</td>
+                                    <td><span class="module-badge">${activity.module}</span></td>
+                                    <td>${activity.userName || 'System'}</td>
+                                    <td><span class="activity-badge ${statusClass}">${activity.statusText}</span></td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">
+                    Close
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+// Initialize activities on dashboard load
+document.addEventListener('DOMContentLoaded', () => {
+    loadRecentActivities();
+});
+
+// Helper functions to track specific activities across modules
+function trackPatientRegistration(patientName, patientId) {
     addActivity({
         action: 'Patient Registered',
         patient: patientName,
+        patientId: patientId,
         module: 'Reception',
-        user: 'Current User',
         status: 'success',
         statusText: 'Completed'
     });
 }
 
-// Example: Track consultation
-function trackConsultation(patientName) {
+function trackConsultation(patientName, patientId, action = 'Consultation Started') {
     addActivity({
-        action: 'Consultation Started',
+        action: action,
         patient: patientName,
+        patientId: patientId,
         module: 'Doctor',
-        user: 'Current User',
         status: 'info',
         statusText: 'In Progress'
     });
 }
 
-// Example: Track lab test
-function trackLabTest(patientName) {
+function trackLabTest(patientName, patientId, testType = 'Lab Test') {
     addActivity({
-        action: 'Lab Test Ordered',
+        action: `${testType} Ordered`,
         patient: patientName,
+        patientId: patientId,
         module: 'Laboratory',
-        user: 'Current User',
         status: 'warning',
         statusText: 'Pending'
+    });
+}
+
+function trackPharmacyOrder(patientName, patientId, orderType = 'Prescription') {
+    addActivity({
+        action: `${orderType} Dispensed`,
+        patient: patientName,
+        patientId: patientId,
+        module: 'Pharmacy',
+        status: 'success',
+        statusText: 'Completed'
+    });
+}
+
+function trackTriageAssessment(patientName, patientId, priority = 'Normal') {
+    addActivity({
+        action: 'Triage Assessment',
+        patient: patientName,
+        patientId: patientId,
+        module: 'Triage',
+        status: priority === 'Critical' ? 'negative' : priority === 'Urgent' ? 'warning' : 'info',
+        statusText: `Priority: ${priority}`
+    });
+}
+
+function trackWardAdmission(patientName, patientId, ward) {
+    addActivity({
+        action: `Ward Admission - ${ward}`,
+        patient: patientName,
+        patientId: patientId,
+        module: 'Ward & Nursing',
+        status: 'success',
+        statusText: 'Admitted'
+    });
+}
+
+function trackBilling(patientName, patientId, amount) {
+    addActivity({
+        action: 'Bill Created',
+        patient: patientName,
+        patientId: patientId,
+        module: 'Billing',
+        status: 'info',
+        statusText: `Amount: ${amount}`,
+        metadata: { amount }
+    });
+}
+
+function trackEmergency(patientName, patientId, description) {
+    addActivity({
+        action: 'Emergency Case',
+        patient: patientName,
+        patientId: patientId,
+        module: 'Emergency',
+        status: 'negative',
+        statusText: 'Critical',
+        description: description
+    });
+}
+
+function trackInventoryUpdate(itemName, action = 'Stock Updated') {
+    addActivity({
+        action: `${action} - ${itemName}`,
+        module: 'Inventory',
+        status: 'info',
+        statusText: 'Updated'
+    });
+}
+
+function trackExpense(category, amount) {
+    addActivity({
+        action: `Expense Added - ${category}`,
+        module: 'Expenses',
+        status: 'warning',
+        statusText: `Amount: ${amount}`,
+        metadata: { category, amount }
     });
 }
 
@@ -1574,8 +1922,11 @@ async function savePatientToFirebase(patientData) {
             // Update patient data with Firebase ID
             patientData.id = result.id;
             
-            // Track activity
-            trackPatientRegistration(`${patientData.firstName} ${patientData.lastName}`);
+            // Track activity with patient info
+            trackPatientRegistration(
+                `${patientData.firstName} ${patientData.lastName}`,
+                patientData.patientId
+            );
             
             // Send notification about new patient registration
             if (window.createPatientNotification) {
@@ -1605,7 +1956,10 @@ async function savePatientToFirebase(patientData) {
         filterAndDisplayPatients();
         
         // Track activity even in fallback
-        trackPatientRegistration(`${patientData.firstName} ${patientData.lastName}`);
+        trackPatientRegistration(
+            `${patientData.firstName} ${patientData.lastName}`,
+            patientData.patientId
+        );
         
         return true;
     }
@@ -2768,6 +3122,13 @@ if (saveTriageBtn) {
             if (recordResult.success) {
                 console.log('Triage record saved to Firebase');
                 
+                // Track triage activity
+                trackTriageAssessment(
+                    `${patient.firstName} ${patient.lastName}`,
+                    patient.patientId,
+                    triageRecord.priority.charAt(0).toUpperCase() + triageRecord.priority.slice(1)
+                );
+                
                 // Remove from queue in Firebase
                 const queueItem = triageQueue[patientIndex];
                 if (queueItem.id) {
@@ -2790,6 +3151,13 @@ if (saveTriageBtn) {
             triageRecord.triageDate = new Date().toISOString();
             triageRecords.unshift(triageRecord);
             triageQueue.splice(patientIndex, 1);
+            
+            // Track activity even in fallback
+            trackTriageAssessment(
+                `${patient.firstName} ${patient.lastName}`,
+                patient.patientId,
+                triageRecord.priority.charAt(0).toUpperCase() + triageRecord.priority.slice(1)
+            );
             
             displayTriageQueue();
             displayTriageRecords();

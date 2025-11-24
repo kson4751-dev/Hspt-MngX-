@@ -420,6 +420,87 @@
                 </div>
             </div>
         </div>
+
+        <!-- All Activities Module -->
+        <div class="module" id="all-activities-module">
+            <div class="module-header">
+                <div style="flex: 1;">
+                    <h1 class="module-title">All Activities</h1>
+                    <p class="module-description">Complete activity log across all hospital modules</p>
+                </div>
+                <div class="dashboard-actions">
+                    <button class="btn btn-secondary" onclick="navigateToModule('dashboard')">
+                        <i class="fas fa-arrow-left"></i>
+                        Back to Dashboard
+                    </button>
+                    <button class="btn btn-primary" onclick="refreshAllActivities()">
+                        <i class="fas fa-sync-alt"></i>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+            
+            <div class="dashboard-content">
+                <!-- Filter Options -->
+                <div class="filters-row" style="margin-bottom: 24px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="activityModuleFilter">Filter by Module</label>
+                        <select id="activityModuleFilter" class="form-input">
+                            <option value="">All Modules</option>
+                            <option value="Reception">Reception</option>
+                            <option value="Triage">Triage</option>
+                            <option value="Doctor">Doctor</option>
+                            <option value="Ward & Nursing">Ward & Nursing</option>
+                            <option value="Laboratory">Laboratory</option>
+                            <option value="Pharmacy">Pharmacy</option>
+                            <option value="Billing">Billing</option>
+                            <option value="Inventory">Inventory</option>
+                            <option value="Expenses">Expenses</option>
+                            <option value="Emergency">Emergency</option>
+                            <option value="Admin">Admin</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="activityStatusFilter">Filter by Status</label>
+                        <select id="activityStatusFilter" class="form-input">
+                            <option value="">All Status</option>
+                            <option value="success">Completed</option>
+                            <option value="info">In Progress</option>
+                            <option value="warning">Pending</option>
+                            <option value="negative">Critical</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="activitySearchInput">Search Activities</label>
+                        <input type="text" id="activitySearchInput" class="form-input" placeholder="Search patient, action, user...">
+                    </div>
+                </div>
+
+                <!-- Activities Table -->
+                <div class="activities-table-container">
+                    <table class="activities-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Activity</th>
+                                <th>Patient</th>
+                                <th>Module</th>
+                                <th>User</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="allActivitiesTableBody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                                    <i class="fas fa-clock" style="font-size: 32px; margin-bottom: 10px; display: block;"></i>
+                                    <p>Loading activities...</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
         
         <!-- Dashboard Search Results Modal -->
         <div class="modal" id="dashboardSearchModal" style="display: none;">

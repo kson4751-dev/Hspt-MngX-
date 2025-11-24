@@ -698,6 +698,15 @@ async function processCheckout() {
         // Save sale to Firestore
         await addDoc(collection(db, 'pharmacy_sales'), saleData);
         
+        // Track pharmacy sale activity
+        if (window.trackPharmacyOrder) {
+            window.trackPharmacyOrder(
+                customerName.value.trim(),
+                prescriptionRef.value || null,
+                'Sale'
+            );
+        }
+        
         // Update inventory stock quantities
         for (const item of cart) {
             const drug = allInventoryDrugs.find(d => d.id === item.id);

@@ -1084,6 +1084,39 @@ body.dark-theme .theme-toggle .moon-icon {
     color: #ef4444;
 }
 
+.activity-badge.negative {
+    background-color: #fee2e2;
+    color: #dc2626;
+    font-weight: 700;
+}
+
+.activity-badge.neutral {
+    background-color: #f1f5f9;
+    color: #64748b;
+}
+
+.activity-badge.positive {
+    background-color: #dcfce7;
+    color: #059669;
+}
+
+/* Module Badge */
+.module-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background-color: var(--bg-color);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+body.dark-theme .module-badge {
+    background-color: #334155;
+    border-color: #475569;
+}
+
 /* Sub Navigation */
 .sub-navigation {
     display: none;
@@ -4776,6 +4809,20 @@ body.dark-theme .theme-toggle .moon-icon {
 .filter-group {
     display: flex;
     flex-direction: column;
+}
+
+.filters-row {
+    display: flex;
+    gap: 16px;
+    align-items: flex-end;
+    background: var(--sidebar-bg);
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+}
+
+.filters-row .form-group {
+    margin-bottom: 0;
 }
 
 .filter-group label {

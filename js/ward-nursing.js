@@ -392,6 +392,15 @@ window.admitPatient = async function(queueId) {
         if (result.success) {
             console.log('✅ Patient added to ward_admissions with ID:', result.id);
             
+            // Track ward admission activity
+            if (window.trackWardAdmission) {
+                window.trackWardAdmission(
+                    patient.patientName,
+                    patient.patientId,
+                    admissionData.bedNumber
+                );
+            }
+            
             // Update queue status to remove from pending queue
             console.log('🔄 Updating queue status to "admitted"...');
             const updateResult = await updateWardQueueStatus(queueId, 'admitted');
