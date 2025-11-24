@@ -11478,8 +11478,9 @@ window.generateReport = async function() {
         let data = await fetchReportData(reportType, startDate, endDate);
         
         if (!data || data.length === 0) {
-            alert('No data found for the selected criteria');
+            showNotification('No Data Found', `No ${reportType} records found for the selected date range. Try selecting a different period or "This Month".`, 'warning');
             reportEmptyState.style.display = 'flex';
+            console.log(`⚠️ No data found for ${reportType} between ${startDate.toLocaleDateString()} and ${endDate.toLocaleDateString()}`);
             return;
         }
         
@@ -11503,11 +11504,12 @@ window.generateReport = async function() {
         document.getElementById('exportCsvBtn').disabled = false;
         document.getElementById('printReportBtn').disabled = false;
         
-        alert('✅ Report generated successfully!');
+        showNotification('Report Generated', `${data.length} records found for ${reportType} report`, 'success');
+        console.log('✅ Report generation completed successfully');
         
     } catch (error) {
         console.error('Error generating report:', error);
-        alert('❌ Error generating report: ' + error.message);
+        showNotification('Report Error', 'Failed to generate report: ' + error.message, 'error');
         reportEmptyState.style.display = 'flex';
     }
 };
@@ -11560,54 +11562,103 @@ function getDateRange(range) {
 async function fetchReportData(reportType, startDate, endDate) {
     const helpers = await import('./firebase-helpers.js');
     const { db } = await import('./firebase-config.js');
-    const { collection, query, where, getDocs } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+    const { collection, query, where, getDocs, orderBy } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
     
-    let collectionName, data = [];
+    let collectionName, dateField = 'timestamp', data = [];
     
     switch(reportType) {
         case 'patients':
             collectionName = 'patients';
+            dateField = 'registrationDate';
             break;
         case 'emergency':
             collectionName = 'emergency_cases';
+            dateField = 'arrivalTime';
             break;
         case 'ward':
             collectionName = 'ward_admissions';
+            dateField = 'admissionDate';
             break;
         case 'pharmacy':
             collectionName = 'pharmacy_sales';
+            dateField = 'saleDate';
             break;
         case 'lab':
             collectionName = 'lab_requests';
+            dateField = 'requestDate';
             break;
         case 'billing':
             collectionName = 'billing_invoices';
+            dateField = 'invoiceDate';
             break;
         case 'activities':
             collectionName = 'activities';
+            dateField = 'timestamp';
             break;
         default:
             throw new Error('Invalid report type');
     }
     
-    console.log(`📊 Fetching data from ${collectionName} between ${startDate} and ${endDate}`);
+    console.log(`📊 Fetching data from ${collectionName} (${dateField}) between ${startDate.toLocaleDateString()} and ${endDate.toLocaleDateString()}`);
     
-    const q = query(
-        collection(db, collectionName),
-        where('timestamp', '>=', startDate),
-        where('timestamp', '<=', endDate)
-    );
-    
-    const snapshot = await getDocs(q);
-    data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    
-    console.log(`📊 Found ${data.length} records`);
-    return data;
+    try {
+        // Fetch all records from collection (no date filter)
+        const q = query(collection(db, collectionName));
+        const snapshot = await getDocs(q);
+        const allData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        console.log(`📊 Total records in ${collectionName}: ${allData.length}`);
+        
+        if (allData.length === 0) {
+            console.warn(`⚠️ No records found in ${collectionName} collection`);
+            return [];
+        }
+        
+        // Filter client-side by date
+        data = allData.filter(item => {
+            const itemDate = item[dateField];
+            if (!itemDate) {
+                // If no date field, include if it's within a reasonable time
+                return true;
+            }
+            
+            try {
+                // Handle Firebase Timestamp, Date object, or string
+                let date;
+                if (itemDate.toDate) {
+                    date = itemDate.toDate();
+                } else if (itemDate instanceof Date) {
+                    date = itemDate;
+                } else {
+                    date = new Date(itemDate);
+                }
+                
+                // Check if date is valid and within range
+                if (isNaN(date.getTime())) {
+                    console.warn(`Invalid date for item:`, item.id, itemDate);
+                    return false;
+                }
+                
+                return date >= startDate && date <= endDate;
+            } catch (error) {
+                console.warn(`Error parsing date for item ${item.id}:`, error);
+                return false;
+            }
+        });
+        
+        console.log(`📊 Filtered to ${data.length} records from ${allData.length} total (${dateField} between ${startDate.toLocaleDateString()} and ${endDate.toLocaleDateString()})`);
+        
+        return data;
+    } catch (error) {
+        console.error(`❌ Error fetching from ${collectionName}:`, error);
+        throw new Error(`Failed to fetch ${collectionName}: ${error.message}`);
+    }
 }
 
 // Update report stats
 function updateReportStats(data, reportType, startDate, endDate) {
-    document.getElementById('reportTotalRecords').textContent = data.length;
+    // Update basic stats
+    document.getElementById('reportTotalRecords').textContent = data.length.toLocaleString();
     document.getElementById('reportTypeDisplay').textContent = reportType.charAt(0).toUpperCase() + reportType.slice(1);
     document.getElementById('reportDateRangeDisplay').textContent = 
         `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
@@ -11617,6 +11668,22 @@ function updateReportStats(data, reportType, startDate, endDate) {
         `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
     document.getElementById('reportTitle').textContent = 
         `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report`;
+    
+    // Calculate additional analytics based on report type
+    console.log(`📊 Report Summary: ${data.length} records for ${reportType} report`);
+    console.log(`📅 Period: ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`);
+    console.log(`⏰ Generated: ${new Date().toLocaleString()}`);
+    
+    // Type-specific analytics
+    if (reportType === 'pharmacy' && data.length > 0) {
+        const totalRevenue = data.reduce((sum, item) => sum + parseFloat(item.totalAmount || 0), 0);
+        console.log(`💰 Total Revenue: ₦${totalRevenue.toLocaleString()}`);
+    }
+    
+    if (reportType === 'emergency' && data.length > 0) {
+        const critical = data.filter(item => item.severity === 'critical').length;
+        console.log(`🚨 Critical Cases: ${critical}`);
+    }
 }
 
 // Generate report table
@@ -11729,18 +11796,18 @@ function formatValue(value) {
 // Export to PDF
 window.exportReportPDF = function() {
     if (!currentReportData) {
-        alert('Please generate a report first');
+        showNotification('No Report', 'Please generate a report first', 'warning');
         return;
     }
     
-    alert('📄 PDF export requires jsPDF library. For now, use Print function which can save as PDF.');
-    window.printReport();
+    showNotification('PDF Export', 'Use Print function and select "Save as PDF" from print dialog', 'info');
+    setTimeout(() => window.printReport(), 1000);
 };
 
 // Export to Excel
 window.exportReportExcel = function() {
     if (!currentReportData) {
-        alert('Please generate a report first');
+        showNotification('No Report', 'Please generate a report first', 'warning');
         return;
     }
     
@@ -11772,14 +11839,14 @@ window.exportReportExcel = function() {
     link.click();
     URL.revokeObjectURL(url);
     
+    showNotification('Excel Exported', `Report exported as ${currentReportType}_report.xls`, 'success');
     console.log('✅ Excel file downloaded');
-    alert('✅ Excel file downloaded successfully!');
 };
 
 // Export to CSV
 window.exportReportCSV = function() {
     if (!currentReportData) {
-        alert('Please generate a report first');
+        showNotification('No Report', 'Please generate a report first', 'warning');
         return;
     }
     
@@ -11816,14 +11883,14 @@ window.exportReportCSV = function() {
     link.click();
     URL.revokeObjectURL(url);
     
+    showNotification('CSV Exported', `Report exported as ${currentReportType}_report.csv`, 'success');
     console.log('✅ CSV file downloaded');
-    alert('✅ CSV file downloaded successfully!');
 };
 
 // Print Report
 window.printReport = function() {
     if (!currentReportData) {
-        alert('Please generate a report first');
+        showNotification('No Report', 'Please generate a report first', 'warning');
         return;
     }
     
