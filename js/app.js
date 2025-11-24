@@ -5717,7 +5717,7 @@ function renderDiagnosisList() {
 }
 
 // Pharmacy Inventory Search
-function searchPharmacyInventory() {
+async function searchPharmacyInventory() {
     const searchTerm = document.getElementById('medicationSearch').value.trim().toLowerCase();
     const resultsDiv = document.getElementById('medicationSearchResults');
     
@@ -5727,41 +5727,85 @@ function searchPharmacyInventory() {
         return;
     }
     
-    // Get pharmacy items from inventory
-    const inventoryItems = getInventoryItems();
-    const pharmacyItems = inventoryItems.filter(item => 
-        item.location === 'Pharmacy Store' || 
-        item.location === 'pharmacy-store' ||
-        item.category === 'Medications' ||
-        item.category === 'medications'
-    );
-    
-    const filteredItems = pharmacyItems.filter(item => 
-        item.name.toLowerCase().includes(searchTerm) ||
-        (item.description && item.description.toLowerCase().includes(searchTerm))
-    );
-    
-    if (filteredItems.length === 0) {
-        resultsDiv.innerHTML = '<div class="medication-result-item" style="color: var(--text-secondary); text-align: center;">No medications found</div>';
+    try {
+        // Show loading state
+        resultsDiv.innerHTML = '<div class="medication-result-item" style="color: var(--text-secondary); text-align: center;"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
         resultsDiv.classList.add('active');
-        return;
+        
+        // Get drugs from Firebase Firestore pharmacy_inventory collection
+        const { collection, getDocs, query, orderBy } = await import('./firebase-config.js');
+        const db = (await import('./firebase-config.js')).db;
+        
+        const drugsRef = collection(db, 'pharmacy_inventory');
+        const q = query(drugsRef, orderBy('createdAt', 'desc'));
+        const querySnapshot = await getDocs(q);
+        
+        const allDrugs = [];
+        querySnapshot.forEach((doc) => {
+            allDrugs.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        
+        // Filter drugs based on search term
+        const filteredDrugs = allDrugs.filter(drug => {
+            const matchesName = drug.drugName?.toLowerCase().includes(searchTerm);
+            const matchesGeneric = drug.genericName?.toLowerCase().includes(searchTerm);
+            const matchesManufacturer = drug.manufacturer?.toLowerCase().includes(searchTerm);
+            const matchesCategory = drug.category?.toLowerCase().includes(searchTerm);
+            
+            return matchesName || matchesGeneric || matchesManufacturer || matchesCategory;
+        });
+        
+        // Filter only in-stock items
+        const inStockDrugs = filteredDrugs.filter(drug => {
+            const quantity = parseInt(drug.stockQuantity) || 0;
+            return quantity > 0;
+        });
+        
+        if (inStockDrugs.length === 0) {
+            resultsDiv.innerHTML = '<div class="medication-result-item" style="color: var(--text-secondary); text-align: center;">No medications found in stock</div>';
+            resultsDiv.classList.add('active');
+            return;
+        }
+        
+        resultsDiv.innerHTML = inStockDrugs.slice(0, 10).map(drug => {
+            const stockQuantity = parseInt(drug.stockQuantity) || 0;
+            const unit = drug.unit || 'units';
+            const stockStatus = stockQuantity < 20 ? 'low-stock' : 'in-stock';
+            const stockColor = stockQuantity < 20 ? '#f59e0b' : '#10b981';
+            
+            return `
+                <div class="medication-result-item" onclick="selectMedication('${drug.id}', '${(drug.drugName || '').replace(/'/g, "\\'")}', ${stockQuantity}, '${unit}')">
+                    <div style="display: flex; justify-content: space-between; align-items: start; width: 100%;">
+                        <div style="flex: 1;">
+                            <span class="medication-result-name">${drug.drugName || 'Unknown'}</span>
+                            ${drug.genericName ? `<div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">${drug.genericName}</div>` : ''}
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="color: ${stockColor}; font-weight: 600;"><i class="fas fa-box"></i> ${stockQuantity} ${unit}</span>
+                            ${drug.sellingPrice ? `<div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">KSh ${drug.sellingPrice}</div>` : ''}
+                        </div>
+                    </div>
+                    ${drug.manufacturer ? `<div class="medication-result-details"><span><i class="fas fa-industry"></i> ${drug.manufacturer}</span></div>` : ''}
+                </div>
+            `;
+        }).join('');
+        resultsDiv.classList.add('active');
+        
+    } catch (error) {
+        console.error('Error searching pharmacy inventory:', error);
+        resultsDiv.innerHTML = '<div class="medication-result-item" style="color: var(--danger-color); text-align: center;"><i class="fas fa-exclamation-triangle"></i> Error loading medications</div>';
+        resultsDiv.classList.add('active');
     }
-    
-    resultsDiv.innerHTML = filteredItems.slice(0, 10).map(item => `
-        <div class="medication-result-item" onclick="selectMedication('${item.id}', '${item.name.replace(/'/g, "\\'")}')">
-            <span class="medication-result-name">${item.name}</span>
-            <div class="medication-result-details">
-                <span><i class="fas fa-box"></i> Stock: ${item.quantity} ${item.unit || 'units'}</span>
-                ${item.description ? `<span><i class="fas fa-info-circle"></i> ${item.description}</span>` : ''}
-            </div>
-        </div>
-    `).join('');
-    resultsDiv.classList.add('active');
 }
 
-function selectMedication(itemId, itemName) {
+function selectMedication(itemId, itemName, stockQuantity, unit) {
     document.getElementById('selectedMedicationName').value = itemName;
     document.getElementById('selectedMedicationName').dataset.itemId = itemId;
+    document.getElementById('selectedMedicationName').dataset.stockQuantity = stockQuantity;
+    document.getElementById('selectedMedicationName').dataset.unit = unit;
     document.getElementById('medicationSearch').value = itemName;
     document.getElementById('medicationSearchResults').classList.remove('active');
     document.getElementById('medicationDetailsForm').style.display = 'flex';
