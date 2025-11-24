@@ -4447,53 +4447,108 @@ function saveConsultationHistory() {
     // Gather form data
     const historyData = {
         chiefComplaint: document.getElementById('chiefComplaint').value,
-        historyPresentingIllness: document.getElementById('historyPresentingIllness').value,
+        historyPresentingIllness: document.getElementById('historyPresenting').value,
         pastMedicalHistory: document.getElementById('pastMedicalHistory').value,
-        familyHistory: document.getElementById('familyHistory').value,
-        socialHistory: document.getElementById('socialHistory').value,
         drugHistory: document.getElementById('drugHistory').value,
         allergies: document.getElementById('allergies').value,
         generalExamination: document.getElementById('generalExamination').value,
-        systemicExamination: document.getElementById('systemicExamination').value,
+        systematicExamination: document.getElementById('systematicExamination').value,
+        investigations: document.getElementById('investigations').value,
         clinicalImpression: document.getElementById('clinicalImpression').value,
         differentialDiagnosis: document.getElementById('differentialDiagnosis').value,
-        investigations: document.getElementById('investigations').value,
+        finalDiagnosis: document.getElementById('finalDiagnosis').value,
         treatmentPlan: document.getElementById('treatmentPlan').value,
-        prescriptions: document.getElementById('prescriptions').value,
-        followUp: document.getElementById('followUp').value,
-        doctorNotes: document.getElementById('doctorNotes').value,
-        savedAt: new Date().toISOString()
+        additionalNotes: document.getElementById('additionalNotes').value,
+        savedAt: new Date().toISOString(),
+        savedBy: localStorage.getItem('currentUser') || 'Doctor'
     };
     
-    // Update record
-    record.consultationHistory = historyData;
-    record.hasHistory = true;
-    record.diagnosis = historyData.clinicalImpression || record.diagnosis;
+    // Validate that at least some data is entered
+    const hasData = Object.values(historyData).some(val => val && val.trim && val.trim() !== '');
+    if (!hasData) {
+        alert('Please enter some consultation history before saving');
+        return;
+    }
     
-    // Save to Firestore
+    // Show loading state
+    const saveBtn = document.querySelector('#consultationHistoryModal .btn-primary');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    
+    // Save to Firestore in real-time
     import('./firebase-helpers.js').then(({ updateDoctorRecord }) => {
         updateDoctorRecord(recordId, {
             consultationHistory: historyData,
             hasHistory: true,
-            diagnosis: historyData.clinicalImpression || record.diagnosis
+            diagnosis: historyData.finalDiagnosis || historyData.clinicalImpression || record.diagnosis,
+            lastUpdated: new Date().toISOString()
         }).then(result => {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalText;
+            
             if (result.success) {
-                console.log('Consultation history saved to Firestore');
-                alert('Consultation history saved successfully!');
+                console.log('✅ Consultation history saved to Firebase Firestore');
+                
+                // Update local record
+                record.consultationHistory = historyData;
+                record.hasHistory = true;
+                record.diagnosis = historyData.finalDiagnosis || historyData.clinicalImpression || record.diagnosis;
+                
+                // Show success notification
+                showSuccessNotification('Consultation history saved successfully!');
+                
+                // Close modal and refresh display
                 closeConsultationModal();
                 renderDoctorRecords();
             } else {
-                console.error('Failed to save:', result.error);
-                alert('Failed to save consultation history. Please try again.');
+                console.error('❌ Failed to save:', result.error);
+                alert('Failed to save consultation history: ' + result.error);
             }
+        }).catch(error => {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalText;
+            console.error('❌ Error saving to Firebase:', error);
+            alert('Error saving to Firebase: ' + error.message);
         });
     }).catch(error => {
-        console.error('Firebase not available:', error);
-        // Local save
-        alert('Consultation history saved locally!');
-        closeConsultationModal();
-        renderDoctorRecords();
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+        console.error('❌ Firebase helpers not available:', error);
+        alert('Failed to load Firebase. Please refresh the page.');
     });
+}
+
+// Success notification helper
+function showSuccessNotification(message) {
+    const notification = document.createElement('div');
+    notification.className = 'success-notification';
+    notification.innerHTML = `
+        <i class="fas fa-check-circle"></i>
+        <span>${message}</span>
+    `;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #10b981;
+        color: white;
+        padding: 16px 24px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 500;
+        animation: slideIn 0.3s ease-out;
+    `;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
 }
 
 // Attach to form
@@ -4629,19 +4684,28 @@ function viewDoctorRecord(recordId) {
 // Open record modal
 function openRecordModal() {
     const modal = document.getElementById('patientRecordModal');
-    modal.classList.add('active');
-    document.body.style.overflow = 'hidden';
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    } else {
+        console.error('Patient record modal not found');
+    }
 }
 
 // Close record modal
 function closeRecordModal() {
     const modal = document.getElementById('patientRecordModal');
-    modal.classList.remove('active');
-    document.body.style.overflow = '';
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
 }
 
 // Make globally available
 window.closeRecordModal = closeRecordModal;
+window.viewDoctorRecord = viewDoctorRecord;
 
 // Print doctor record
 function printDoctorRecord(recordId) {

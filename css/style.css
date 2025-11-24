@@ -3809,52 +3809,6 @@ body.dark-theme .module-badge {
    Consultation History Form Styles
    =================================== */
 
-.form-section {
-    margin-bottom: 24px;
-}
-
-.form-section-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding-bottom: 8px;
-    border-bottom: 2px solid var(--border-color);
-}
-
-.form-section-title i {
-    color: var(--primary-color);
-}
-
-.form-row {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-    margin-bottom: 16px;
-}
-
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.form-group label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.form-group label i {
-    color: var(--primary-color);
-}
-
 /* ===================================
    Patient Record Modal Styles
    =================================== */
@@ -4804,65 +4758,6 @@ body.dark-theme .module-badge {
 .file-upload-info small {
     font-size: 12px;
     color: var(--text-secondary);
-}
-
-/* Form Actions */
-.form-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    padding: 24px 0;
-    margin-top: 24px;
-    border-top: 2px solid var(--border-color);
-}
-
-.form-actions .btn {
-    padding: 12px 28px;
-    border: none;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: var(--transition);
-    font-family: 'Montserrat', sans-serif;
-}
-
-.form-actions .btn i {
-    font-size: 16px;
-}
-
-.form-actions .btn-primary {
-    background: var(--primary-color);
-    color: #ffffff;
-}
-
-.form-actions .btn-primary:hover {
-    background: #1d4ed8;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-}
-
-.form-actions .btn-secondary {
-    background: var(--text-secondary);
-    color: #ffffff;
-}
-
-.form-actions .btn-secondary:hover {
-    background: #475569;
-}
-
-.form-actions .btn-outline {
-    background: transparent;
-    color: var(--primary-color);
-    border: 2px solid var(--primary-color);
-}
-
-.form-actions .btn-outline:hover {
-    background: var(--primary-color);
-    color: #ffffff;
 }
 
 /* Success Message */
@@ -8548,13 +8443,6 @@ body.dark-theme .empty-state-content {
     color: var(--primary-color);
 }
 
-.form-row {
-    display: flex;
-    gap: 15px;
-    flex-wrap: wrap;
-    align-items: flex-end;
-}
-
 .rx-diagnosis-list {
     margin-top: 15px;
     padding: 15px;
@@ -11450,34 +11338,6 @@ body.dark-theme .patient-search-results::-webkit-scrollbar-thumb {
     margin-top: 15px;
 }
 
-/* Form Section */
-.form-section {
-    margin-bottom: 30px;
-    padding-bottom: 30px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.form-section:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
-}
-
-.form-section-title {
-    font-size: 18px;
-    color: var(--text-primary);
-    margin-bottom: 15px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.form-text {
-    color: var(--text-secondary);
-    font-size: 13px;
-    margin-bottom: 15px;
-}
-
 /* Notification Styles */
 .notification {
     position: fixed;
@@ -13203,6 +13063,30 @@ body.dark-theme .vital-item-value {
     }
 }
 
+/* ===================================
+   Success Notification Animations
+   =================================== */
 
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
 
 
