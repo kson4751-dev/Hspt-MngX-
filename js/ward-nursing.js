@@ -678,15 +678,617 @@ function printWardPatientData(patient) {
 }
 
 
+// ==================== PATIENT MANAGEMENT MODAL ====================
+
+// Global state for current patient being managed
+let currentManagedPatient = null;
+let vitalsUnsubscribe = null;
+let notesUnsubscribe = null;
+let medicationsUnsubscribe = null;
+
 // Manage patient (full management interface)
-window.managePatient = function(patientId) {
+window.managePatient = async function(patientId) {
+    console.log('🏥 Opening patient management for:', patientId);
+    
     const patient = wardPatients.find(p => p.id === patientId);
     if (!patient) {
         alert('Patient not found');
+        console.error('❌ Patient not found:', patientId);
         return;
     }
     
-    alert('Manage Patient - Opens full patient management interface with vitals, medications, reports, etc.');
+    currentManagedPatient = patient;
+    
+    // Store patient ID
+    document.getElementById('managePatientDocId').value = patientId;
+    
+    // Populate header
+    document.getElementById('managePatientName').textContent = patient.patientName || 'N/A';
+    document.getElementById('managePatientId').textContent = patient.patientId || 'N/A';
+    document.getElementById('managePatientAge').textContent = patient.age ? `${patient.age} years` : 'N/A';
+    document.getElementById('managePatientGender').textContent = patient.gender || 'N/A';
+    document.getElementById('managePatientBed').textContent = patient.bedNumber || 'Not assigned';
+    document.getElementById('managePatientStatus').textContent = formatStatus(patient.status);
+    
+    // Populate treatment tab
+    document.getElementById('currentDiagnosis').value = patient.diagnosis || '';
+    document.getElementById('currentTreatmentPlan').value = patient.treatmentPlan || '';
+    
+    // Setup realtime listeners for history data
+    setupVitalsListener(patientId);
+    setupNotesListener(patientId);
+    setupMedicationsListener(patientId);
+    
+    // Load discharge summary if exists
+    loadDischargeSummary(patient);
+    
+    // Show modal
+    document.getElementById('managePatientModal').classList.add('active');
+    
+    // Switch to first tab
+    switchManageTab('vitals');
+    
+    console.log('✅ Patient management modal opened');
+};
+
+window.closeManagePatientModal = function() {
+    document.getElementById('managePatientModal').classList.remove('active');
+    currentManagedPatient = null;
+    
+    // Cleanup realtime listeners
+    if (vitalsUnsubscribe) {
+        vitalsUnsubscribe();
+        vitalsUnsubscribe = null;
+    }
+    if (notesUnsubscribe) {
+        notesUnsubscribe();
+        notesUnsubscribe = null;
+    }
+    if (medicationsUnsubscribe) {
+        medicationsUnsubscribe();
+        medicationsUnsubscribe = null;
+    }
+};
+
+// Tab switching
+window.switchManageTab = function(tabName) {
+    // Remove active class from all tabs and panes
+    document.querySelectorAll('.manage-tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(pane => pane.style.display = 'none');
+    
+    // Add active class to selected tab and pane
+    document.querySelector(`.manage-tab[data-tab="${tabName}"]`).classList.add('active');
+    document.getElementById(`${tabName}Tab`).style.display = 'block';
+};
+
+// ==================== VITALS MANAGEMENT ====================
+
+window.saveVitals = async function() {
+    console.log('💓 Saving vitals...');
+    
+    const patientId = document.getElementById('managePatientDocId').value;
+    if (!patientId) {
+        alert('Patient ID not found');
+        return;
+    }
+    
+    const vitals = {
+        bloodPressure: document.getElementById('vitalBloodPressure').value.trim(),
+        heartRate: document.getElementById('vitalHeartRate').value,
+        temperature: document.getElementById('vitalTemperature').value,
+        respiratoryRate: document.getElementById('vitalRespiratoryRate').value,
+        oxygenSaturation: document.getElementById('vitalOxygenSaturation').value,
+        weight: document.getElementById('vitalWeight').value,
+        recordedAt: new Date().toISOString(),
+        recordedBy: localStorage.getItem('currentUser') || 'Nurse'
+    };
+    
+    // Validate
+    if (!vitals.bloodPressure && !vitals.heartRate && !vitals.temperature) {
+        alert('Please enter at least one vital sign');
+        return;
+    }
+    
+    try {
+        // Save to patient's vitals subcollection
+        const { doc, setDoc, collection } = await import('./firebase-config.js');
+        const { db } = await import('./firebase-config.js');
+        
+        const vitalsRef = collection(db, 'ward_admissions', patientId, 'vitals');
+        await setDoc(doc(vitalsRef), vitals);
+        
+        console.log('✅ Vitals saved');
+        showNotification('✅ Vitals recorded successfully', 'success');
+        
+        // Clear form
+        document.getElementById('vitalBloodPressure').value = '';
+        document.getElementById('vitalHeartRate').value = '';
+        document.getElementById('vitalTemperature').value = '';
+        document.getElementById('vitalRespiratoryRate').value = '';
+        document.getElementById('vitalOxygenSaturation').value = '';
+        document.getElementById('vitalWeight').value = '';
+        
+        // Realtime listener will auto-update the display
+        
+    } catch (error) {
+        console.error('❌ Error saving vitals:', error);
+        alert('❌ Error saving vitals: ' + error.message);
+    }
+};
+
+async function setupVitalsListener(patientId) {
+    // Cleanup existing listener
+    if (vitalsUnsubscribe) {
+        vitalsUnsubscribe();
+    }
+    
+    try {
+        const { collection, query, orderBy, limit, onSnapshot, db } = await import('./firebase-config.js');
+        console.log('👂 Setting up realtime vitals listener...');
+        
+        const vitalsRef = collection(db, 'ward_admissions', patientId, 'vitals');
+        const q = query(vitalsRef, orderBy('recordedAt', 'desc'), limit(10));
+        
+        vitalsUnsubscribe = onSnapshot(q, (snapshot) => {
+        
+        const historyHtml = snapshot.empty ? 
+            '<div class="empty-state"><i class="fas fa-heartbeat"></i><p>No vitals recorded yet</p></div>' :
+            snapshot.docs.map(doc => {
+                const vital = doc.data();
+                return `
+                    <div class="vital-record">
+                        <div class="vital-record-header">
+                            <span class="vital-record-time">${new Date(vital.recordedAt).toLocaleString()}</span>
+                            <span class="vital-record-by">By: ${vital.recordedBy}</span>
+                        </div>
+                        <div class="vital-record-data">
+                            ${vital.bloodPressure ? `<div class="vital-item"><div class="vital-item-label">BP</div><div class="vital-item-value">${vital.bloodPressure} mmHg</div></div>` : ''}
+                            ${vital.heartRate ? `<div class="vital-item"><div class="vital-item-label">HR</div><div class="vital-item-value">${vital.heartRate} bpm</div></div>` : ''}
+                            ${vital.temperature ? `<div class="vital-item"><div class="vital-item-label">Temp</div><div class="vital-item-value">${vital.temperature}°C</div></div>` : ''}
+                            ${vital.respiratoryRate ? `<div class="vital-item"><div class="vital-item-label">RR</div><div class="vital-item-value">${vital.respiratoryRate}/min</div></div>` : ''}
+                            ${vital.oxygenSaturation ? `<div class="vital-item"><div class="vital-item-label">SpO2</div><div class="vital-item-value">${vital.oxygenSaturation}%</div></div>` : ''}
+                            ${vital.weight ? `<div class="vital-item"><div class="vital-item-label">Weight</div><div class="vital-item-value">${vital.weight} kg</div></div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        
+            const element = document.getElementById('vitalsHistoryList');
+            if (element) {
+                element.innerHTML = historyHtml;
+                console.log('✅ Vitals history updated (realtime)');
+            }
+        }, (error) => {
+            console.error('❌ Error loading vitals:', error);
+            const element = document.getElementById('vitalsHistoryList');
+            if (element) {
+                element.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Error loading vitals</p></div>';
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error setting up vitals listener:', error);
+    }
+}
+
+// ==================== NOTES MANAGEMENT ====================
+
+window.addClinicalNote = async function() {
+    console.log('📝 Adding clinical note...');
+    
+    const patientId = document.getElementById('managePatientDocId').value;
+    if (!patientId) {
+        alert('Patient ID not found');
+        return;
+    }
+    
+    const noteType = document.getElementById('noteType').value;
+    const noteContent = document.getElementById('noteContent').value.trim();
+    
+    if (!noteContent) {
+        alert('Please enter note content');
+        return;
+    }
+    
+    const note = {
+        type: noteType,
+        content: noteContent,
+        createdAt: new Date().toISOString(),
+        createdBy: localStorage.getItem('currentUser') || 'Staff'
+    };
+    
+    try {
+        const { doc, setDoc, collection } = await import('./firebase-config.js');
+        const { db } = await import('./firebase-config.js');
+        
+        const notesRef = collection(db, 'ward_admissions', patientId, 'notes');
+        await setDoc(doc(notesRef), note);
+        
+        console.log('✅ Note added');
+        showNotification('✅ Note added successfully', 'success');
+        
+        // Clear form
+        document.getElementById('noteContent').value = '';
+        
+        // Realtime listener will auto-update
+        
+    } catch (error) {
+        console.error('❌ Error adding note:', error);
+        alert('❌ Error adding note: ' + error.message);
+    }
+};
+
+async function setupNotesListener(patientId) {
+    // Cleanup existing listener
+    if (notesUnsubscribe) {
+        notesUnsubscribe();
+    }
+    
+    try {
+        const { collection, query, orderBy, limit, onSnapshot, db } = await import('./firebase-config.js');
+        console.log('👂 Setting up realtime notes listener...');
+        
+        const notesRef = collection(db, 'ward_admissions', patientId, 'notes');
+        const q = query(notesRef, orderBy('createdAt', 'desc'), limit(20));
+        
+        notesUnsubscribe = onSnapshot(q, (snapshot) => {
+            const notesHtml = snapshot.empty ?
+                '<div class="empty-state"><i class="fas fa-notes-medical"></i><p>No notes recorded yet</p></div>' :
+                snapshot.docs.map(doc => {
+                    const note = doc.data();
+                    return `
+                        <div class="note-item ${note.type}">
+                            <div class="note-header">
+                                <span class="note-type">${note.type}</span>
+                                <span class="note-time">${new Date(note.createdAt).toLocaleString()}</span>
+                            </div>
+                            <div class="note-content">${note.content}</div>
+                            <div class="note-by">By: ${note.createdBy}</div>
+                        </div>
+                    `;
+                }).join('');
+            
+            const element = document.getElementById('notesHistoryList');
+            if (element) {
+                element.innerHTML = notesHtml;
+                console.log('✅ Notes history updated (realtime)');
+            }
+        }, (error) => {
+            console.error('❌ Error loading notes:', error);
+            const element = document.getElementById('notesHistoryList');
+            if (element) {
+                element.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Error loading notes</p></div>';
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error setting up notes listener:', error);
+    }
+}
+
+// ==================== TREATMENT & MEDICATIONS ====================
+
+window.addMedication = async function() {
+    console.log('💊 Adding medication...');
+    
+    const patientId = document.getElementById('managePatientDocId').value;
+    if (!patientId) {
+        alert('Patient ID not found');
+        return;
+    }
+    
+    const name = document.getElementById('medicationName').value.trim();
+    const dosage = document.getElementById('medicationDosage').value.trim();
+    const frequency = document.getElementById('medicationFrequency').value.trim();
+    
+    if (!name || !dosage || !frequency) {
+        alert('Please fill all medication fields');
+        return;
+    }
+    
+    const medication = {
+        name,
+        dosage,
+        frequency,
+        addedAt: new Date().toISOString(),
+        addedBy: localStorage.getItem('currentUser') || 'Doctor',
+        active: true
+    };
+    
+    try {
+        const { doc, setDoc, collection } = await import('./firebase-config.js');
+        const { db } = await import('./firebase-config.js');
+        
+        const medsRef = collection(db, 'ward_admissions', patientId, 'medications');
+        await setDoc(doc(medsRef), medication);
+        
+        console.log('✅ Medication added');
+        showNotification('✅ Medication added successfully', 'success');
+        
+        // Clear form
+        document.getElementById('medicationName').value = '';
+        document.getElementById('medicationDosage').value = '';
+        document.getElementById('medicationFrequency').value = '';
+        
+        // Realtime listener will auto-update
+        
+    } catch (error) {
+        console.error('❌ Error adding medication:', error);
+        alert('❌ Error adding medication: ' + error.message);
+    }
+};
+
+async function setupMedicationsListener(patientId) {
+    // Cleanup existing listener
+    if (medicationsUnsubscribe) {
+        medicationsUnsubscribe();
+    }
+    
+    try {
+        const { collection, query, where, onSnapshot, db } = await import('./firebase-config.js');
+        console.log('👂 Setting up realtime medications listener...');
+        
+        const medsRef = collection(db, 'ward_admissions', patientId, 'medications');
+        const q = query(medsRef, where('active', '==', true));
+        
+        medicationsUnsubscribe = onSnapshot(q, (snapshot) => {
+        
+        const medsHtml = snapshot.empty ?
+            '<div class="empty-state"><i class="fas fa-prescription"></i><p>No medications prescribed yet</p></div>' :
+            snapshot.docs.map(doc => {
+                const med = doc.data();
+                return `
+                    <div class="medication-item">
+                        <div class="medication-info">
+                            <div class="medication-name">${med.name}</div>
+                            <div class="medication-details">${med.dosage} | ${med.frequency}</div>
+                        </div>
+                        <div class="medication-actions">
+                            <button class="btn btn-danger btn-sm" onclick="discontinueMedication('${doc.id}')">
+                                <i class="fas fa-stop"></i> Discontinue
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        
+            const element = document.getElementById('medicationsList');
+            if (element) {
+                element.innerHTML = medsHtml;
+                console.log('✅ Medications list updated (realtime)');
+            }
+        }, (error) => {
+            console.error('❌ Error loading medications:', error);
+            const element = document.getElementById('medicationsList');
+            if (element) {
+                element.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Error loading medications</p></div>';
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error setting up medications listener:', error);
+    }
+}
+
+window.discontinueMedication = async function(medId) {
+    if (!confirm('Discontinue this medication?')) return;
+    
+    const patientId = document.getElementById('managePatientDocId').value;
+    
+    try {
+        const { doc, updateDoc } = await import('./firebase-config.js');
+        const { db } = await import('./firebase-config.js');
+        
+        await updateDoc(doc(db, 'ward_admissions', patientId, 'medications', medId), {
+            active: false,
+            discontinuedAt: new Date().toISOString()
+        });
+        
+        showNotification('✅ Medication discontinued', 'success');
+        // Realtime listener will auto-update
+        
+    } catch (error) {
+        console.error('❌ Error:', error);
+        alert('Error discontinuing medication');
+    }
+};
+
+window.saveTreatmentPlan = async function() {
+    console.log('💊 Saving treatment plan...');
+    
+    const patientId = document.getElementById('managePatientDocId').value;
+    const diagnosis = document.getElementById('currentDiagnosis').value.trim();
+    const treatmentPlan = document.getElementById('currentTreatmentPlan').value.trim();
+    
+    if (!diagnosis || !treatmentPlan) {
+        alert('Please enter diagnosis and treatment plan');
+        return;
+    }
+    
+    try {
+        const result = await updateWardPatient(patientId, { diagnosis, treatmentPlan });
+        
+        if (result.success) {
+            showNotification('✅ Treatment plan updated', 'success');
+        } else {
+            alert('❌ Error: ' + result.error);
+        }
+    } catch (error) {
+        console.error('❌ Error:', error);
+        alert('Error saving treatment plan');
+    }
+};
+
+// ==================== DISCHARGE SUMMARY ====================
+
+function loadDischargeSummary(patient) {
+    // Pre-fill discharge form with current data
+    document.getElementById('admissionReason').value = patient.admissionReason || '';
+    document.getElementById('dischargeDiagnosis').value = patient.diagnosis || '';
+    
+    // Set discharge date to now
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    document.getElementById('dischargeDate').value = now.toISOString().slice(0, 16);
+}
+
+window.saveDischargeSummary = async function() {
+    console.log('📄 Saving discharge summary...');
+    
+    const patientId = document.getElementById('managePatientDocId').value;
+    
+    const summary = {
+        dischargeDate: document.getElementById('dischargeDate').value,
+        admissionReason: document.getElementById('admissionReason').value.trim(),
+        hospitalCourse: document.getElementById('hospitalCourse').value.trim(),
+        dischargeDiagnosis: document.getElementById('dischargeDiagnosis').value.trim(),
+        dischargeMedications: document.getElementById('dischargeMedications').value.trim(),
+        followUpInstructions: document.getElementById('followUpInstructions').value.trim(),
+        dischargeCondition: document.getElementById('dischargeCondition').value,
+        createdAt: new Date().toISOString(),
+        createdBy: localStorage.getItem('currentUser') || 'Doctor'
+    };
+    
+    if (!summary.dischargeDiagnosis || !summary.dischargeCondition) {
+        alert('Please fill discharge diagnosis and condition');
+        return;
+    }
+    
+    try {
+        const { doc, setDoc } = await import('./firebase-config.js');
+        const { db } = await import('./firebase-config.js');
+        
+        await setDoc(doc(db, 'ward_admissions', patientId, 'discharge', 'summary'), summary);
+        
+        showNotification('✅ Discharge summary saved', 'success');
+        console.log('✅ Discharge summary saved');
+        
+    } catch (error) {
+        console.error('❌ Error:', error);
+        alert('Error saving discharge summary');
+    }
+};
+
+window.printDischargeSummary = function() {
+    const patient = currentManagedPatient;
+    if (!patient) {
+        alert('Patient data not found');
+        return;
+    }
+    
+    const summary = {
+        dischargeDate: document.getElementById('dischargeDate').value,
+        admissionReason: document.getElementById('admissionReason').value,
+        hospitalCourse: document.getElementById('hospitalCourse').value,
+        dischargeDiagnosis: document.getElementById('dischargeDiagnosis').value,
+        dischargeMedications: document.getElementById('dischargeMedications').value,
+        followUpInstructions: document.getElementById('followUpInstructions').value,
+        dischargeCondition: document.getElementById('dischargeCondition').value
+    };
+    
+    const printWindow = window.open('', '', 'height=800,width=900');
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Discharge Summary - ${patient.patientId}</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 40px; line-height: 1.6; }
+                .header { text-align: center; border-bottom: 3px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
+                .hospital-name { font-size: 24px; font-weight: bold; color: #2563eb; margin-bottom: 5px; }
+                .document-title { font-size: 20px; font-weight: bold; margin-top: 10px; }
+                .section { margin-bottom: 25px; }
+                .section-title { font-weight: bold; font-size: 16px; color: #2563eb; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 10px; }
+                .info-row { display: flex; margin-bottom: 8px; }
+                .info-label { font-weight: bold; min-width: 180px; color: #555; }
+                .info-value { flex: 1; color: #333; }
+                .content-block { background: #f9fafb; padding: 15px; border-radius: 5px; margin: 10px 0; white-space: pre-wrap; }
+                .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #e5e7eb; }
+                .signature-line { margin-top: 40px; border-top: 1px solid #333; width: 300px; padding-top: 5px; }
+                @media print { body { padding: 20px; } }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div class="hospital-name">Hospital Management System</div>
+                <div class="document-title">DISCHARGE SUMMARY</div>
+                <p style="margin-top: 10px; color: #666;">Printed on: ${new Date().toLocaleString()}</p>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Patient Information</div>
+                <div class="info-row"><div class="info-label">Patient ID:</div><div class="info-value">${patient.patientId}</div></div>
+                <div class="info-row"><div class="info-label">Patient Name:</div><div class="info-value">${patient.patientName}</div></div>
+                <div class="info-row"><div class="info-label">Age:</div><div class="info-value">${patient.age} years</div></div>
+                <div class="info-row"><div class="info-label">Gender:</div><div class="info-value">${patient.gender}</div></div>
+                <div class="info-row"><div class="info-label">Bed Number:</div><div class="info-value">${patient.bedNumber}</div></div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Admission & Discharge Details</div>
+                <div class="info-row"><div class="info-label">Admission Date:</div><div class="info-value">${patient.admissionDate || 'N/A'}</div></div>
+                <div class="info-row"><div class="info-label">Discharge Date:</div><div class="info-value">${summary.dischargeDate ? new Date(summary.dischargeDate).toLocaleString() : 'N/A'}</div></div>
+                <div class="info-row"><div class="info-label">Discharge Condition:</div><div class="info-value"><strong>${summary.dischargeCondition}</strong></div></div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Reason for Admission</div>
+                <div class="content-block">${summary.admissionReason || 'Not specified'}</div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Hospital Course</div>
+                <div class="content-block">${summary.hospitalCourse || 'Not specified'}</div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Discharge Diagnosis</div>
+                <div class="content-block">${summary.dischargeDiagnosis || 'Not specified'}</div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Discharge Medications</div>
+                <div class="content-block">${summary.dischargeMedications || 'None'}</div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Follow-up Instructions</div>
+                <div class="content-block">${summary.followUpInstructions || 'Not specified'}</div>
+            </div>
+            
+            <div class="footer">
+                <div class="signature-line">
+                    <div>Attending Physician Signature</div>
+                </div>
+                <p style="margin-top: 30px; color: #666; font-size: 12px;">This is a computer-generated document.</p>
+            </div>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 250);
+};
+
+window.dischargePatient = async function() {
+    if (!confirm('Discharge this patient? This will update their status to "discharged".')) {
+        return;
+    }
+    
+    const patientId = document.getElementById('managePatientDocId').value;
+    
+    try {
+        const result = await updateWardPatient(patientId, { 
+            status: 'discharged',
+            dischargedAt: new Date().toISOString()
+        });
+        
+        if (result.success) {
+            showNotification('✅ Patient discharged successfully', 'success');
+            closeManagePatientModal();
+        } else {
+            alert('❌ Error: ' + result.error);
+        }
+    } catch (error) {
+        console.error('❌ Error:', error);
+        alert('Error discharging patient');
+    }
 };
 
 // Refresh functions

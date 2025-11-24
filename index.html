@@ -2158,6 +2158,258 @@
             </div>
         </div>
 
+        <!-- Patient Management Modal (Full Management Interface) -->
+        <div class="modal" id="managePatientModal">
+            <div class="modal-overlay" onclick="closeManagePatientModal()"></div>
+            <div class="modal-content" style="max-width: 1200px; max-height: 90vh; overflow-y: auto;">
+                <div class="modal-header">
+                    <h2 class="modal-title">
+                        <i class="fas fa-user-md"></i>
+                        Patient Management
+                    </h2>
+                    <button class="modal-close" onclick="closeManagePatientModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <!-- Hidden field for patient ID -->
+                    <input type="hidden" id="managePatientDocId">
+
+                    <!-- Patient Header Section -->
+                    <div class="patient-header-section" style="background: #2563eb; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h3 style="margin: 0 0 5px 0; font-size: 24px;" id="managePatientName">-</h3>
+                                <p style="margin: 0; opacity: 0.9;">
+                                    <span id="managePatientId">-</span> | 
+                                    <span id="managePatientAge">-</span> | 
+                                    <span id="managePatientGender">-</span>
+                                </p>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="background: rgba(255,255,255,0.2); padding: 8px 15px; border-radius: 5px; margin-bottom: 8px;">
+                                    <strong>Bed:</strong> <span id="managePatientBed">-</span>
+                                </div>
+                                <div style="background: rgba(255,255,255,0.2); padding: 8px 15px; border-radius: 5px;">
+                                    <strong>Status:</strong> <span id="managePatientStatus">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab Navigation -->
+                    <div class="manage-tabs" style="display: flex; gap: 10px; border-bottom: 2px solid #e5e7eb; margin-bottom: 20px;">
+                        <button class="manage-tab active" onclick="switchManageTab('vitals')" data-tab="vitals">
+                            <i class="fas fa-heartbeat"></i> Vitals
+                        </button>
+                        <button class="manage-tab" onclick="switchManageTab('notes')" data-tab="notes">
+                            <i class="fas fa-notes-medical"></i> Notes
+                        </button>
+                        <button class="manage-tab" onclick="switchManageTab('treatment')" data-tab="treatment">
+                            <i class="fas fa-prescription"></i> Treatment
+                        </button>
+                        <button class="manage-tab" onclick="switchManageTab('discharge')" data-tab="discharge">
+                            <i class="fas fa-file-medical"></i> Discharge Summary
+                        </button>
+                    </div>
+
+                    <!-- Tab Content -->
+                    <div class="manage-tab-content">
+                        <!-- Vitals Tab -->
+                        <div class="tab-pane active" id="vitalsTab">
+                            <h3 style="margin-bottom: 15px;">
+                                <i class="fas fa-heartbeat"></i> Patient Vitals
+                            </h3>
+                            
+                            <!-- Vitals Form -->
+                            <div class="vitals-form" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px;">
+                                <div class="form-group">
+                                    <label for="vitalBloodPressure">Blood Pressure (mmHg)</label>
+                                    <input type="text" class="form-control" id="vitalBloodPressure" placeholder="120/80">
+                                </div>
+                                <div class="form-group">
+                                    <label for="vitalHeartRate">Heart Rate (bpm)</label>
+                                    <input type="number" class="form-control" id="vitalHeartRate" placeholder="72">
+                                </div>
+                                <div class="form-group">
+                                    <label for="vitalTemperature">Temperature (°C)</label>
+                                    <input type="number" step="0.1" class="form-control" id="vitalTemperature" placeholder="36.5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="vitalRespiratoryRate">Respiratory Rate (breaths/min)</label>
+                                    <input type="number" class="form-control" id="vitalRespiratoryRate" placeholder="16">
+                                </div>
+                                <div class="form-group">
+                                    <label for="vitalOxygenSaturation">Oxygen Saturation (%)</label>
+                                    <input type="number" class="form-control" id="vitalOxygenSaturation" placeholder="98">
+                                </div>
+                                <div class="form-group">
+                                    <label for="vitalWeight">Weight (kg)</label>
+                                    <input type="number" step="0.1" class="form-control" id="vitalWeight" placeholder="70.0">
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" onclick="saveVitals()">
+                                <i class="fas fa-save"></i> Save Vitals
+                            </button>
+
+                            <!-- Vitals History -->
+                            <div class="vitals-history" style="margin-top: 30px;">
+                                <h4>Vitals History</h4>
+                                <div id="vitalsHistoryList" style="max-height: 300px; overflow-y: auto;">
+                                    <!-- Will be populated dynamically -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Notes Tab -->
+                        <div class="tab-pane" id="notesTab" style="display: none;">
+                            <h3 style="margin-bottom: 15px;">
+                                <i class="fas fa-notes-medical"></i> Clinical Notes
+                            </h3>
+                            
+                            <!-- Add Note Form -->
+                            <div class="add-note-form" style="margin-bottom: 20px;">
+                                <div class="form-group">
+                                    <label for="noteType">Note Type</label>
+                                    <select class="form-control" id="noteType">
+                                        <option value="nursing">Nursing Note</option>
+                                        <option value="doctor">Doctor's Note</option>
+                                        <option value="observation">Observation</option>
+                                        <option value="incident">Incident Report</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="noteContent">Note Content</label>
+                                    <textarea class="form-control" id="noteContent" rows="4" placeholder="Enter clinical note..."></textarea>
+                                </div>
+                                <button class="btn btn-primary" onclick="addClinicalNote()">
+                                    <i class="fas fa-plus"></i> Add Note
+                                </button>
+                            </div>
+
+                            <!-- Notes History -->
+                            <div class="notes-history">
+                                <h4>Notes History</h4>
+                                <div id="notesHistoryList" style="max-height: 400px; overflow-y: auto;">
+                                    <!-- Will be populated dynamically -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Treatment Tab -->
+                        <div class="tab-pane" id="treatmentTab" style="display: none;">
+                            <h3 style="margin-bottom: 15px;">
+                                <i class="fas fa-prescription"></i> Treatment & Medications
+                            </h3>
+                            
+                            <!-- Current Diagnosis -->
+                            <div class="form-group">
+                                <label for="currentDiagnosis">Current Diagnosis</label>
+                                <textarea class="form-control" id="currentDiagnosis" rows="2" placeholder="Enter diagnosis..."></textarea>
+                            </div>
+
+                            <!-- Treatment Plan -->
+                            <div class="form-group">
+                                <label for="currentTreatmentPlan">Treatment Plan</label>
+                                <textarea class="form-control" id="currentTreatmentPlan" rows="3" placeholder="Enter treatment plan..."></textarea>
+                            </div>
+
+                            <!-- Add Medication -->
+                            <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                                <h4 style="margin-bottom: 15px;">Add Medication</h4>
+                                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                                    <input type="text" class="form-control" id="medicationName" placeholder="Medication name">
+                                    <input type="text" class="form-control" id="medicationDosage" placeholder="Dosage">
+                                    <input type="text" class="form-control" id="medicationFrequency" placeholder="Frequency">
+                                    <button class="btn btn-primary" onclick="addMedication()">
+                                        <i class="fas fa-plus"></i> Add
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Current Medications -->
+                            <div class="medications-list">
+                                <h4>Current Medications</h4>
+                                <div id="medicationsList" style="max-height: 300px; overflow-y: auto;">
+                                    <!-- Will be populated dynamically -->
+                                </div>
+                            </div>
+
+                            <button class="btn btn-success" onclick="saveTreatmentPlan()" style="margin-top: 20px;">
+                                <i class="fas fa-save"></i> Save Treatment Plan
+                            </button>
+                        </div>
+
+                        <!-- Discharge Summary Tab -->
+                        <div class="tab-pane" id="dischargeTab" style="display: none;">
+                            <h3 style="margin-bottom: 15px;">
+                                <i class="fas fa-file-medical"></i> Discharge Summary
+                            </h3>
+                            
+                            <div class="form-group">
+                                <label for="dischargeDate">Discharge Date</label>
+                                <input type="datetime-local" class="form-control" id="dischargeDate">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="admissionReason">Reason for Admission</label>
+                                <textarea class="form-control" id="admissionReason" rows="2" placeholder="Reason for admission..."></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="hospitalCourse">Hospital Course</label>
+                                <textarea class="form-control" id="hospitalCourse" rows="4" placeholder="Brief summary of patient's hospital course..."></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="dischargeDiagnosis">Discharge Diagnosis</label>
+                                <textarea class="form-control" id="dischargeDiagnosis" rows="2" placeholder="Final diagnosis..."></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="dischargeMedications">Discharge Medications</label>
+                                <textarea class="form-control" id="dischargeMedications" rows="3" placeholder="Medications to continue at home..."></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="followUpInstructions">Follow-up Instructions</label>
+                                <textarea class="form-control" id="followUpInstructions" rows="3" placeholder="Follow-up appointments, wound care, activity restrictions..."></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="dischargeCondition">Discharge Condition</label>
+                                <select class="form-control" id="dischargeCondition">
+                                    <option value="">Select condition</option>
+                                    <option value="improved">Improved</option>
+                                    <option value="stable">Stable</option>
+                                    <option value="unchanged">Unchanged</option>
+                                    <option value="worsened">Worsened</option>
+                                </select>
+                            </div>
+
+                            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                                <button class="btn btn-success" onclick="saveDischargeSummary()">
+                                    <i class="fas fa-save"></i> Save Summary
+                                </button>
+                                <button class="btn btn-primary" onclick="printDischargeSummary()">
+                                    <i class="fas fa-print"></i> Print Discharge Summary
+                                </button>
+                                <button class="btn btn-danger" onclick="dischargePatient()">
+                                    <i class="fas fa-sign-out-alt"></i> Discharge Patient
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeManagePatientModal()">
+                        <i class="fas fa-times"></i>
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Laboratory Module -->
         <div class="module" id="laboratory-module">
             <div class="module-header">
