@@ -3835,13 +3835,87 @@
         <!-- Imaging Module -->
         <div class="module" id="imaging-module">
             <div class="module-header">
-                <h1 class="module-title">Imaging</h1>
-                <p class="module-description">Medical imaging services including X-ray, CT, MRI, and ultrasound</p>
+                <div>
+                    <h1 class="module-title">Imaging</h1>
+                    <p class="module-description">X-ray, CT, MRI, and ultrasound services</p>
+                </div>
+                <button class="btn btn-primary" onclick="showNewImagingRequestModal()">
+                    <i class="fas fa-plus"></i> New Request
+                </button>
             </div>
-            <div class="empty-state">
-                <i class="fas fa-x-ray"></i>
-                <h3>Imaging Module</h3>
-                <p>This module is under development. Imaging features coming soon.</p>
+
+            <!-- Clean Stats -->
+            <div class="imaging-stats">
+                <div class="imaging-stat-card">
+                    <div class="imaging-stat-number" id="imagingTotalRequests">0</div>
+                    <div class="imaging-stat-label">Total</div>
+                </div>
+                <div class="imaging-stat-card success">
+                    <div class="imaging-stat-number" id="imagingCompleted">0</div>
+                    <div class="imaging-stat-label">Completed</div>
+                </div>
+                <div class="imaging-stat-card warning">
+                    <div class="imaging-stat-number" id="imagingInQueue">0</div>
+                    <div class="imaging-stat-label">In Queue</div>
+                </div>
+            </div>
+
+            <!-- Queue Section -->
+            <div class="imaging-section">
+                <div class="imaging-section-header">
+                    <h3>Queue</h3>
+                    <div class="imaging-filter-btns">
+                        <button class="imaging-filter-btn active" onclick="filterImagingQueue('all')">All</button>
+                        <button class="imaging-filter-btn" onclick="filterImagingQueue('pending')">Pending</button>
+                        <button class="imaging-filter-btn" onclick="filterImagingQueue('in-progress')">In Progress</button>
+                    </div>
+                </div>
+
+                <div id="imagingQueueContainer" class="imaging-queue">
+                    <div class="imaging-empty" id="imagingQueueEmpty">
+                        <i class="fas fa-inbox"></i>
+                        <p>Queue is empty</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Requests Table -->
+            <div class="imaging-section">
+                <div class="imaging-section-header">
+                    <h3>All Requests</h3>
+                    <div style="display: flex; gap: 10px;">
+                        <div class="imaging-search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="imagingSearchInput" placeholder="Search...">
+                        </div>
+                        <button class="imaging-refresh-btn" onclick="refreshImagingData()">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="imaging-table-wrapper">
+                    <table class="imaging-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Patient</th>
+                                <th>Type</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="imagingTableBody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 60px 20px;">
+                                    <i class="fas fa-spinner fa-spin" style="font-size: 32px; color: var(--primary-color); opacity: 0.5;"></i>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -6536,6 +6610,265 @@
                 </div>
             </div>
         </div>
+
+        <!-- New Imaging Request Modal -->
+        <div class="modal" id="newImagingRequestModal" style="display: none;">
+            <div class="modal-overlay" onclick="closeImagingRequestModal()"></div>
+            <div class="modal-content imaging-modal">
+                <div class="imaging-modal-header">
+                    <h2>New Imaging Request</h2>
+                    <button class="imaging-modal-close" onclick="closeImagingRequestModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="imaging-modal-body">
+                    <!-- Patient Selection Mode Toggle -->
+                    <div class="imaging-mode-toggle">
+                        <button class="imaging-mode-btn active" id="searchPatientModeBtn" onclick="toggleImagingPatientMode('search')">
+                            <i class="fas fa-search"></i> Search Patient
+                        </button>
+                        <button class="imaging-mode-btn" id="manualPatientModeBtn" onclick="toggleImagingPatientMode('manual')">
+                            <i class="fas fa-user-plus"></i> Manual Entry
+                        </button>
+                    </div>
+
+                    <!-- Search Patient Mode -->
+                    <div id="imagingSearchMode">
+                        <div class="imaging-form-group">
+                            <label>Search Patient</label>
+                            <div class="imaging-search-input">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="imagingPatientSearch" placeholder="Search by name or number...">
+                            </div>
+                            <div id="imagingPatientResults"></div>
+                        </div>
+
+                        <!-- Selected Patient -->
+                        <div id="imagingSelectedPatient" class="imaging-patient-selected" style="display: none;">
+                            <div class="imaging-patient-info">
+                                <i class="fas fa-user-check"></i>
+                                <div>
+                                    <strong id="imagingPatientName">Patient Name</strong>
+                                    <span id="imagingPatientNumber">P-000</span>
+                                </div>
+                            </div>
+                            <button class="imaging-clear-btn" onclick="clearImagingPatient()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Manual Patient Entry Mode -->
+                    <div id="imagingManualMode" style="display: none;">
+                        <div class="imaging-manual-notice">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Walk-in patient: Enter basic information for imaging request</span>
+                        </div>
+                        
+                        <div class="imaging-form-row">
+                            <div class="imaging-form-group">
+                                <label>Patient Number</label>
+                                <input type="text" id="manualImagingPatientNumber" class="imaging-input" placeholder="e.g., P-001">
+                            </div>
+                            <div class="imaging-form-group">
+                                <label>Full Name *</label>
+                                <input type="text" id="manualImagingPatientName" class="imaging-input" placeholder="Enter full name">
+                            </div>
+                        </div>
+                        
+                        <div class="imaging-form-row">
+                            <div class="imaging-form-group">
+                                <label>Age</label>
+                                <input type="number" id="manualImagingPatientAge" class="imaging-input" placeholder="Age">
+                            </div>
+                            <div class="imaging-form-group">
+                                <label>Gender</label>
+                                <select id="manualImagingPatientGender" class="imaging-select">
+                                    <option value="">Select</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="imaging-form-group">
+                            <label>Phone Number</label>
+                            <input type="tel" id="manualImagingPatientPhone" class="imaging-input" placeholder="Phone number">
+                        </div>
+                    </div>
+
+                    <!-- Form Fields -->
+                    <div class="imaging-form-row">
+                        <div class="imaging-form-group">
+                            <label>Imaging Type *</label>
+                            <select id="imagingType" class="imaging-select">
+                                <option value="">Select</option>
+                                <option value="X-Ray">X-Ray</option>
+                                <option value="CT Scan">CT Scan</option>
+                                <option value="MRI">MRI</option>
+                                <option value="Ultrasound">Ultrasound</option>
+                                <option value="Mammography">Mammography</option>
+                            </select>
+                        </div>
+
+                        <div class="imaging-form-group">
+                            <label>Body Part *</label>
+                            <input type="text" id="imagingBodyPart" class="imaging-input" placeholder="e.g., Chest">
+                        </div>
+                    </div>
+
+                    <div class="imaging-form-row">
+                        <div class="imaging-form-group">
+                            <label>Priority *</label>
+                            <select id="imagingPriority" class="imaging-select">
+                                <option value="Routine">Routine</option>
+                                <option value="Urgent">Urgent</option>
+                                <option value="Emergency">Emergency</option>
+                            </select>
+                        </div>
+
+                        <div class="imaging-form-group">
+                            <label>Requested By *</label>
+                            <input type="text" id="imagingRequestedBy" class="imaging-input" placeholder="Doctor name">
+                        </div>
+                    </div>
+
+                    <div class="imaging-form-group">
+                        <label>Notes</label>
+                        <textarea id="imagingNotes" class="imaging-textarea" rows="3" placeholder="Clinical notes..."></textarea>
+                    </div>
+                </div>
+                <div class="imaging-modal-footer">
+                    <button class="imaging-btn-secondary" onclick="closeImagingRequestModal()">Cancel</button>
+                    <button class="imaging-btn-primary" onclick="submitImagingRequest()">Submit Request</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- View/Edit Imaging Request Modal -->
+        <div class="modal" id="viewImagingRequestModal" style="display: none;">
+            <div class="modal-overlay" onclick="closeViewImagingModal()"></div>
+            <div class="modal-content imaging-modal" style="max-width: 700px;">
+                <div class="imaging-modal-header">
+                    <h2>Imaging Request Details</h2>
+                    <button class="imaging-modal-close" onclick="closeViewImagingModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="imaging-modal-body" style="max-height: 70vh; overflow-y: auto;">
+                    <!-- Patient Info -->
+                    <div class="imaging-details-grid">
+                        <div class="imaging-detail-item">
+                            <label>Request ID</label>
+                            <span id="viewImagingId">-</span>
+                        </div>
+                        <div class="imaging-detail-item">
+                            <label>Patient</label>
+                            <span id="viewImagingPatientName">-</span>
+                        </div>
+                        <div class="imaging-detail-item">
+                            <label>Patient No.</label>
+                            <span id="viewImagingPatientNumber">-</span>
+                        </div>
+                        <div class="imaging-detail-item">
+                            <label>Date</label>
+                            <span id="viewImagingDate">-</span>
+                        </div>
+                    </div>
+
+                    <div class="imaging-divider"></div>
+
+                    <!-- Request Details -->
+                    <div class="imaging-details-grid">
+                        <div class="imaging-detail-item">
+                            <label>Type</label>
+                            <span id="viewImagingType">-</span>
+                        </div>
+                        <div class="imaging-detail-item">
+                            <label>Body Part</label>
+                            <span id="viewImagingBodyPart">-</span>
+                        </div>
+                        <div class="imaging-detail-item">
+                            <label>Priority</label>
+                            <span id="viewImagingPriority">-</span>
+                        </div>
+                        <div class="imaging-detail-item">
+                            <label>Requested By</label>
+                            <span id="viewImagingRequestedBy">-</span>
+                        </div>
+                    </div>
+
+                    <div class="imaging-form-group">
+                        <label>Clinical Notes</label>
+                        <div class="imaging-notes-box" id="viewImagingNotes">-</div>
+                    </div>
+
+                    <div class="imaging-divider"></div>
+
+                    <!-- Update Status Section -->
+                    <div class="imaging-form-group">
+                        <label>Update Status</label>
+                        <select id="updateImagingStatus" class="imaging-select">
+                            <option value="Pending">Pending</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Cancelled">Cancelled</option>
+                        </select>
+                    </div>
+
+                    <div class="imaging-form-group">
+                        <label>Technician Notes / Findings</label>
+                        <textarea id="imagingTechnicianNotes" class="imaging-textarea" rows="3" placeholder="Add findings or observations..."></textarea>
+                    </div>
+
+                    <div class="imaging-divider"></div>
+
+                    <!-- Upload Results Section -->
+                    <div class="imaging-form-group">
+                        <label style="margin-bottom: 12px; display: block;">
+                            <i class="fas fa-upload" style="margin-right: 6px;"></i>
+                            Upload Test Results (Image/PDF)
+                        </label>
+                        <div id="imagingUploadArea" style="border: 2px dashed var(--border-color); border-radius: 12px; padding: 30px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--bg-secondary);" onclick="document.getElementById('imagingFileInput').click()">
+                            <i class="fas fa-cloud-upload-alt" style="font-size: 40px; color: var(--primary-color); margin-bottom: 12px; display: block;"></i>
+                            <p style="color: var(--text-primary); margin-bottom: 4px; font-weight: 500;">Click to upload or drag & drop</p>
+                            <p style="color: var(--text-secondary); font-size: 12px;">Supported: JPG, PNG, PDF (Max 10MB)</p>
+                        </div>
+                        <input type="file" id="imagingFileInput" accept="image/*,.pdf" multiple style="display: none;" onchange="handleImagingFileSelect(event)">
+                    </div>
+
+                    <!-- Preview Uploaded Files -->
+                    <div id="imagingUploadedFiles" style="display: none; margin-top: 16px;">
+                        <label style="margin-bottom: 12px; display: block; font-weight: 500;">
+                            <i class="fas fa-paperclip" style="margin-right: 6px;"></i>
+                            Attached Files
+                        </label>
+                        <div id="imagingFilesList" style="display: flex; flex-wrap: wrap; gap: 12px;"></div>
+                    </div>
+
+                    <!-- Existing Results Section -->
+                    <div id="imagingExistingResults" style="display: none; margin-top: 16px;">
+                        <label style="margin-bottom: 12px; display: block; font-weight: 500;">
+                            <i class="fas fa-file-medical" style="margin-right: 6px;"></i>
+                            Uploaded Results
+                        </label>
+                        <div id="imagingResultsList" style="display: flex; flex-wrap: wrap; gap: 12px;"></div>
+                    </div>
+                </div>
+                <div class="imaging-modal-footer" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="imaging-btn-secondary" onclick="closeViewImagingModal()">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                    <button class="imaging-btn-primary" onclick="saveImagingRequest()" style="background: var(--primary-color);">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                    <button class="imaging-btn-primary" onclick="saveAndSendToDoctor()" style="background: #27ae60;">
+                        <i class="fas fa-paper-plane"></i> Save & Send to Doctor
+                    </button>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Consultation History Modal -->
@@ -8614,21 +8947,22 @@
     <script type="module" src="js/prescription-queue.js"></script>
     <script type="module" src="js/billing.js"></script>
     <script type="module" src="js/ward-nursing.js"></script>
+    <script type="module" src="js/imaging.js"></script>
     <script src="js/expense.js"></script>
     <script src="js/inventory.js"></script>
     <script src="js/app.js"></script>
     
-    <!-- Initialize Billing Module -->
+    <!-- Initialize Modules -->
     <script type="module">
         import { initBillingModule, initViewBillsModule } from './js/billing.js';
         import { initWardNursingModule } from './js/ward-nursing.js';
+        import { initImagingModule } from './js/imaging.js';
         
-        // Initialize when billing module is shown
+        // Initialize when modules are shown
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('🚀 Page loaded - initializing ward module for realtime updates...');
+            console.log('🚀 Page loaded - initializing modules for realtime updates...');
             
-            // Initialize ward module immediately on page load (not just when navigating to it)
-            // This ensures realtime listeners are active to receive patients from Rx module
+            // Initialize ward module immediately on page load
             try {
                 initWardNursingModule();
                 console.log('✅ Ward module initialized on page load');
@@ -8643,6 +8977,7 @@
                         const billingModule = document.getElementById('billing-module');
                         const billingViewModule = document.getElementById('billing-view-module');
                         const wardNursingModule = document.getElementById('ward-nursing-module');
+                        const imagingModule = document.getElementById('imaging-module');
                         
                         if (billingModule && billingModule.classList.contains('active')) {
                             initBillingModule();
@@ -8655,6 +8990,11 @@
                         if (wardNursingModule && wardNursingModule.classList.contains('active')) {
                             console.log('🏥 Ward module activated - re-initializing...');
                             initWardNursingModule();
+                        }
+                        
+                        if (imagingModule && imagingModule.classList.contains('active')) {
+                            console.log('🔬 Imaging module activated - initializing...');
+                            initImagingModule();
                         }
                     }
                 });
