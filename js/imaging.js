@@ -62,10 +62,14 @@ function setupRealtimeListener() {
                 imagingRequests.sort((a, b) => {
                     const dateA = new Date(a.dateTime || a.createdAt || 0);
                     const dateB = new Date(b.dateTime || b.createdAt || 0);
-                    return dateB - dateA;
+                    return dateB - dateA; // Newest first
                 });
                 
-                console.log('📊 Processed', imagingRequests.length, 'requests');
+                console.log('📊 Processed', imagingRequests.length, 'requests (sorted newest first)');
+                if (imagingRequests.length > 0) {
+                    const newest = new Date(imagingRequests[0].dateTime || imagingRequests[0].createdAt);
+                    console.log('📅 Newest request:', newest.toLocaleString());
+                }
                 
                 // Update all UI components
                 renderStats();
@@ -221,7 +225,7 @@ function renderTable() {
         return;
     }
     
-    console.log('📋 Rendering table with', imagingRequests.length, 'rows');
+    console.log('📋 Rendering table with', imagingRequests.length, 'rows (newest first)');
     
     if (imagingRequests.length === 0) {
         tbody.innerHTML = `
@@ -237,6 +241,7 @@ function renderTable() {
     
     let html = '';
     
+    // Use already sorted array (newest first from real-time listener)
     imagingRequests.forEach(request => {
         const date = new Date(request.dateTime || request.createdAt);
         const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -284,9 +289,12 @@ function renderTable() {
                     <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">${timeStr}</div>
                 </td>
                 <td>
-                    <div style="display: flex; gap: 6px;">
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                         <button class="btn btn-sm" onclick="window.viewImagingRequest('${request.id}')" style="padding: 6px 10px; font-size: 11px; background: var(--primary-color); color: white; border: none; border-radius: 6px; cursor: pointer;" title="View & Edit">
                             <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm" onclick="window.addRadiographerNote('${request.id}')" style="padding: 6px 10px; font-size: 11px; background: #16a085; color: white; border: none; border-radius: 6px; cursor: pointer;" title="Add Note">
+                            <i class="fas fa-sticky-note"></i>
                         </button>
                         <button class="btn btn-sm" onclick="window.uploadImagingResults('${request.id}')" style="padding: 6px 10px; font-size: 11px; background: #9b59b6; color: white; border: none; border-radius: 6px; cursor: pointer;" title="Upload Results">
                             <i class="fas fa-upload"></i>
@@ -295,6 +303,16 @@ function renderTable() {
                         <button class="btn btn-sm" onclick="window.viewImagingResults('${request.id}')" style="padding: 6px 10px; font-size: 11px; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer;" title="View Results">
                             <i class="fas fa-file-medical"></i>
                         </button>
+                        ` : ''}
+                        ${hasResults && request.status !== 'Completed' ? `
+                        <button class="btn btn-sm" onclick="window.quickSendToDoctor('${request.id}')" style="padding: 6px 10px; font-size: 11px; background: #e67e22; color: white; border: none; border-radius: 6px; cursor: pointer;" title="Send to Doctor">
+                            <i class="fas fa-user-md"></i>
+                        </button>
+                        ` : ''}
+                        ${request.status === 'Completed' && request.sentToDoctor ? `
+                        <span style="padding: 6px 10px; font-size: 10px; background: #95a5a6; color: white; border-radius: 6px;" title="Already sent to doctor">
+                            <i class="fas fa-check"></i> Sent
+                        </span>
                         ` : ''}
                     </div>
                 </td>
@@ -372,20 +390,41 @@ async function searchPatientsFromFirestore(searchTerm) {
     }
 
     try {
-        resultsContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-secondary);"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
+        resultsContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-secondary);"><i class="fas fa-spinner fa-spin"></i> Searching patients...</div>';
+        
+        console.log('🔍 Searching for:', searchTerm);
+        
+        if (!db) {
+            console.error('❌ Firebase DB not initialized');
+            resultsContainer.innerHTML = '<div style="padding: 12px; color: #e74c3c; font-size: 13px; text-align: center;">Database not initialized</div>';
+            return;
+        }
         
         const patientsRef = collection(db, 'patients');
         const snapshot = await getDocs(patientsRef);
+        
+        console.log('📊 Total patients in database:', snapshot.size);
         
         const term = searchTerm.toLowerCase();
         const results = [];
         
         snapshot.forEach((docSnapshot) => {
             const patient = docSnapshot.data();
-            const name = (patient.fullName || patient.name || '').toLowerCase();
-            const number = (patient.patientNumber || '').toLowerCase();
+            // Search in multiple fields
+            const firstName = (patient.firstName || '').toLowerCase();
+            const lastName = (patient.lastName || '').toLowerCase();
+            const fullName = (patient.fullName || patient.name || '').toLowerCase();
+            const patientNumber = (patient.patientNumber || '').toLowerCase();
+            const phone = (patient.phone || '').toLowerCase();
+            const idNumber = (patient.idNumber || '').toLowerCase();
             
-            if (name.includes(term) || number.includes(term)) {
+            // Check if search term matches any field
+            if (firstName.includes(term) || 
+                lastName.includes(term) || 
+                fullName.includes(term) || 
+                patientNumber.includes(term) ||
+                phone.includes(term) ||
+                idNumber.includes(term)) {
                 results.push({
                     id: docSnapshot.id,
                     ...patient
@@ -393,28 +432,60 @@ async function searchPatientsFromFirestore(searchTerm) {
             }
         });
 
+        console.log('✅ Found', results.length, 'matching patients');
+
         if (results.length === 0) {
-            resultsContainer.innerHTML = '<div style="padding: 12px; color: var(--text-secondary); font-size: 13px; text-align: center;">No patients found</div>';
+            resultsContainer.innerHTML = `
+                <div style="padding: 20px; text-align: center; color: var(--text-secondary); font-size: 13px;">
+                    <i class="fas fa-search" style="font-size: 24px; opacity: 0.3; display: block; margin-bottom: 8px;"></i>
+                    <p>No patients found matching "${searchTerm}"</p>
+                    <small>Try searching by name, number, phone, or ID</small>
+                </div>
+            `;
             return;
         }
 
         resultsContainer.innerHTML = results.slice(0, 10).map(patient => {
-            const patientName = patient.fullName || patient.name || 'Unknown';
+            const patientName = patient.fullName || patient.name || `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || 'Unknown';
             const patientNumber = patient.patientNumber || 'N/A';
-            const age = patient.age ? ` · ${patient.age}y` : '';
-            const gender = patient.gender ? ` · ${patient.gender}` : '';
+            const age = patient.age ? `${patient.age}y` : '';
+            const gender = patient.gender || '';
+            const phone = patient.phone || '';
             
             return `
-                <div onclick="selectPatient('${patient.id}', '${patientName.replace(/'/g, "\\'")}', '${patientNumber}')">
-                    <strong>${patientName}</strong>
-                    <p>${patientNumber}${age}${gender}</p>
+                <div class="imaging-patient-result-item" onclick="window.selectPatient('${patient.id}', '${patientName.replace(/'/g, "\\'")}', '${patientNumber}')" style="padding: 12px; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background 0.2s;">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
+                        <strong style="font-size: 14px; color: var(--text-primary);">${patientName}</strong>
+                        <span style="background: var(--primary-color); color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">${patientNumber}</span>
+                    </div>
+                    <div style="display: flex; gap: 12px; font-size: 12px; color: var(--text-secondary);">
+                        ${age ? `<span><i class="fas fa-birthday-cake" style="margin-right: 4px;"></i>${age}</span>` : ''}
+                        ${gender ? `<span><i class="fas fa-${gender.toLowerCase() === 'male' ? 'mars' : gender.toLowerCase() === 'female' ? 'venus' : 'user'}" style="margin-right: 4px;"></i>${gender}</span>` : ''}
+                        ${phone ? `<span><i class="fas fa-phone" style="margin-right: 4px;"></i>${phone}</span>` : ''}
+                    </div>
                 </div>
             `;
         }).join('');
         
+        // Add hover effect via style tag if not already added
+        if (!document.getElementById('imaging-search-hover-styles')) {
+            const style = document.createElement('style');
+            style.id = 'imaging-search-hover-styles';
+            style.textContent = `
+                .imaging-patient-result-item:hover {
+                    background: var(--bg-secondary) !important;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
     } catch (error) {
         console.error('❌ Error searching patients:', error);
-        resultsContainer.innerHTML = '<div style="padding: 12px; color: #e74c3c; font-size: 13px; text-align: center;">Error searching</div>';
+        resultsContainer.innerHTML = `
+            <div style="padding: 12px; color: #e74c3c; font-size: 13px; text-align: center;">
+                <i class="fas fa-exclamation-triangle"></i> Error: ${error.message}
+            </div>
+        `;
     }
 }
 
@@ -806,33 +877,59 @@ window.closeViewImagingModal = function() {
 
 // Save imaging request (without sending to doctor)
 window.saveImagingRequest = async function() {
+    console.log('🔘 Save Changes button clicked');
+    
     if (!currentEditingRequest) {
         alert('No request selected');
         return;
     }
 
     try {
+        // Show immediate feedback
+        const btn = event?.target?.closest('button');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        }
+        
         const status = document.getElementById('updateImagingStatus').value;
         const technicianNotes = document.getElementById('imagingTechnicianNotes').value;
+
+        console.log('📝 Current status:', status);
+        console.log('📝 Pending files:', pendingFiles.length);
 
         // Upload any pending files
         let newFiles = [];
         if (pendingFiles.length > 0) {
+            console.log('📤 Uploading', pendingFiles.length, 'files...');
             newFiles = await uploadFilesToStorage(currentEditingRequest.id);
+            console.log('✅ Files uploaded:', newFiles.length);
         }
 
         // Combine with existing files
         const existingFiles = currentEditingRequest.resultFiles || [];
         const allFiles = [...existingFiles, ...newFiles];
 
+        console.log('📎 Total files:', allFiles.length);
+
+        // Determine final status
+        let finalStatus = status;
+        
+        // If files were uploaded, automatically set status to Completed
+        if (allFiles.length > 0 && (status === 'Pending' || status === 'In Progress')) {
+            finalStatus = 'Completed';
+            console.log('✅ Status auto-changed to Completed (files uploaded)');
+        }
+
         const updateData = {
-            status: status,
+            status: finalStatus,
             technicianNotes: technicianNotes,
             resultFiles: allFiles,
-            lastUpdated: new Date().toISOString()
+            lastUpdated: new Date().toISOString(),
+            completedAt: finalStatus === 'Completed' ? new Date().toISOString() : currentEditingRequest.completedAt
         };
 
-        console.log('📝 Saving request:', currentEditingRequest.id);
+        console.log('📝 Saving request:', currentEditingRequest.id, '- Status:', finalStatus);
 
         const requestRef = doc(db, 'imaging_requests', currentEditingRequest.id);
         await updateDoc(requestRef, updateData);
@@ -841,11 +938,26 @@ window.saveImagingRequest = async function() {
         
         pendingFiles = [];
         closeViewImagingModal();
-        alert('Changes saved successfully!');
+        
+        // Show success notification
+        if (newFiles.length > 0) {
+            alert(`✅ Success!\n\nChanges saved and status updated to ${finalStatus}\n${newFiles.length} file(s) uploaded`);
+            showNotification(`Changes saved! Status: ${finalStatus}`, 'success');
+        } else {
+            alert('✅ Changes saved successfully!');
+            showNotification('Changes saved successfully!', 'success');
+        }
         
     } catch (error) {
         console.error('❌ Save error:', error);
-        alert('Error: ' + error.message);
+        alert('❌ Error saving changes:\n\n' + error.message);
+        
+        // Re-enable button on error
+        const btn = event?.target?.closest('button');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+        }
     }
 };
 
@@ -951,6 +1063,161 @@ window.markAsReviewed = async function(requestId) {
         
     } catch (error) {
         console.error('❌ Error marking as reviewed:', error);
+        alert('Error: ' + error.message);
+    }
+};
+
+// Quick send to doctor from table
+window.quickSendToDoctor = async function(requestId) {
+    try {
+        const request = imagingRequests.find(r => r.id === requestId);
+        if (!request) {
+            alert('Request not found');
+            return;
+        }
+
+        if (!request.resultFiles || request.resultFiles.length === 0) {
+            alert('Please upload results before sending to doctor');
+            return;
+        }
+
+        const confirmed = confirm(`Send ${request.imagingType} results for ${request.patientName} to Dr. ${request.requestedBy}?`);
+        if (!confirmed) return;
+
+        const updateData = {
+            status: 'Completed',
+            lastUpdated: new Date().toISOString(),
+            sentToDoctor: true,
+            sentToDoctorAt: new Date().toISOString(),
+            sentToDoctorName: request.requestedBy
+        };
+
+        console.log('📤 Sending to doctor:', requestId);
+
+        const requestRef = doc(db, 'imaging_requests', requestId);
+        await updateDoc(requestRef, updateData);
+        
+        // Create notification for doctor
+        try {
+            const notificationRef = collection(db, 'notifications');
+            await addDoc(notificationRef, {
+                type: 'imaging_result',
+                title: 'Imaging Results Ready',
+                message: `${request.imagingType} results for patient ${request.patientName} are ready`,
+                patientId: request.patientId,
+                patientName: request.patientName,
+                imagingRequestId: request.id,
+                recipientRole: 'doctor',
+                recipientName: request.requestedBy,
+                read: false,
+                createdAt: new Date().toISOString()
+            });
+            console.log('🔔 Notification created for doctor');
+        } catch (notifError) {
+            console.log('⚠️ Could not create notification:', notifError);
+        }
+        
+        console.log('✅ Results sent to doctor');
+        showNotification(`Results sent to ${request.requestedBy}!`, 'success');
+        
+    } catch (error) {
+        console.error('❌ Error sending to doctor:', error);
+        alert('Error: ' + error.message);
+    }
+};
+
+// Add radiographer note
+window.addRadiographerNote = function(requestId) {
+    const request = imagingRequests.find(r => r.id === requestId);
+    if (!request) {
+        alert('Request not found');
+        return;
+    }
+
+    // Store current request ID for saving
+    window.currentNoteRequestId = requestId;
+
+    // Populate patient info
+    document.getElementById('notePatientName').textContent = request.patientName || 'Unknown';
+    document.getElementById('notePatientNumber').textContent = request.patientNumber || '-';
+    document.getElementById('noteImagingType').textContent = request.imagingType || '-';
+    document.getElementById('noteBodyPart').textContent = request.bodyPart || '-';
+
+    const existingNote = request.technicianNotes || '';
+    const noteSaved = request.noteSaved || false;
+    const noteSavedDate = request.noteSavedDate || '';
+
+    // Check if note already exists and is saved
+    if (noteSaved && existingNote) {
+        // Show read-only version
+        document.getElementById('radiographerNoteInput').style.display = 'none';
+        document.getElementById('saveNoteBtn').style.display = 'none';
+        document.getElementById('existingNoteDisplay').style.display = 'block';
+        document.getElementById('existingNoteContent').textContent = existingNote;
+        
+        const savedDate = new Date(noteSavedDate);
+        document.getElementById('noteSavedDate').textContent = savedDate.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } else {
+        // Show editable version
+        document.getElementById('radiographerNoteInput').style.display = 'block';
+        document.getElementById('radiographerNoteInput').value = existingNote;
+        document.getElementById('saveNoteBtn').style.display = 'inline-flex';
+        document.getElementById('existingNoteDisplay').style.display = 'none';
+    }
+
+    // Show modal
+    document.getElementById('radiographerNoteModal').style.display = 'flex';
+};
+
+// Close radiographer note modal
+window.closeRadiographerNoteModal = function() {
+    document.getElementById('radiographerNoteModal').style.display = 'none';
+    window.currentNoteRequestId = null;
+};
+
+// Save radiographer note
+window.saveRadiographerNote = async function() {
+    if (!window.currentNoteRequestId) {
+        alert('No request selected');
+        return;
+    }
+
+    try {
+        const note = document.getElementById('radiographerNoteInput').value.trim();
+        
+        if (!note) {
+            alert('Please enter a note before saving');
+            return;
+        }
+
+        const confirmed = confirm('Once saved, this note cannot be edited. Continue?');
+        if (!confirmed) return;
+
+        const updateData = {
+            technicianNotes: note,
+            noteSaved: true,
+            noteSavedDate: new Date().toISOString(),
+            lastUpdated: new Date().toISOString()
+        };
+
+        console.log('📝 Saving note for:', window.currentNoteRequestId);
+
+        const requestRef = doc(db, 'imaging_requests', window.currentNoteRequestId);
+        await updateDoc(requestRef, updateData);
+        
+        console.log('✅ Note saved successfully');
+        showNotification('Note saved successfully and locked', 'success');
+        
+        closeRadiographerNoteModal();
+        
+    } catch (error) {
+        console.error('❌ Error saving note:', error);
         alert('Error: ' + error.message);
     }
 };

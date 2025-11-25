@@ -6869,6 +6869,82 @@
                 </div>
             </div>
         </div>
+
+        <!-- Radiographer Note Modal -->
+        <div class="modal" id="radiographerNoteModal" style="display: none;">
+            <div class="modal-overlay" onclick="closeRadiographerNoteModal()"></div>
+            <div class="modal-content imaging-modal" style="max-width: 600px;">
+                <div class="imaging-modal-header">
+                    <h2><i class="fas fa-sticky-note"></i> Radiographer Note</h2>
+                    <button class="imaging-modal-close" onclick="closeRadiographerNoteModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="imaging-modal-body">
+                    <!-- Patient Info Display -->
+                    <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; font-size: 13px;">
+                            <div>
+                                <label style="color: var(--text-secondary); display: block; margin-bottom: 4px;">Patient</label>
+                                <strong id="notePatientName">-</strong>
+                            </div>
+                            <div>
+                                <label style="color: var(--text-secondary); display: block; margin-bottom: 4px;">Patient No.</label>
+                                <strong id="notePatientNumber">-</strong>
+                            </div>
+                            <div>
+                                <label style="color: var(--text-secondary); display: block; margin-bottom: 4px;">Imaging Type</label>
+                                <strong id="noteImagingType">-</strong>
+                            </div>
+                            <div>
+                                <label style="color: var(--text-secondary); display: block; margin-bottom: 4px;">Body Part</label>
+                                <strong id="noteBodyPart">-</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Note Input -->
+                    <div class="imaging-form-group">
+                        <label style="font-weight: 500; margin-bottom: 8px; display: block;">
+                            <i class="fas fa-edit" style="margin-right: 6px; color: var(--primary-color);"></i>
+                            Radiographer's Note
+                        </label>
+                        <textarea 
+                            id="radiographerNoteInput" 
+                            class="imaging-textarea" 
+                            rows="8" 
+                            placeholder="Enter your observations, findings, or technical notes here..."
+                            style="font-size: 14px; line-height: 1.6;"
+                        ></textarea>
+                        <small style="color: var(--text-secondary); display: block; margin-top: 8px;">
+                            <i class="fas fa-info-circle"></i> Note: Once saved, this note cannot be edited.
+                        </small>
+                    </div>
+
+                    <!-- Existing Note Display (Read-only) -->
+                    <div id="existingNoteDisplay" style="display: none; margin-top: 20px;">
+                        <label style="font-weight: 500; margin-bottom: 8px; display: block; color: var(--text-secondary);">
+                            <i class="fas fa-lock" style="margin-right: 6px;"></i>
+                            Saved Note (Read-only)
+                        </label>
+                        <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px; border-left: 4px solid #16a085;">
+                            <p id="existingNoteContent" style="margin: 0; white-space: pre-wrap; line-height: 1.6;">-</p>
+                            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color); font-size: 12px; color: var(--text-secondary);">
+                                <i class="fas fa-clock"></i> Saved on <span id="noteSavedDate">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="imaging-modal-footer">
+                    <button class="imaging-btn-secondary" onclick="closeRadiographerNoteModal()">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                    <button class="imaging-btn-primary" id="saveNoteBtn" onclick="saveRadiographerNote()" style="background: #16a085;">
+                        <i class="fas fa-save"></i> Save Note
+                    </button>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Consultation History Modal -->
