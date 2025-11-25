@@ -7714,6 +7714,68 @@ window.downloadImagingFile = downloadImagingFile;
 window.downloadAllImagingFiles = downloadAllImagingFiles;
 
 // ========================================
+// BACKGROUND IMAGING BADGE UPDATE
+// ========================================
+
+let imagingBadgeListener = null;
+
+// Setup background listener for imaging reports badge
+function setupImagingBadgeListener() {
+    import('./firebase-config.js').then(({ db, collection, query, where, onSnapshot }) => {
+        if (imagingBadgeListener) {
+            imagingBadgeListener();
+        }
+        
+        console.log('📡 Setting up background imaging reports badge listener...');
+        
+        const imagingRef = collection(db, 'imaging_requests');
+        const completedQuery = query(
+            imagingRef,
+            where('status', '==', 'Completed'),
+            where('sentToDoctor', '==', true)
+        );
+        
+        imagingBadgeListener = onSnapshot(completedQuery, (snapshot) => {
+            const reports = [];
+            snapshot.forEach((doc) => {
+                reports.push({ id: doc.id, ...doc.data() });
+            });
+            
+            // Update badge with new reports count
+            const badge = document.getElementById('imagingReportsBadge');
+            if (badge) {
+                const newCount = reports.filter(r => !r.reviewedByDoctor).length;
+                badge.textContent = newCount;
+                badge.style.display = newCount > 0 ? 'inline-block' : 'none';
+                
+                if (newCount > 0) {
+                    console.log(`🔔 ${newCount} new imaging report(s) available`);
+                }
+            }
+        }, (error) => {
+            console.error('❌ Error in imaging badge listener:', error);
+        });
+        
+    }).catch(error => {
+        console.error('❌ Failed to setup imaging badge listener:', error);
+    });
+}
+
+// Initialize badge listener when doctor module is active
+if (typeof window.initializeModuleFunctions !== 'undefined') {
+    const originalInit = window.initializeModuleFunctions;
+    window.initializeModuleFunctions = function() {
+        if (originalInit) originalInit();
+        setupImagingBadgeListener();
+    };
+} else {
+    // If no initialization function, set up on page load
+    window.addEventListener('DOMContentLoaded', () => {
+        setTimeout(setupImagingBadgeListener, 2000);
+    });
+}
+
+// ========================================
 // SEND TO IMAGING FUNCTIONALITY
 // ========================================
 
@@ -7856,8 +7918,9 @@ if (typeof initializeModuleFunctions !== 'undefined') {
     const originalInit = initializeModuleFunctions;
     initializeModuleFunctions = function() {
         originalInit();
-        // Update badge periodically
+        // Update badges periodically
         setInterval(updateLabReportsBadge, 30000); // Update every 30 seconds
+        setInterval(updateImagingBadge, 30000); // Update every 30 seconds
     };
 }
 

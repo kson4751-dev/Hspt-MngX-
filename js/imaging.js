@@ -1,5 +1,5 @@
 // Imaging Module - Medical Imaging Services Management
-import { db, storage, collection, addDoc, getDocs, doc, updateDoc, onSnapshot, ref, uploadBytes, getDownloadURL } from './firebase-config.js';
+import { db, storage, collection, addDoc, getDocs, doc, updateDoc, onSnapshot, ref, uploadBytes, uploadBytesResumable, getDownloadURL } from './firebase-config.js';
 
 let imagingRequests = [];
 let currentFilter = 'all';
@@ -835,20 +835,55 @@ function formatFileSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// Upload files to Firebase Storage
+// Upload files to Firebase Storage with progress tracking
 async function uploadFilesToStorage(requestId) {
     if (pendingFiles.length === 0) return [];
     
     const uploadedFiles = [];
+    const totalFiles = pendingFiles.length;
     
-    for (const file of pendingFiles) {
+    console.log(`📤 Starting upload of ${totalFiles} file(s) to Firebase Storage...`);
+    
+    for (let i = 0; i < pendingFiles.length; i++) {
+        const file = pendingFiles[i];
         try {
             const fileName = `${Date.now()}_${file.name}`;
             const storageRef = ref(storage, `imaging_results/${requestId}/${fileName}`);
             
-            console.log('📤 Uploading:', file.name);
-            const snapshot = await uploadBytes(storageRef, file);
-            const downloadURL = await getDownloadURL(snapshot.ref);
+            console.log(`📤 Uploading file ${i + 1}/${totalFiles}: ${file.name}`);
+            
+            // Use uploadBytesResumable for progress tracking
+            const uploadTask = uploadBytesResumable(storageRef, file);
+            
+            // Wait for upload to complete with progress tracking
+            const downloadURL = await new Promise((resolve, reject) => {
+                uploadTask.on('state_changed',
+                    (snapshot) => {
+                        // Calculate progress
+                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                        console.log(`⬆️ Upload progress for ${file.name}: ${progress.toFixed(1)}%`);
+                        
+                        // Update UI with progress if element exists
+                        const progressEl = document.getElementById('uploadProgressText');
+                        if (progressEl) {
+                            progressEl.textContent = `Uploading ${file.name}: ${progress.toFixed(0)}%`;
+                        }
+                    },
+                    (error) => {
+                        console.error(`❌ Upload error for ${file.name}:`, error);
+                        reject(error);
+                    },
+                    async () => {
+                        // Upload complete, get download URL
+                        try {
+                            const url = await getDownloadURL(uploadTask.snapshot.ref);
+                            resolve(url);
+                        } catch (error) {
+                            reject(error);
+                        }
+                    }
+                );
+            });
             
             uploadedFiles.push({
                 name: file.name,
@@ -858,13 +893,25 @@ async function uploadFilesToStorage(requestId) {
                 uploadedAt: new Date().toISOString()
             });
             
-            console.log('✅ Uploaded:', file.name);
+            console.log(`✅ Successfully uploaded: ${file.name}`);
+            
         } catch (error) {
-            console.error('❌ Upload error:', error);
-            throw new Error(`Failed to upload ${file.name}: ${error.message}`);
+            console.error(`❌ Upload error for ${file.name}:`, error);
+            
+            // Show user-friendly error message
+            if (error.code === 'storage/unauthorized') {
+                throw new Error(`Upload permission denied. Please ensure Firebase Storage rules are configured correctly.`);
+            } else if (error.code === 'storage/canceled') {
+                throw new Error(`Upload was canceled for ${file.name}`);
+            } else if (error.code === 'storage/unknown') {
+                throw new Error(`Unknown error uploading ${file.name}. Check your internet connection.`);
+            } else {
+                throw new Error(`Failed to upload ${file.name}: ${error.message}`);
+            }
         }
     }
     
+    console.log(`✅ All ${totalFiles} file(s) uploaded successfully to Firebase Storage!`);
     return uploadedFiles;
 }
 

@@ -4519,6 +4519,31 @@ body.dark-theme .module-badge {
     line-height: 1.4;
 }
 
+/* Lab and Imaging Reports Badge - Red Alert */
+#labReportsBadge,
+#imagingReportsBadge {
+    background-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+    animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+    0%, 100% {
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+    }
+    50% {
+        box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.1);
+    }
+}
+
+/* Dark Mode Badge */
+body.dark-theme #labReportsBadge,
+body.dark-theme #imagingReportsBadge,
+body.theme-dark #labReportsBadge,
+body.theme-dark #imagingReportsBadge {
+    background-color: #ef4444 !important;
+}
+
 .btn {
     position: relative;
 }
