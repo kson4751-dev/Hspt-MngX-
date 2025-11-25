@@ -956,18 +956,71 @@ window.addDoctorNote = async function(appointmentId) {
     // Clear textarea
     document.getElementById('doctorNoteText').value = '';
     
-    // Fetch patient details in real-time from Firestore
-    await fetchPatientDetailsRealtime(appointment.patientNumber, appointmentId);
+    // Display appointment data immediately
+    displayAppointmentDataInNote(appointment);
+    
+    // Then fetch additional patient details in real-time from Firestore
+    fetchPatientDetailsRealtime(appointment.patientNumber, appointmentId);
 };
+
+// Display appointment data immediately in note modal
+function displayAppointmentDataInNote(appointment) {
+    // Display patient name immediately
+    const initials = (appointment.patientName || 'P').split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+    
+    document.getElementById('notePatientName').innerHTML = `
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 50px; height: 50px; background: linear-gradient(135deg, var(--primary-color), #2874a6); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; font-weight: 700;">
+                ${initials}
+            </div>
+            <div>
+                <div style="font-size: 16px; font-weight: 600; color: var(--text-primary);">
+                    ${appointment.patientName || 'Unknown Patient'}
+                </div>
+                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
+                    <i class="fas fa-id-card"></i> ${appointment.patientNumber || '-'} • 
+                    <i class="fas fa-phone"></i> ${appointment.patientPhone || '-'}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Display basic patient information from appointment
+    document.getElementById('notePatientNumber').innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px;">
+            <div style="background: var(--bg-color); padding: 10px; border-radius: 6px;">
+                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Gender</div>
+                <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">
+                    <i class="fas fa-${appointment.patientGender === 'Male' ? 'mars' : appointment.patientGender === 'Female' ? 'venus' : 'genderless'}"></i> 
+                    ${appointment.patientGender || 'N/A'}
+                </div>
+            </div>
+            <div style="background: var(--bg-color); padding: 10px; border-radius: 6px;">
+                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Age</div>
+                <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">
+                    <i class="fas fa-birthday-cake"></i> ${appointment.patientAge || 'N/A'} years
+                </div>
+            </div>
+            <div style="background: var(--bg-color); padding: 10px; border-radius: 6px;">
+                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Patient Number</div>
+                <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">
+                    <i class="fas fa-hashtag"></i> ${appointment.patientNumber || 'N/A'}
+                </div>
+            </div>
+            <div style="background: var(--bg-color); padding: 10px; border-radius: 6px;">
+                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Phone</div>
+                <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">
+                    <i class="fas fa-phone"></i> ${appointment.patientPhone || 'N/A'}
+                </div>
+            </div>
+        </div>
+    `;
+}
 
 // Fetch patient details in real-time
 async function fetchPatientDetailsRealtime(patientNumber, appointmentId) {
     try {
-        console.log('🔍 Fetching real-time patient details for:', patientNumber);
-        
-        // Show loading state
-        document.getElementById('notePatientName').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-        document.getElementById('notePatientNumber').textContent = patientNumber || '-';
+        console.log('🔍 Fetching additional patient details for:', patientNumber);
         
         // Query patients collection
         const patientsQuery = query(
@@ -980,11 +1033,13 @@ async function fetchPatientDetailsRealtime(patientNumber, appointmentId) {
         if (!patientsSnapshot.empty) {
             const patientData = patientsSnapshot.docs[0].data();
             
-            // Display complete patient information
+            // Update with complete patient information from database
+            const initials = `${(patientData.firstName?.[0] || 'P').toUpperCase()}${(patientData.lastName?.[0] || '').toUpperCase()}`;
+            
             document.getElementById('notePatientName').innerHTML = `
                 <div style="display: flex; align-items: center; gap: 12px;">
                     <div style="width: 50px; height: 50px; background: linear-gradient(135deg, var(--primary-color), #2874a6); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; font-weight: 700;">
-                        ${(patientData.firstName?.[0] || 'P').toUpperCase()}${(patientData.lastName?.[0] || '').toUpperCase()}
+                        ${initials}
                     </div>
                     <div>
                         <div style="font-size: 16px; font-weight: 600; color: var(--text-primary);">
@@ -1036,16 +1091,9 @@ async function fetchPatientDetailsRealtime(patientNumber, appointmentId) {
                 ` : ''}
             `;
             
-            console.log('✅ Patient details loaded successfully');
+            console.log('✅ Patient details enhanced from database');
         } else {
-            // Patient not found in database
-            document.getElementById('notePatientName').innerHTML = `
-                <div style="color: var(--text-primary); font-weight: 600;">
-                    ${currentAppointment.patientName || 'Unknown Patient'}
-                </div>
-            `;
-            document.getElementById('notePatientNumber').textContent = patientNumber || 'N/A';
-            console.log('⚠️ Patient not found in database');
+            console.log('ℹ️ Using appointment data (patient not found in database)');
         }
         
         // Load existing notes after patient details
