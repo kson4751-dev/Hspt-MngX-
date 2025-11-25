@@ -103,23 +103,41 @@ function displayAppointmentDetails() {
 function setupRealtimeListeners() {
     console.log('🔄 Setting up real-time listeners...');
     
-    // Listen for chat messages
-    const messagesRef = collection(db, 'telemedicine_appointments', appointmentId, 'messages');
+    // Listen for chat messages during consultation - using video_messages collection
+    const messagesRef = collection(db, 'telemedicine_appointments', appointmentId, 'video_messages');
     const messagesQuery = query(messagesRef, orderBy('timestamp', 'asc'));
     
     unsubscribeChat = onSnapshot(messagesQuery, (snapshot) => {
+        console.log('📨 Patient chat snapshot received, messages:', snapshot.size);
+        
+        const messagesContainer = document.getElementById('messages');
+        if (!messagesContainer) {
+            console.error('❌ messages container not found!');
+            return;
+        }
+        
+        messagesContainer.innerHTML = '';
+        
+        snapshot.forEach((docSnapshot) => {
+            const message = docSnapshot.data();
+            console.log('💬 Patient displaying message:', message.text, 'from:', message.sender);
+            displayMessage(message);
+        });
+        
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // Show notification for new doctor messages
         snapshot.docChanges().forEach((change) => {
             if (change.type === 'added') {
                 const message = change.doc.data();
-                displayMessage(message);
-                
-                // Show notification for doctor messages
-                if (message.sender === 'doctor') {
-                    showNotification('New Message', message.text);
+                if (message.sender === 'doctor' && Date.now() - new Date(message.timestamp).getTime() < 5000) {
+                    showNotification('New Message from Doctor', message.text);
                     playNotificationSound();
                 }
             }
         });
+    }, (error) => {
+        console.error('❌ Error listening to chat:', error);
     });
     
     console.log('✅ Real-time listeners active');
@@ -171,20 +189,21 @@ async function initializeMedia() {
     }
 }
 
-// Setup WebRTC peer connection
-function setupPeerConnection() {
-    console.log('🔗 Setting up peer connection...');
+// Setup WebRTC peer connection with Firebase signaling
+async function setupPeerConnection() {
+    console.log('🔗 Setting up peer connection with Firebase signaling...');
     
     peerConnection = new RTCPeerConnection(configuration);
     
     // Add local stream tracks
     localStream.getTracks().forEach(track => {
+        console.log('Adding local track:', track.kind);
         peerConnection.addTrack(track, localStream);
     });
     
     // Handle remote stream
     peerConnection.ontrack = (event) => {
-        console.log('📥 Received remote track');
+        console.log('📥 Received remote track:', event.track.kind);
         
         if (!remoteStream) {
             remoteStream = new MediaStream();
@@ -195,11 +214,19 @@ function setupPeerConnection() {
         document.getElementById('noVideoPlaceholder').style.display = 'none';
     };
     
-    // Handle ICE candidates
-    peerConnection.onicecandidate = (event) => {
+    // Handle ICE candidates - Save to Firebase
+    peerConnection.onicecandidate = async (event) => {
         if (event.candidate) {
-            console.log('🧊 New ICE candidate');
-            // In production, send this to signaling server
+            console.log('🧊 New ICE candidate:', event.candidate.type);
+            try {
+                const candidatesRef = collection(db, 'telemedicine_appointments', appointmentId, 'patient_candidates');
+                await addDoc(candidatesRef, {
+                    candidate: event.candidate.toJSON(),
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('Error saving ICE candidate:', error);
+            }
         }
     };
     
@@ -208,7 +235,77 @@ function setupPeerConnection() {
         updateConnectionStatus(peerConnection.connectionState);
     };
     
-    console.log('✅ Peer connection ready');
+    // Update appointment with patient joined status
+    const appointmentRef = doc(db, 'telemedicine_appointments', appointmentId);
+    await updateDoc(appointmentRef, {
+        patientJoined: true,
+        patientJoinedAt: new Date().toISOString()
+    });
+    
+    // Listen for doctor's offer
+    listenForDoctorOffer();
+    
+    // Listen for doctor's ICE candidates
+    listenForDoctorCandidates();
+    
+    console.log('✅ Peer connection ready, waiting for doctor...');
+}
+
+// Listen for doctor's offer
+function listenForDoctorOffer() {
+    const appointmentRef = doc(db, 'telemedicine_appointments', appointmentId);
+    
+    onSnapshot(appointmentRef, async (snapshot) => {
+        const data = snapshot.data();
+        
+        if (data && data.doctorOffer && !peerConnection.currentRemoteDescription) {
+            console.log('📩 Received doctor offer');
+            
+            try {
+                const offer = new RTCSessionDescription(data.doctorOffer);
+                await peerConnection.setRemoteDescription(offer);
+                console.log('✅ Remote description set');
+                
+                // Create answer
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                
+                // Save answer to Firebase
+                await updateDoc(appointmentRef, {
+                    patientAnswer: {
+                        type: answer.type,
+                        sdp: answer.sdp
+                    },
+                    answerTimestamp: new Date().toISOString()
+                });
+                
+                console.log('✅ Answer sent to doctor');
+                
+            } catch (error) {
+                console.error('❌ Error handling offer:', error);
+            }
+        }
+    });
+}
+
+// Listen for doctor's ICE candidates
+function listenForDoctorCandidates() {
+    const candidatesRef = collection(db, 'telemedicine_appointments', appointmentId, 'doctor_candidates');
+    
+    onSnapshot(candidatesRef, (snapshot) => {
+        snapshot.docChanges().forEach(async (change) => {
+            if (change.type === 'added') {
+                const data = change.doc.data();
+                try {
+                    const candidate = new RTCIceCandidate(data.candidate);
+                    await peerConnection.addIceCandidate(candidate);
+                    console.log('✅ Added doctor ICE candidate');
+                } catch (error) {
+                    console.error('Error adding ICE candidate:', error);
+                }
+            }
+        });
+    });
 }
 
 // Update connection status
@@ -304,7 +401,7 @@ window.sendMessage = async function() {
     try {
         console.log('💬 Sending message...');
         
-        const messagesRef = collection(db, 'telemedicine_appointments', appointmentId, 'messages');
+        const messagesRef = collection(db, 'telemedicine_appointments', appointmentId, 'video_messages');
         await addDoc(messagesRef, {
             text: message,
             sender: 'patient',
@@ -324,6 +421,10 @@ window.sendMessage = async function() {
 // Display message
 function displayMessage(message) {
     const messagesContainer = document.getElementById('messages');
+    if (!messagesContainer) {
+        console.error('❌ messages container not found!');
+        return;
+    }
     
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${message.sender}`;
@@ -341,6 +442,7 @@ function displayMessage(message) {
     
     messagesContainer.appendChild(messageDiv);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    console.log('✅ Patient message displayed');
 }
 
 // Update appointment status

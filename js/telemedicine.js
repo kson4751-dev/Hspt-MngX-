@@ -526,16 +526,24 @@ window.startVideoCall = async function(appointmentId) {
     document.getElementById('videoCallPatientName').textContent = appointment.patientName;
     document.getElementById('videoCallStatus').textContent = 'Connecting...';
     
+    // Show chat panel by default
+    document.getElementById('videoChatPanel').style.display = 'flex';
+    
     try {
         // Update appointment status
         const appointmentRef = doc(db, 'telemedicine_appointments', appointmentId);
         await updateDoc(appointmentRef, {
             status: 'In Progress',
-            callStartedAt: new Date().toISOString()
+            callStartedAt: new Date().toISOString(),
+            doctorJoined: true,
+            doctorJoinedAt: new Date().toISOString()
         });
         
-        // Initialize WebRTC
-        await initializeWebRTC();
+        // Initialize WebRTC with Firebase signaling
+        await initializeWebRTC(appointmentId);
+        
+        // Setup real-time chat listener
+        setupVideoCallChat(appointmentId);
         
         console.log('✅ Video call started');
         
@@ -546,9 +554,11 @@ window.startVideoCall = async function(appointmentId) {
     }
 };
 
-// Initialize WebRTC
-async function initializeWebRTC() {
+// Initialize WebRTC with Firebase signaling
+async function initializeWebRTC(appointmentId) {
     try {
+        console.log('🎥 Initializing WebRTC for doctor...');
+        
         // Get local media stream
         localStream = await navigator.mediaDevices.getUserMedia({
             video: {
@@ -557,7 +567,8 @@ async function initializeWebRTC() {
             },
             audio: {
                 echoCancellation: true,
-                noiseSuppression: true
+                noiseSuppression: true,
+                autoGainControl: true
             }
         });
         
@@ -569,11 +580,13 @@ async function initializeWebRTC() {
         
         // Add local tracks to peer connection
         localStream.getTracks().forEach(track => {
+            console.log('Adding local track:', track.kind);
             peerConnection.addTrack(track, localStream);
         });
         
         // Handle remote stream
         peerConnection.ontrack = (event) => {
+            console.log('Received remote track:', event.track.kind);
             if (!remoteStream) {
                 remoteStream = new MediaStream();
                 const remoteVideo = document.getElementById('remoteVideo');
@@ -583,30 +596,61 @@ async function initializeWebRTC() {
             document.getElementById('videoCallStatus').textContent = 'Connected';
         };
         
-        // Create data channel for chat
-        dataChannel = peerConnection.createDataChannel('chat');
-        setupDataChannel();
-        
-        peerConnection.ondatachannel = (event) => {
-            dataChannel = event.channel;
-            setupDataChannel();
-        };
-        
-        // ICE candidates
-        peerConnection.onicecandidate = (event) => {
+        // ICE candidates - Store in Firebase
+        peerConnection.onicecandidate = async (event) => {
             if (event.candidate) {
-                // In production, send to signaling server
-                console.log('ICE candidate:', event.candidate);
+                console.log('New ICE candidate:', event.candidate.type);
+                try {
+                    const candidatesRef = collection(db, 'telemedicine_appointments', appointmentId, 'doctor_candidates');
+                    await addDoc(candidatesRef, {
+                        candidate: event.candidate.toJSON(),
+                        timestamp: new Date().toISOString()
+                    });
+                } catch (error) {
+                    console.error('Error saving ICE candidate:', error);
+                }
             }
         };
         
         // Connection state
         peerConnection.onconnectionstatechange = () => {
             console.log('Connection state:', peerConnection.connectionState);
-            document.getElementById('videoCallStatus').textContent = peerConnection.connectionState;
+            const statusText = {
+                'connecting': 'Connecting...',
+                'connected': 'Connected',
+                'disconnected': 'Disconnected',
+                'failed': 'Connection Failed',
+                'closed': 'Call Ended'
+            };
+            document.getElementById('videoCallStatus').textContent = 
+                statusText[peerConnection.connectionState] || peerConnection.connectionState;
         };
         
-        console.log('✅ WebRTC initialized');
+        // Create offer
+        const offer = await peerConnection.createOffer({
+            offerToReceiveVideo: true,
+            offerToReceiveAudio: true
+        });
+        
+        await peerConnection.setLocalDescription(offer);
+        
+        // Save offer to Firebase
+        const appointmentRef = doc(db, 'telemedicine_appointments', appointmentId);
+        await updateDoc(appointmentRef, {
+            doctorOffer: {
+                type: offer.type,
+                sdp: offer.sdp
+            },
+            offerTimestamp: new Date().toISOString()
+        });
+        
+        console.log('✅ Doctor offer created and saved');
+        
+        // Listen for patient's answer
+        listenForAnswer(appointmentId);
+        
+        // Listen for patient's ICE candidates
+        listenForPatientCandidates(appointmentId);
         
     } catch (error) {
         console.error('❌ Error initializing WebRTC:', error);
@@ -614,22 +658,111 @@ async function initializeWebRTC() {
     }
 }
 
-// Setup data channel
-function setupDataChannel() {
-    if (!dataChannel) return;
+// Listen for patient's answer
+function listenForAnswer(appointmentId) {
+    const appointmentRef = doc(db, 'telemedicine_appointments', appointmentId);
     
-    dataChannel.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        displayChatMessage(message, false);
-    };
+    const unsubscribe = onSnapshot(appointmentRef, async (snapshot) => {
+        const data = snapshot.data();
+        
+        if (data && data.patientAnswer && !peerConnection.currentRemoteDescription) {
+            console.log('📩 Received patient answer');
+            
+            try {
+                const answer = new RTCSessionDescription(data.patientAnswer);
+                await peerConnection.setRemoteDescription(answer);
+                console.log('✅ Remote description set');
+            } catch (error) {
+                console.error('Error setting remote description:', error);
+            }
+        }
+    });
     
-    dataChannel.onopen = () => {
-        console.log('Data channel opened');
-    };
+    // Store unsubscribe function
+    if (!window.telemedicineUnsubscribers) window.telemedicineUnsubscribers = [];
+    window.telemedicineUnsubscribers.push(unsubscribe);
+}
+
+// Listen for patient's ICE candidates
+function listenForPatientCandidates(appointmentId) {
+    const candidatesRef = collection(db, 'telemedicine_appointments', appointmentId, 'patient_candidates');
     
-    dataChannel.onclose = () => {
-        console.log('Data channel closed');
-    };
+    const unsubscribe = onSnapshot(candidatesRef, (snapshot) => {
+        snapshot.docChanges().forEach(async (change) => {
+            if (change.type === 'added') {
+                const data = change.doc.data();
+                try {
+                    const candidate = new RTCIceCandidate(data.candidate);
+                    await peerConnection.addIceCandidate(candidate);
+                    console.log('✅ Added patient ICE candidate');
+                } catch (error) {
+                    console.error('Error adding ICE candidate:', error);
+                }
+            }
+        });
+    });
+    
+    if (!window.telemedicineUnsubscribers) window.telemedicineUnsubscribers = [];
+    window.telemedicineUnsubscribers.push(unsubscribe);
+}
+
+// Setup video call chat with Firebase
+function setupVideoCallChat(appointmentId) {
+    console.log('💬 Setting up video call chat for appointment:', appointmentId);
+    
+    const messagesRef = collection(db, 'telemedicine_appointments', appointmentId, 'video_messages');
+    const q = query(messagesRef, orderBy('timestamp', 'asc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        console.log('📨 Chat snapshot received, messages:', snapshot.size);
+        
+        const messagesContainer = document.getElementById('videoChatMessages');
+        if (!messagesContainer) {
+            console.error('❌ videoChatMessages container not found!');
+            return;
+        }
+        
+        messagesContainer.innerHTML = '';
+        
+        snapshot.forEach((docSnapshot) => {
+            const message = docSnapshot.data();
+            console.log('💬 Displaying message:', message.text, 'from:', message.sender);
+            displayVideoChatMessage(message);
+        });
+        
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }, (error) => {
+        console.error('❌ Error listening to chat:', error);
+    });
+    
+    if (!window.telemedicineUnsubscribers) window.telemedicineUnsubscribers = [];
+    window.telemedicineUnsubscribers.push(unsubscribe);
+    
+    console.log('✅ Video chat listener active');
+}
+
+// Display video chat message
+function displayVideoChatMessage(message) {
+    const messagesContainer = document.getElementById('videoChatMessages');
+    if (!messagesContainer) {
+        console.error('❌ videoChatMessages container not found!');
+        return;
+    }
+    
+    const messageDiv = document.createElement('div');
+    const isSent = message.sender === 'doctor';
+    messageDiv.className = `video-chat-message ${isSent ? 'sent' : 'received'}`;
+    
+    const time = new Date(message.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    
+    messageDiv.innerHTML = `
+        <div class="message-sender">${message.senderName || message.sender}</div>
+        <div class="message-text">${message.text}</div>
+        <div class="message-time">${time}</div>
+    `;
+    
+    messagesContainer.appendChild(messageDiv);
+    console.log('✅ Message displayed in chat');
 }
 
 // Toggle video
@@ -669,24 +802,31 @@ window.toggleVideoChat = function() {
 };
 
 // Send chat message during call
-window.sendVideoChatMessage = function() {
+window.sendVideoChatMessage = async function() {
     const input = document.getElementById('videoChatInput');
     const message = input.value.trim();
     
-    if (!message || !dataChannel) return;
-    
-    const messageData = {
-        text: message,
-        sender: 'doctor',
-        timestamp: new Date().toISOString()
-    };
+    if (!message || !currentAppointment) return;
     
     try {
-        dataChannel.send(JSON.stringify(messageData));
-        displayChatMessage(messageData, true);
+        console.log('💬 Sending video chat message...');
+        
+        const messagesRef = collection(db, 'telemedicine_appointments', currentAppointment.id, 'video_messages');
+        const messageData = {
+            text: message,
+            sender: 'doctor',
+            senderName: currentAppointment.doctorName || 'Doctor',
+            timestamp: new Date().toISOString()
+        };
+        
+        await addDoc(messagesRef, messageData);
         input.value = '';
+        
+        console.log('✅ Message sent');
+        
     } catch (error) {
-        console.error('Error sending message:', error);
+        console.error('❌ Error sending message:', error);
+        alert('Failed to send message');
     }
 };
 
@@ -728,6 +868,18 @@ window.endVideoCall = async function() {
 
 // Close video call
 function closeVideoCall() {
+    // Unsubscribe from Firebase listeners
+    if (window.telemedicineUnsubscribers) {
+        window.telemedicineUnsubscribers.forEach(unsubscribe => {
+            try {
+                unsubscribe();
+            } catch (error) {
+                console.error('Error unsubscribing:', error);
+            }
+        });
+        window.telemedicineUnsubscribers = [];
+    }
+    
     // Stop all tracks
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
