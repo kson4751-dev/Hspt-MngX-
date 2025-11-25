@@ -444,17 +444,25 @@ window.updateNotificationUI = function(notificationsData) {
     }));
     
     renderNotifications();
+    console.log('📬 Notifications updated:', notifications.length, 'total,', notifications.filter(n => !n.read).length, 'unread');
 };
 
 // Render notifications
 function renderNotifications() {
     const unreadCount = notifications.filter(n => !n.read).length;
     
-    // Update badge - show red dot only if there are unread notifications
-    if (unreadCount > 0) {
-        notificationBadge.style.display = 'block';
-    } else {
-        notificationBadge.style.display = 'none';
+    // Update badge - show count if there are unread notifications
+    if (notificationBadge) {
+        if (unreadCount > 0) {
+            notificationBadge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+            notificationBadge.style.display = 'flex';
+            notificationBadge.classList.add('pulse');
+            // Remove pulse animation after it plays
+            setTimeout(() => notificationBadge.classList.remove('pulse'), 1000);
+        } else {
+            notificationBadge.style.display = 'none';
+            notificationBadge.textContent = '';
+        }
     }
     
     // Render list

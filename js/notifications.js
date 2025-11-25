@@ -173,6 +173,33 @@ export function cleanupNotifications() {
     }
 }
 
+// Create test notification (for testing purposes)
+export async function createTestNotification() {
+    const storageType = localStorage.getItem('userId') ? localStorage : sessionStorage;
+    const userId = storageType.getItem('userId');
+    
+    if (!userId) {
+        console.warn('No user ID found for creating test notification');
+        return;
+    }
+    
+    const testTypes = ['success', 'info', 'warning', 'error'];
+    const testMessages = [
+        { title: 'New Patient Registered', message: 'Patient John Doe has been registered successfully', type: 'success' },
+        { title: 'Lab Results Ready', message: 'Blood test results are now available for Patient #12345', type: 'info' },
+        { title: 'Low Stock Alert', message: 'Paracetamol 500mg is running low. Only 20 units remaining', type: 'warning' },
+        { title: 'Emergency Case', message: 'Critical patient admitted to emergency ward', type: 'error' }
+    ];
+    
+    const randomMsg = testMessages[Math.floor(Math.random() * testMessages.length)];
+    
+    await addNotification(userId, randomMsg.type, randomMsg.title, randomMsg.message);
+    console.log('✅ Test notification created');
+}
+
+// Expose test function globally for console testing
+window.createTestNotification = createTestNotification;
+
 // Format timestamp to relative time
 export function formatNotificationTime(timestamp) {
     if (!timestamp) return 'Just now';
