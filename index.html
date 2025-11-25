@@ -3922,13 +3922,63 @@
         <!-- Telemedicine Module -->
         <div class="module" id="telemedicine-module">
             <div class="module-header">
-                <h1 class="module-title">Telemedicine</h1>
-                <p class="module-description">Virtual consultations and remote patient care services</p>
+                <div>
+                    <h1 class="module-title">Telemedicine</h1>
+                    <p class="module-description">Virtual consultations and remote patient care services</p>
+                </div>
+                <button class="btn btn-primary" onclick="showScheduleAppointmentModal()">
+                    <i class="fas fa-calendar-plus"></i> Schedule Appointment
+                </button>
             </div>
-            <div class="empty-state">
-                <i class="fas fa-video"></i>
-                <h3>Telemedicine Module</h3>
-                <p>This module is under development. Telemedicine features coming soon.</p>
+
+            <!-- Stats -->
+            <div class="imaging-stats">
+                <div class="imaging-stat-card">
+                    <div class="imaging-stat-number" id="telemedicineTotalAppointments">0</div>
+                    <div class="imaging-stat-label">Total</div>
+                </div>
+                <div class="imaging-stat-card" style="border-left: 4px solid #3498db;">
+                    <div class="imaging-stat-number" id="telemedicineScheduled">0</div>
+                    <div class="imaging-stat-label">Scheduled</div>
+                </div>
+                <div class="imaging-stat-card warning">
+                    <div class="imaging-stat-number" id="telemedicineInProgress">0</div>
+                    <div class="imaging-stat-label">In Progress</div>
+                </div>
+                <div class="imaging-stat-card success">
+                    <div class="imaging-stat-number" id="telemedicineCompleted">0</div>
+                    <div class="imaging-stat-label">Completed</div>
+                </div>
+            </div>
+
+            <!-- Appointments Table -->
+            <div class="imaging-section">
+                <div class="imaging-section-header">
+                    <h3>Appointments</h3>
+                </div>
+
+                <div class="imaging-table-wrapper">
+                    <table class="imaging-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Patient</th>
+                                <th>Type</th>
+                                <th>Date & Time</th>
+                                <th>Status</th>
+                                <th>Doctor</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="telemedicineTableBody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 60px 20px;">
+                                    <i class="fas fa-spinner fa-spin" style="font-size: 32px; color: var(--primary-color); opacity: 0.5;"></i>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -6945,6 +6995,404 @@
                 </div>
             </div>
         </div>
+
+        <!-- Schedule Appointment Modal -->
+        <div class="modal" id="scheduleAppointmentModal" style="display: none;">
+            <div class="modal-overlay" onclick="closeScheduleAppointmentModal()"></div>
+            <div class="modal-content imaging-modal">
+                <div class="imaging-modal-header">
+                    <h2><i class="fas fa-calendar-plus"></i> Schedule Appointment</h2>
+                    <button class="imaging-modal-close" onclick="closeScheduleAppointmentModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="imaging-modal-body">
+                    <!-- Patient Selection Mode Toggle -->
+                    <div class="imaging-mode-toggle">
+                        <button class="imaging-mode-btn active" id="searchPatientTelemedicineBtn" onclick="toggleTelemedicinePatientMode('search')">
+                            <i class="fas fa-search"></i> Search Patient
+                        </button>
+                        <button class="imaging-mode-btn" id="manualPatientTelemedicineBtn" onclick="toggleTelemedicinePatientMode('manual')">
+                            <i class="fas fa-user-plus"></i> Manual Entry
+                        </button>
+                    </div>
+
+                    <!-- Search Patient Mode -->
+                    <div id="telemedicineSearchMode">
+                        <div class="imaging-form-group">
+                            <label>Search Patient</label>
+                            <div class="imaging-search-input">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="telemedicinePatientSearch" placeholder="Search by name or number...">
+                            </div>
+                            <div id="telemedicinePatientResults"></div>
+                        </div>
+
+                        <!-- Selected Patient -->
+                        <div id="telemedicineSelectedPatient" class="imaging-patient-selected" style="display: none;">
+                            <div class="imaging-patient-info">
+                                <i class="fas fa-user-check"></i>
+                                <div>
+                                    <strong id="telemedicinePatientName">Patient Name</strong>
+                                    <span id="telemedicinePatientNumber">P-000</span>
+                                </div>
+                            </div>
+                            <button class="imaging-clear-btn" onclick="clearTelemedicinePatient()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Manual Patient Entry Mode -->
+                    <div id="telemedicineManualMode" style="display: none;">
+                        <div class="imaging-manual-notice">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Walk-in patient: Enter basic information</span>
+                        </div>
+                        
+                        <div class="imaging-form-row">
+                            <div class="imaging-form-group">
+                                <label>Full Name *</label>
+                                <input type="text" id="manualPatientName" class="imaging-input" placeholder="Enter full name">
+                            </div>
+                            <div class="imaging-form-group">
+                                <label>Phone Number</label>
+                                <input type="tel" id="manualPatientPhone" class="imaging-input" placeholder="Phone number">
+                            </div>
+                        </div>
+                        
+                        <div class="imaging-form-row">
+                            <div class="imaging-form-group">
+                                <label>Age</label>
+                                <input type="number" id="manualPatientAge" class="imaging-input" placeholder="Age">
+                            </div>
+                            <div class="imaging-form-group">
+                                <label>Gender</label>
+                                <select id="manualPatientGender" class="imaging-select">
+                                    <option value="">Select</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Appointment Details -->
+                    <div class="imaging-form-row">
+                        <div class="imaging-form-group">
+                            <label>Consultation Type *</label>
+                            <select id="consultationType" class="imaging-select">
+                                <option value="">Select</option>
+                                <option value="General">General Consultation</option>
+                                <option value="Follow-up">Follow-up</option>
+                                <option value="Specialist">Specialist Consultation</option>
+                                <option value="Mental Health">Mental Health</option>
+                                <option value="Pediatric">Pediatric</option>
+                                <option value="Cardiology">Cardiology</option>
+                                <option value="Dermatology">Dermatology</option>
+                            </select>
+                        </div>
+                        <div class="imaging-form-group">
+                            <label>Doctor Name *</label>
+                            <input type="text" id="doctorName" class="imaging-input" placeholder="Doctor name">
+                        </div>
+                    </div>
+
+                    <div class="imaging-form-row">
+                        <div class="imaging-form-group">
+                            <label>Date *</label>
+                            <input type="date" id="appointmentDate" class="imaging-input">
+                        </div>
+                        <div class="imaging-form-group">
+                            <label>Time *</label>
+                            <input type="time" id="appointmentTime" class="imaging-input">
+                        </div>
+                    </div>
+
+                    <div class="imaging-form-group">
+                        <label>Notes</label>
+                        <textarea id="consultationNotes" class="imaging-textarea" rows="3" placeholder="Consultation notes..."></textarea>
+                    </div>
+                </div>
+                <div class="imaging-modal-footer">
+                    <button class="imaging-btn-secondary" onclick="closeScheduleAppointmentModal()">Cancel</button>
+                    <button class="imaging-btn-primary" onclick="submitTelemedicineAppointment()">Schedule Appointment</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Call Modal -->
+        <div class="modal" id="videoCallModal" style="display: none;">
+            <div class="video-call-container">
+                <div class="video-call-header">
+                    <div>
+                        <h3 id="videoCallPatientName">Patient Name</h3>
+                        <span id="videoCallStatus" class="call-status">Connecting...</span>
+                    </div>
+                    <button class="video-close-btn" onclick="endVideoCall()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="video-call-body">
+                    <div class="video-main">
+                        <video id="remoteVideo" autoplay playsinline class="remote-video"></video>
+                        <video id="localVideo" autoplay playsinline muted class="local-video"></video>
+                    </div>
+                    
+                    <!-- Chat Panel -->
+                    <div id="videoChatPanel" class="video-chat-panel" style="display: none;">
+                        <div class="video-chat-header">
+                            <h4>Chat</h4>
+                            <button onclick="toggleVideoChat()" style="background: none; border: none; color: var(--text-primary); cursor: pointer;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="videoChatMessages" class="video-chat-messages"></div>
+                        <div class="video-chat-input-container">
+                            <input type="text" id="videoChatInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendVideoChatMessage()">
+                            <button onclick="sendVideoChatMessage()"><i class="fas fa-paper-plane"></i></button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="video-call-controls">
+                    <button id="toggleVideoBtn" class="control-btn" onclick="toggleVideo()" title="Toggle Video">
+                        <i class="fas fa-video"></i>
+                    </button>
+                    <button id="toggleAudioBtn" class="control-btn" onclick="toggleAudio()" title="Toggle Audio">
+                        <i class="fas fa-microphone"></i>
+                    </button>
+                    <button class="control-btn" onclick="toggleVideoChat()" title="Chat">
+                        <i class="fas fa-comments"></i>
+                    </button>
+                    <button class="control-btn end-call-btn" onclick="endVideoCall()" title="End Call">
+                        <i class="fas fa-phone-slash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Consultation Chat Modal -->
+        <div class="modal" id="consultationChatModal" style="display: none;">
+            <div class="modal-overlay" onclick="closeConsultationChat()"></div>
+            <div class="modal-content imaging-modal" style="max-width: 500px; height: 600px; display: flex; flex-direction: column;">
+                <div class="imaging-modal-header">
+                    <div>
+                        <h2><i class="fas fa-comments"></i> Consultation Chat</h2>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                            <span id="chatPatientName">Patient Name</span> • <span id="chatPatientNumber">P-000</span>
+                        </div>
+                    </div>
+                    <button class="imaging-modal-close" onclick="closeConsultationChat()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="consultationChatMessages" class="consultation-chat-messages"></div>
+                <div class="consultation-chat-input-container">
+                    <input type="text" id="consultationChatInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendConsultationMessage()">
+                    <button onclick="sendConsultationMessage()"><i class="fas fa-paper-plane"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- View Appointment Details Modal -->
+        <div class="modal" id="viewAppointmentModal" style="display: none;">
+            <div class="modal-overlay" onclick="closeAppointmentDetailsModal()"></div>
+            <div class="modal-content imaging-modal">
+                <div class="imaging-modal-header">
+                    <h2>Appointment Details</h2>
+                    <button class="imaging-modal-close" onclick="closeAppointmentDetailsModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="imaging-modal-body">
+                    <div class="imaging-details-grid">
+                        <div class="imaging-detail-item">
+                            <label>Appointment ID</label>
+                            <span id="viewAppointmentId">-</span>
+                        </div>
+                        <div class="imaging-detail-item">
+                            <label>Patient</label>
+                            <span id="viewAppointmentPatient">-</span>
+                        </div>
+                        <div class="imaging-detail-item">
+                            <label>Patient No.</label>
+                            <span id="viewAppointmentNumber">-</span>
+                        </div>
+                        <div class="imaging-detail-item">
+                            <label>Type</label>
+                            <span id="viewAppointmentType">-</span>
+                        </div>
+                        <div class="imaging-detail-item">
+                            <label>Doctor</label>
+                            <span id="viewAppointmentDoctor">-</span>
+                        </div>
+                        <div class="imaging-detail-item">
+                            <label>Status</label>
+                            <span id="viewAppointmentStatus">-</span>
+                        </div>
+                        <div class="imaging-detail-item" style="grid-column: 1 / -1;">
+                            <label>Scheduled Date & Time</label>
+                            <span id="viewAppointmentDate">-</span>
+                        </div>
+                        <div class="imaging-detail-item" style="grid-column: 1 / -1;">
+                            <label><i class="fas fa-link"></i> Patient Consultation Link</label>
+                            <span id="viewAppointmentLink">-</span>
+                        </div>
+                        <div class="imaging-detail-item" style="grid-column: 1 / -1;">
+                            <label>Notes</label>
+                            <span id="viewAppointmentNotes">-</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="imaging-modal-footer">
+                    <button class="imaging-btn-secondary" onclick="closeAppointmentDetailsModal()">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Doctor Note Modal -->
+        <div class="modal" id="doctorNoteModal" style="display: none;">
+            <div class="modal-overlay" onclick="closeDoctorNoteModal()"></div>
+            <div class="modal-content imaging-modal" style="max-width: 600px;">
+                <div class="imaging-modal-header">
+                    <h2><i class="fas fa-notes-medical"></i> Doctor's Note</h2>
+                    <button class="imaging-modal-close" onclick="closeDoctorNoteModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="imaging-modal-body">
+                    <div class="imaging-form-group">
+                        <label><i class="fas fa-user-injured"></i> Patient Information</label>
+                        <div style="padding: 16px; background: var(--bg-color); border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--border-color);">
+                            <div id="notePatientName">Loading patient details...</div>
+                            <div id="notePatientNumber"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="imaging-form-group">
+                        <label>Doctor's Note <span style="color: #e74c3c;">*</span></label>
+                        <textarea id="doctorNoteText" rows="8" placeholder="Enter consultation notes, observations, diagnosis, treatment plan, recommendations..." style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-color); color: var(--text-primary); font-size: 14px; font-family: inherit; resize: vertical;"></textarea>
+                    </div>
+
+                    <div id="existingNotesSection" style="margin-top: 20px; display: none;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600; color: var(--text-primary);"><i class="fas fa-history"></i> Previous Notes</label>
+                        <div id="existingNotesList" style="max-height: 250px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+                <div class="imaging-modal-footer">
+                    <button class="imaging-btn-secondary" onclick="closeDoctorNoteModal()">Cancel</button>
+                    <button class="imaging-btn-primary" onclick="saveDoctorNote()">
+                        <i class="fas fa-save"></i> Save Note
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Consultation Link Modal -->
+        <div class="modal" id="consultationLinkModal" style="display: none;">
+            <div class="modal-overlay" onclick="closeConsultationLinkModal()"></div>
+            <div class="modal-content imaging-modal" style="max-width: 700px;">
+                <div class="imaging-modal-header">
+                    <h2><i class="fas fa-link"></i> Patient Consultation Link</h2>
+                    <button class="imaging-modal-close" onclick="closeConsultationLinkModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="imaging-modal-body">
+                    <div style="text-align: center; padding: 20px 0;">
+                        <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #27ae60, #2ecc71); border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-check" style="font-size: 40px; color: white;"></i>
+                        </div>
+                        <h3 style="color: var(--text-primary); margin-bottom: 10px; font-size: 22px;">Appointment Scheduled Successfully!</h3>
+                        <p style="color: var(--text-secondary); font-size: 14px;">Share the consultation link with the patient</p>
+                    </div>
+
+                    <div class="imaging-form-group">
+                        <label><i class="fas fa-user-injured"></i> Patient Information</label>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 16px; background: var(--bg-color); border-radius: 8px; margin-bottom: 20px;">
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Patient Name</div>
+                                <div style="font-weight: 600; color: var(--text-primary); font-size: 14px;" id="linkModalPatientName">-</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Patient Number</div>
+                                <div style="font-weight: 600; color: var(--text-primary); font-size: 14px;" id="linkModalPatientNumber">-</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Phone Number</div>
+                                <div style="font-weight: 600; color: var(--text-primary); font-size: 14px;" id="linkModalPatientPhone">-</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Scheduled Time</div>
+                                <div style="font-weight: 600; color: var(--text-primary); font-size: 14px;" id="linkModalScheduledTime">-</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="imaging-form-group">
+                        <label><i class="fas fa-link"></i> Consultation Link</label>
+                        <div style="display: flex; gap: 10px; align-items: center; padding: 12px; background: #e8f5e9; border: 2px solid #27ae60; border-radius: 8px; margin-bottom: 16px;">
+                            <input type="text" id="consultationLinkInput" readonly 
+                                style="flex: 1; padding: 10px 14px; border: 1px solid #c8e6c9; border-radius: 6px; background: white; color: var(--text-primary); font-size: 13px; font-family: monospace;">
+                            <button onclick="copyLinkFromModal()" 
+                                style="padding: 10px 20px; background: var(--primary-color); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; white-space: nowrap; transition: all 0.2s ease;"
+                                onmouseover="this.style.background='#2874a6'"
+                                onmouseout="this.style.background='var(--primary-color)'">
+                                <i class="fas fa-copy"></i> Copy Link
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px 16px; border-radius: 6px; margin-bottom: 20px;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                            <i class="fas fa-info-circle" style="color: #f39c12; font-size: 18px;"></i>
+                            <strong style="color: #856404; font-size: 14px;">Important Information</strong>
+                        </div>
+                        <ul style="margin: 0; padding-left: 20px; color: #856404; font-size: 13px; line-height: 1.6;">
+                            <li>Share this link with the patient via WhatsApp, SMS, or Email</li>
+                            <li>The patient can join the video consultation using this link</li>
+                            <li>Link is valid until the consultation is completed</li>
+                            <li>Patient will need camera and microphone permissions</li>
+                        </ul>
+                    </div>
+
+                    <div class="imaging-form-group">
+                        <label><i class="fas fa-share-alt"></i> Share Options</label>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                            <button onclick="shareViaWhatsApp()" 
+                                style="padding: 12px; background: #25D366; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s ease;"
+                                onmouseover="this.style.background='#128C7E'"
+                                onmouseout="this.style.background='#25D366'">
+                                <i class="fab fa-whatsapp" style="font-size: 18px;"></i>
+                                WhatsApp
+                            </button>
+                            <button onclick="shareViaSMS()" 
+                                style="padding: 12px; background: #0088cc; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s ease;"
+                                onmouseover="this.style.background='#006699'"
+                                onmouseout="this.style.background='#0088cc'">
+                                <i class="fas fa-sms" style="font-size: 18px;"></i>
+                                SMS
+                            </button>
+                            <button onclick="shareViaEmail()" 
+                                style="padding: 12px; background: #ea4335; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s ease;"
+                                onmouseover="this.style.background='#c5221f'"
+                                onmouseout="this.style.background='#ea4335'">
+                                <i class="fas fa-envelope" style="font-size: 18px;"></i>
+                                Email
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="imaging-modal-footer">
+                    <button class="imaging-btn-primary" onclick="closeConsultationLinkModal()" style="width: 100%;">
+                        <i class="fas fa-check"></i> Done
+                    </button>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Consultation History Modal -->
@@ -9024,6 +9472,7 @@
     <script type="module" src="js/billing.js"></script>
     <script type="module" src="js/ward-nursing.js"></script>
     <script type="module" src="js/imaging.js"></script>
+    <script type="module" src="js/telemedicine.js"></script>
     <script src="js/expense.js"></script>
     <script src="js/inventory.js"></script>
     <script src="js/app.js"></script>
@@ -9033,6 +9482,7 @@
         import { initBillingModule, initViewBillsModule } from './js/billing.js';
         import { initWardNursingModule } from './js/ward-nursing.js';
         import { initImagingModule } from './js/imaging.js';
+        import { initTelemedicineModule } from './js/telemedicine.js';
         
         // Initialize when modules are shown
         document.addEventListener('DOMContentLoaded', () => {
@@ -9054,6 +9504,7 @@
                         const billingViewModule = document.getElementById('billing-view-module');
                         const wardNursingModule = document.getElementById('ward-nursing-module');
                         const imagingModule = document.getElementById('imaging-module');
+                        const telemedicineModule = document.getElementById('telemedicine-module');
                         
                         if (billingModule && billingModule.classList.contains('active')) {
                             initBillingModule();
@@ -9071,6 +9522,11 @@
                         if (imagingModule && imagingModule.classList.contains('active')) {
                             console.log('🔬 Imaging module activated - initializing...');
                             initImagingModule();
+                        }
+                        
+                        if (telemedicineModule && telemedicineModule.classList.contains('active')) {
+                            console.log('🎥 Telemedicine module activated - initializing...');
+                            initTelemedicineModule();
                         }
                     }
                 });
