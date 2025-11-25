@@ -13,9 +13,11 @@
  */
 
 import { db, storage, auth } from './firebase-config.js';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+let profilePhotoListener = null;
 
 // Get current user info
 function getCurrentUser() {
@@ -833,9 +835,83 @@ if (document.readyState === 'loading') {
     initProfileSettings();
 }
 
+// Sync profile photo from Firestore on app load (runs independently)
+async function syncProfilePhotoOnLoad() {
+    try {
+        const user = getCurrentUser();
+        if (!user.uid) return;
+        
+        console.log('🔄 Syncing profile photo from Firestore...');
+        
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+            const photoURL = userDoc.data().photoURL;
+            if (photoURL && photoURL !== 'https://via.placeholder.com/150') {
+                console.log('✅ Profile photo synced from Firestore:', photoURL);
+                updateTopBarPhoto(photoURL);
+            }
+        }
+        
+        // Setup real-time listener for profile photo changes
+        setupProfilePhotoListener();
+    } catch (error) {
+        console.log('⚠️ Could not sync profile photo:', error.message);
+    }
+}
+
+// Setup real-time listener for profile photo changes (syncs across tabs/devices)
+function setupProfilePhotoListener() {
+    try {
+        const user = getCurrentUser();
+        if (!user.uid) return;
+        
+        // Unsubscribe from previous listener if exists
+        if (profilePhotoListener) {
+            profilePhotoListener();
+        }
+        
+        console.log('👁️ Setting up real-time profile photo listener...');
+        
+        const userDocRef = doc(db, 'users', user.uid);
+        profilePhotoListener = onSnapshot(userDocRef, (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                const data = docSnapshot.data();
+                const photoURL = data.photoURL;
+                
+                if (photoURL) {
+                    const currentPhotoURL = localStorage.getItem('userPhotoURL') || sessionStorage.getItem('userPhotoURL');
+                    
+                    // Only update if photo has changed
+                    if (photoURL !== currentPhotoURL) {
+                        console.log('🔔 Profile photo changed! Updating...', photoURL);
+                        updateTopBarPhoto(photoURL);
+                        
+                        // Also update preview if on settings page
+                        const previewImg = document.getElementById('profilePhotoPreview');
+                        if (previewImg) {
+                            previewImg.src = photoURL;
+                        }
+                    }
+                }
+            }
+        }, (error) => {
+            console.error('❌ Error in profile photo listener:', error);
+        });
+        
+        console.log('✅ Real-time profile photo listener active');
+    } catch (error) {
+        console.error('❌ Failed to setup profile photo listener:', error);
+    }
+}
+
+
+// Run photo sync after a short delay to allow Firebase to initialize
+setTimeout(syncProfilePhotoOnLoad, 1500);
+
 // Export functions for use by other modules
-export { initProfileSettings, loadUserProfile, applyTheme, savePreferencesToFirebase };
+export { initProfileSettings, loadUserProfile, applyTheme, savePreferencesToFirebase, syncProfilePhotoOnLoad };
 
 // Make functions available globally for backward compatibility
 window.savePreferencesToFirebase = savePreferencesToFirebase;
 window.applyTheme = applyTheme;
+window.syncProfilePhotoOnLoad = syncProfilePhotoOnLoad;
