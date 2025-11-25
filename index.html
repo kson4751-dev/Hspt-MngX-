@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     
     <style>
         /* Hide everything until authenticated */
@@ -17,6 +18,229 @@
         }
         body.authenticated {
             display: block !important;
+        }
+
+        /* Analytics & Charts Styles */
+        .analytics-tab-content {
+            display: none;
+        }
+        .analytics-tab-content.active {
+            display: block;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 24px;
+            margin-top: 24px;
+        }
+
+        .chart-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .chart-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .chart-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .chart-header i {
+            margin-right: 8px;
+            color: var(--primary-color);
+        }
+
+        .chart-select {
+            padding: 6px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chart-select:hover {
+            border-color: var(--primary-color);
+        }
+
+        .chart-badge {
+            padding: 4px 10px;
+            background: var(--success-color);
+            color: white;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            animation: pulse 2s infinite;
+        }
+
+        .chart-badge.live {
+            background: #ef4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+
+        .chart-container canvas {
+            max-height: 100%;
+        }
+
+        @media (max-width: 1200px) {
+            .charts-grid {
+                grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .chart-container {
+                height: 250px;
+            }
+        }
+
+        /* Reports Table Styling */
+        .report-content {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid var(--primary-color);
+        }
+
+        .report-logo h2 {
+            font-size: 24px;
+            color: var(--primary-color);
+            margin: 0 0 5px 0;
+        }
+
+        .report-logo p {
+            font-size: 18px;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
+        .report-meta {
+            text-align: right;
+        }
+
+        .report-meta p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .report-filters {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: var(--bg-primary);
+        }
+
+        .data-table thead {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+
+        .data-table thead th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .data-table tbody tr {
+            border-bottom: 1px solid var(--border-color);
+            transition: background-color 0.2s;
+        }
+
+        .data-table tbody tr:hover {
+            background-color: rgba(59, 130, 246, 0.05);
+        }
+
+        .data-table tbody td {
+            padding: 12px 15px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .data-table tbody tr:last-child {
+            border-bottom: none;
+        }
+
+        @media print {
+            .module-header,
+            .admin-tabs,
+            .dashboard-actions,
+            .sidebar,
+            .top-bar {
+                display: none !important;
+            }
+
+            .report-content {
+                box-shadow: none;
+                padding: 0;
+            }
+
+            .data-table {
+                font-size: 11px;
+            }
+
+            .data-table thead {
+                background: #3b82f6 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
         }
     </style>
     
@@ -6141,16 +6365,185 @@
             <div class="module-header">
                 <div style="flex: 1;">
                     <h1 class="module-title">
-                        <i class="fas fa-chart-bar"></i>
-                        Reports & Analytics
+                        <i class="fas fa-chart-line"></i>
+                        Real-Time Analytics & Reports
                     </h1>
-                    <p class="module-description">Comprehensive hospital reports with real-time data export capabilities</p>
+                    <p class="module-description">Live hospital analytics with interactive charts and comprehensive reports</p>
+                </div>
+                <div class="dashboard-actions">
+                    <button class="btn btn-primary" onclick="refreshAnalytics()" id="refreshAnalyticsBtn">
+                        <i class="fas fa-sync-alt"></i>
+                        Refresh Analytics
+                    </button>
                 </div>
             </div>
 
             <div class="module-content">
-                <!-- Report Type Selection -->
-                <div class="report-filters">
+                <!-- Analytics Tabs -->
+                <div class="admin-tabs" style="margin-bottom: 30px;">
+                    <button class="admin-tab active" data-analytics-tab="dashboard">
+                        <i class="fas fa-chart-area"></i> Analytics Dashboard
+                    </button>
+                    <button class="admin-tab" data-analytics-tab="reports">
+                        <i class="fas fa-file-alt"></i> Detailed Reports
+                    </button>
+                </div>
+
+                <!-- Analytics Dashboard Tab -->
+                <div class="analytics-tab-content active" id="analytics-dashboard-tab">
+                    <!-- Real-Time Stats Overview -->
+                    <div class="stats-grid" style="margin-bottom: 30px;">
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">Total Patients</span>
+                                <span class="stat-value" id="analyticsPatientCount">0</span>
+                                <span class="stat-change positive"><i class="fas fa-arrow-up"></i> <span id="analyticsPatientGrowth">0%</span> vs last month</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                                <i class="fas fa-calendar-check"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">Today's Visits</span>
+                                <span class="stat-value" id="analyticsTodayVisits">0</span>
+                                <span class="stat-change neutral"><i class="fas fa-clock"></i> Last 24 hours</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">Revenue (Today)</span>
+                                <span class="stat-value" id="analyticsRevenue">$0</span>
+                                <span class="stat-change positive"><i class="fas fa-chart-line"></i> Real-time</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+                                <i class="fas fa-ambulance"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">Active Emergencies</span>
+                                <span class="stat-value" id="analyticsEmergencies">0</span>
+                                <span class="stat-change negative"><i class="fas fa-exclamation-triangle"></i> Critical</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Grid -->
+                    <div class="charts-grid">
+                        <!-- Patient Admissions Line Chart -->
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3><i class="fas fa-chart-line"></i> Patient Admissions Trend</h3>
+                                <select id="admissionsTimeRange" class="chart-select" onchange="updateAdmissionsChart()">
+                                    <option value="7">Last 7 Days</option>
+                                    <option value="14">Last 14 Days</option>
+                                    <option value="30" selected>Last 30 Days</option>
+                                    <option value="90">Last 3 Months</option>
+                                </select>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="admissionsChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Department Distribution Pie Chart -->
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3><i class="fas fa-chart-pie"></i> Patients by Department</h3>
+                                <span class="chart-badge" id="departmentChartBadge">Live</span>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="departmentChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Revenue Bar Chart -->
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3><i class="fas fa-chart-bar"></i> Revenue by Service</h3>
+                                <select id="revenueTimeRange" class="chart-select" onchange="updateRevenueChart()">
+                                    <option value="today">Today</option>
+                                    <option value="week" selected>This Week</option>
+                                    <option value="month">This Month</option>
+                                </select>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="revenueChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Emergency Cases Doughnut Chart -->
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3><i class="fas fa-chart-pie"></i> Emergency Cases by Severity</h3>
+                                <span class="chart-badge live" id="emergencyChartBadge">Live</span>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="emergencyChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Lab Tests Status Bar Chart -->
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3><i class="fas fa-chart-bar"></i> Laboratory Tests Status</h3>
+                                <span class="chart-badge" id="labChartBadge">Live</span>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="labTestsChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Pharmacy Sales Line Chart -->
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3><i class="fas fa-chart-line"></i> Pharmacy Sales Trend</h3>
+                                <select id="pharmacyTimeRange" class="chart-select" onchange="updatePharmacyChart()">
+                                    <option value="7">Last 7 Days</option>
+                                    <option value="30" selected>Last 30 Days</option>
+                                    <option value="90">Last 3 Months</option>
+                                </select>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="pharmacyChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Ward Occupancy Gauge Chart -->
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3><i class="fas fa-bed"></i> Ward Bed Occupancy</h3>
+                                <span class="chart-badge live" id="wardChartBadge">Live</span>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="wardOccupancyChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Active Sessions Area Chart -->
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3><i class="fas fa-user-clock"></i> Staff Activity (24h)</h3>
+                                <span class="chart-badge live" id="sessionsChartBadge">Live</span>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="sessionsChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Reports Tab -->
+                <div class="analytics-tab-content" id="analytics-reports-tab">
+                    <!-- Report Type Selection -->
+                    <div class="report-filters">
                     <div class="form-row">
                         <div class="form-group">
                             <label for="reportType">Report Type</label>
@@ -6161,7 +6554,12 @@
                                 <option value="ward">Ward Admissions Report</option>
                                 <option value="pharmacy">Pharmacy Sales Report</option>
                                 <option value="lab">Laboratory Tests Report</option>
+                                <option value="imaging">Imaging & Radiology Report</option>
+                                <option value="telemedicine">Telemedicine Consultations Report</option>
                                 <option value="billing">Billing & Revenue Report</option>
+                                <option value="inventory">Pharmacy Inventory Report</option>
+                                <option value="expenses">Hospital Expenses Report</option>
+                                <option value="staff">Staff Performance Report</option>
                                 <option value="activities">System Activities Report</option>
                             </select>
                         </div>
@@ -6267,11 +6665,12 @@
                     </div>
                 </div>
 
-                <!-- Empty State -->
-                <div class="empty-state" id="reportEmptyState">
-                    <i class="fas fa-chart-bar" style="font-size: 64px; color: var(--text-secondary); margin-bottom: 20px;"></i>
-                    <h3>No Report Generated</h3>
-                    <p>Select a report type and date range, then click "Generate Report" to view data.</p>
+                    <!-- Empty State -->
+                    <div class="empty-state" id="reportEmptyState">
+                        <i class="fas fa-chart-bar" style="font-size: 64px; color: var(--text-secondary); margin-bottom: 20px;"></i>
+                        <h3>No Report Generated</h3>
+                        <p>Select a report type and date range, then click "Generate Report" to view data.</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -10055,6 +10454,8 @@
     <script type="module" src="js/messages.js"></script>
     <script type="module" src="js/profile-settings.js"></script>
     <script type="module" src="js/admin.js"></script>
+    <script type="module" src="js/admin-sessions.js"></script>
+    <!-- Analytics.js loaded lazily when Reports module is opened -->
     <script type="module" src="js/pharmacy-inventory.js"></script>
     <script type="module" src="js/pharmacy-pos.js"></script>
     <script type="module" src="js/pharmacy-sales.js"></script>
@@ -10073,6 +10474,9 @@
         import { initWardNursingModule } from './js/ward-nursing.js';
         import { initImagingModule } from './js/imaging.js';
         import { initTelemedicineModule } from './js/telemedicine.js';
+        import { setupActiveSessions, loadActiveSessions, loadRecentLogins, loadDepartmentActivity } from './js/admin-sessions.js';
+        import { initAdminModule } from './js/admin.js';
+        // Analytics module loaded lazily via app.js when Reports module opens
         
         // Initialize when modules are shown
         document.addEventListener('DOMContentLoaded', () => {
@@ -10086,6 +10490,16 @@
                 console.error('❌ Error initializing ward module:', error);
             }
             
+            // Initialize admin module immediately on page load
+            try {
+                initAdminModule();
+                console.log('✅ Admin module initialized on page load');
+            } catch (error) {
+                console.error('❌ Error initializing admin module:', error);
+            }
+            
+            // Analytics module loads lazily when user opens Reports module (see app.js)
+            
             // Watch for module changes
             const observer = new MutationObserver((mutations) => {
                 mutations.forEach((mutation) => {
@@ -10095,6 +10509,8 @@
                         const wardNursingModule = document.getElementById('ward-nursing-module');
                         const imagingModule = document.getElementById('imaging-module');
                         const telemedicineModule = document.getElementById('telemedicine-module');
+                        const adminModule = document.getElementById('admin-module');
+                        const reportsModule = document.getElementById('reports-module');
                         
                         if (billingModule && billingModule.classList.contains('active')) {
                             initBillingModule();
@@ -10117,6 +10533,16 @@
                         if (telemedicineModule && telemedicineModule.classList.contains('active')) {
                             console.log('🎥 Telemedicine module activated - initializing...');
                             initTelemedicineModule();
+                        }
+                        
+                        if (adminModule && adminModule.classList.contains('active')) {
+                            console.log('👤 Admin module activated - re-initializing...');
+                            initAdminModule();
+                        }
+                        
+                        // Reports module analytics loaded lazily via app.js navigateToModule()
+                        if (reportsModule && reportsModule.classList.contains('active')) {
+                            console.log('📊 Reports module activated (analytics loaded via app.js)...');
                         }
                     }
                 });

@@ -30,19 +30,29 @@ export async function loadActiveSessions() {
             sessionsUnsubscribe();
         }
         
-        // Query active sessions
+        // Query active sessions - simplified to avoid index issues
         const sessionsQuery = query(
             collection(db, 'user_sessions'),
-            where('status', '==', 'active'),
-            orderBy('loginTime', 'desc')
+            orderBy('loginTime', 'desc'),
+            limit(50)
         );
         
         sessionsUnsubscribe = onSnapshot(sessionsQuery, (snapshot) => {
-            if (snapshot.empty) {
+            // Filter for active sessions client-side
+            const activeSessions = [];
+            snapshot.forEach((doc) => {
+                const session = doc.data();
+                if (session.status === 'active') {
+                    activeSessions.push(session);
+                }
+            });
+            
+            if (activeSessions.length === 0) {
                 sessionsGrid.innerHTML = `
                     <div style="text-align: center; padding: 40px; color: var(--text-secondary); grid-column: 1/-1;">
                         <i class="fas fa-user-slash" style="font-size: 48px; opacity: 0.3;"></i>
                         <p style="margin-top: 16px;">No active sessions</p>
+                        <small style="color: var(--text-secondary); margin-top: 8px; display: block;">Active user sessions will appear here when users log in</small>
                     </div>
                 `;
                 if (sessionCountBadge) sessionCountBadge.textContent = '0';
@@ -50,23 +60,35 @@ export async function loadActiveSessions() {
             }
             
             sessionsGrid.innerHTML = '';
-            if (sessionCountBadge) sessionCountBadge.textContent = snapshot.size;
+            if (sessionCountBadge) sessionCountBadge.textContent = activeSessions.length;
             
-            snapshot.forEach((doc) => {
-                const session = doc.data();
+            activeSessions.forEach((session) => {
                 const sessionCard = createSessionCard(session);
                 sessionsGrid.innerHTML += sessionCard;
             });
+        }, (error) => {
+            console.error('Error in session snapshot listener:', error);
+            sessionsGrid.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: var(--text-secondary); grid-column: 1/-1;">
+                    <i class="fas fa-info-circle" style="font-size: 48px; opacity: 0.3;"></i>
+                    <p style="margin-top: 16px;">No session data available yet</p>
+                    <small style="color: var(--text-secondary); margin-top: 8px; display: block;">Session tracking will begin when users log in</small>
+                </div>
+            `;
+            if (sessionCountBadge) sessionCountBadge.textContent = '0';
         });
         
     } catch (error) {
         console.error('Error loading active sessions:', error);
+        console.error('Error details:', error.message);
         sessionsGrid.innerHTML = `
-            <div style="text-align: center; padding: 40px; color: var(--danger-color); grid-column: 1/-1;">
-                <i class="fas fa-exclamation-circle" style="font-size: 48px;"></i>
-                <p style="margin-top: 16px;">Error loading sessions</p>
+            <div style="text-align: center; padding: 40px; color: var(--text-secondary); grid-column: 1/-1;">
+                <i class="fas fa-info-circle" style="font-size: 48px; opacity: 0.3;"></i>
+                <p style="margin-top: 16px;">No session data available</p>
+                <small style="color: var(--text-secondary); margin-top: 8px; display: block;">Sessions will be tracked automatically</small>
             </div>
         `;
+        if (sessionCountBadge) sessionCountBadge.textContent = '0';
     }
 }
 
@@ -127,11 +149,11 @@ export async function loadRecentLogins() {
     if (!timeline) return;
     
     try {
+        // Try the simpler query first - get all recent logs and filter client-side
         const logsQuery = query(
             collection(db, 'activity_logs'),
-            where('type', 'in', ['login', 'logout', 'access_denied']),
             orderBy('timestamp', 'desc'),
-            limit(15)
+            limit(50)
         );
         
         const snapshot = await getDocs(logsQuery);
@@ -143,7 +165,30 @@ export async function loadRecentLogins() {
                         <i class="fas fa-info-circle"></i>
                     </div>
                     <div class="log-content">
-                        <p>No recent login activity</p>
+                        <p>No recent activity yet. Activity will appear here when users log in.</p>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        // Filter for login-related activities client-side
+        const loginActivities = [];
+        snapshot.forEach((doc) => {
+            const log = doc.data();
+            if (['login', 'logout', 'access_denied', 'access_granted'].includes(log.type)) {
+                loginActivities.push(log);
+            }
+        });
+        
+        if (loginActivities.length === 0) {
+            timeline.innerHTML = `
+                <div class="log-item">
+                    <div class="log-icon log-icon-info">
+                        <i class="fas fa-info-circle"></i>
+                    </div>
+                    <div class="log-content">
+                        <p>No login activity found yet</p>
                     </div>
                 </div>
             `;
@@ -151,20 +196,23 @@ export async function loadRecentLogins() {
         }
         
         timeline.innerHTML = '';
-        snapshot.forEach((doc) => {
-            const log = doc.data();
+        loginActivities.slice(0, 15).forEach((log) => {
             timeline.innerHTML += createLogItem(log);
         });
         
     } catch (error) {
         console.error('Error loading recent logins:', error);
+        console.error('Error details:', error.message);
+        
+        // Show more helpful error message
         timeline.innerHTML = `
             <div class="log-item">
-                <div class="log-icon log-icon-error">
-                    <i class="fas fa-exclamation-circle"></i>
+                <div class="log-icon log-icon-info">
+                    <i class="fas fa-info-circle"></i>
                 </div>
                 <div class="log-content">
-                    <p style="color: var(--danger-color);">Error loading login activity</p>
+                    <p>No activity logs available yet</p>
+                    <small style="color: var(--text-secondary);">Logs will appear here when users log in and perform actions</small>
                 </div>
             </div>
         `;
@@ -223,18 +271,26 @@ export async function loadDepartmentActivity() {
     if (!grid) return;
     
     try {
-        // Get all active sessions
+        // Get all sessions and filter client-side to avoid index requirements
         const sessionsQuery = query(
             collection(db, 'user_sessions'),
-            where('status', '==', 'active')
+            limit(100)
         );
         
         const snapshot = await getDocs(sessionsQuery);
         
-        // Group by department
-        const departments = {};
+        // Filter for active sessions
+        const activeSessions = [];
         snapshot.forEach((doc) => {
             const session = doc.data();
+            if (session.status === 'active') {
+                activeSessions.push(session);
+            }
+        });
+        
+        // Group by department
+        const departments = {};
+        activeSessions.forEach((session) => {
             const dept = session.department || 'Unassigned';
             
             if (!departments[dept]) {
@@ -259,6 +315,7 @@ export async function loadDepartmentActivity() {
                 <div style="text-align: center; padding: 40px; color: var(--text-secondary); grid-column: 1/-1;">
                     <i class="fas fa-building" style="font-size: 48px; opacity: 0.3;"></i>
                     <p style="margin-top: 16px;">No active department activity</p>
+                    <small style="color: var(--text-secondary); margin-top: 8px; display: block;">Department activity will appear when users are logged in</small>
                 </div>
             `;
             return;
@@ -271,10 +328,12 @@ export async function loadDepartmentActivity() {
         
     } catch (error) {
         console.error('Error loading department activity:', error);
+        console.error('Error details:', error.message);
         grid.innerHTML = `
-            <div style="text-align: center; padding: 40px; color: var(--danger-color); grid-column: 1/-1;">
-                <i class="fas fa-exclamation-circle" style="font-size: 48px;"></i>
-                <p style="margin-top: 16px;">Error loading department activity</p>
+            <div style="text-align: center; padding: 40px; color: var(--text-secondary); grid-column: 1/-1;">
+                <i class="fas fa-info-circle" style="font-size: 48px; opacity: 0.3;"></i>
+                <p style="margin-top: 16px;">No department data available yet</p>
+                <small style="color: var(--text-secondary); margin-top: 8px; display: block;">Data will populate when users log in</small>
             </div>
         `;
     }

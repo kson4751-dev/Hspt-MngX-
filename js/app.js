@@ -828,6 +828,24 @@ function animateNumber(element) {
     }, 300);
 }
 
+// Lazy load analytics module when needed
+let analyticsModuleLoaded = false;
+async function initializeAnalyticsWhenNeeded() {
+    if (!analyticsModuleLoaded) {
+        console.log('📊 Lazy loading analytics module...');
+        try {
+            const analyticsModule = await import('./analytics.js');
+            if (analyticsModule && analyticsModule.initAnalyticsModule) {
+                analyticsModule.initAnalyticsModule();
+                analyticsModuleLoaded = true;
+                console.log('✅ Analytics module loaded successfully');
+            }
+        } catch (error) {
+            console.error('❌ Error loading analytics module:', error);
+        }
+    }
+}
+
 // Setup real-time listeners
 function setupDashboardRealTimeListeners() {
     // Refresh dashboard every 30 seconds for real-time feel
@@ -896,6 +914,9 @@ function navigateToModule(module, submodule = null) {
                 navigateToAllActivitiesModule();
             } else if (module === 'emergency') {
                 initializeEmergencyModule();
+            } else if (module === 'reports') {
+                // Lazy load analytics when reports module is opened
+                initializeAnalyticsWhenNeeded();
             }
         }
     }

@@ -10392,20 +10392,21 @@ body.dark-theme .medication-item {
 }
 
 .search-box-container .form-input {
-    padding: 16px 52px 16px 20px;
+    padding: 16px 20px 16px 48px;
     font-size: 14px;
     border-radius: 12px;
     border: 2px solid var(--border-color);
     background: var(--bg-color);
     transition: all 0.3s ease;
     width: 100%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .search-box-container .form-input:focus {
     border-color: var(--primary-color);
     background: var(--sidebar-bg);
-    box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.1);
-    padding-left: 20px;
+    box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.1), 0 4px 12px rgba(0, 0, 0, 0.08);
+    outline: none;
 }
 
 .search-box-container .form-input::placeholder {
@@ -10415,18 +10416,19 @@ body.dark-theme .medication-item {
 
 .search-box-container .search-icon {
     position: absolute;
-    right: 18px;
+    left: 18px;
     top: 50%;
     transform: translateY(-50%);
     color: var(--text-secondary);
     pointer-events: none;
-    font-size: 15px;
+    font-size: 16px;
     transition: all 0.3s ease;
+    z-index: 1;
 }
 
 .search-box-container .form-input:focus ~ .search-icon {
     color: var(--primary-color);
-    transform: translateY(-50%) scale(1.1);
+    transform: translateY(-50%) scale(1.05);
 }
 
 .pos-search-results {
@@ -11269,7 +11271,8 @@ body.dark-theme .medication-item {
     }
     
     .search-box-container .form-input {
-        padding: 14px 48px 14px 16px;
+        padding: 14px 16px 14px 44px;
+        font-size: 13px;
     }
     
     .pos-search-results {
@@ -16056,4 +16059,283 @@ body.dark-theme .data-table tbody td[colspan] small,
 body.theme-dark .data-table tbody td[colspan] small {
     color: #64748b;
 }
+
+/* ========================================
+   Lab Reports Module - Dark Theme Support
+   ======================================== */
+
+/* Lab Reports Module Header */
+body.dark-theme #lab-reports-module .module-header,
+body.theme-dark #lab-reports-module .module-header {
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+body.dark-theme #lab-reports-module .module-title,
+body.theme-dark #lab-reports-module .module-title {
+    color: var(--text-primary);
+}
+
+body.dark-theme #lab-reports-module .module-description,
+body.theme-dark #lab-reports-module .module-description {
+    color: var(--text-secondary);
+}
+
+/* Lab Reports Stats Cards */
+body.dark-theme #lab-reports-module .stat-card,
+body.theme-dark #lab-reports-module .stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+}
+
+body.dark-theme #lab-reports-module .stat-label,
+body.theme-dark #lab-reports-module .stat-label {
+    color: var(--text-secondary);
+}
+
+body.dark-theme #lab-reports-module .stat-value,
+body.theme-dark #lab-reports-module .stat-value {
+    color: var(--text-primary);
+}
+
+/* Lab Reports Alert Box */
+body.dark-theme #newLabReportsAlert > div,
+body.theme-dark #newLabReportsAlert > div {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.25) 0%, rgba(118, 75, 162, 0.25) 100%) !important;
+    border: 1px solid rgba(102, 126, 234, 0.3);
+}
+
+body.dark-theme #newLabReportsAlert h3,
+body.theme-dark #newLabReportsAlert h3 {
+    color: #a5b4fc !important;
+}
+
+body.dark-theme #newLabReportsAlert p,
+body.theme-dark #newLabReportsAlert p {
+    color: #cbd5e1 !important;
+}
+
+body.dark-theme #newLabReportsAlert .btn-light,
+body.theme-dark #newLabReportsAlert .btn-light {
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: #e0e7ff !important;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+body.dark-theme #newLabReportsAlert .btn-light:hover,
+body.theme-dark #newLabReportsAlert .btn-light:hover {
+    background: rgba(255, 255, 255, 0.25) !important;
+}
+
+/* Lab Reports Section Header */
+body.dark-theme #lab-reports-module .section-header,
+body.theme-dark #lab-reports-module .section-header {
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 16px;
+}
+
+body.dark-theme #lab-reports-module .section-title,
+body.theme-dark #lab-reports-module .section-title {
+    color: var(--text-primary);
+}
+
+body.dark-theme #lab-reports-module .section-title i,
+body.theme-dark #lab-reports-module .section-title i {
+    color: var(--primary-color);
+}
+
+/* Lab Reports Filters */
+body.dark-theme #lab-reports-module .search-input,
+body.theme-dark #lab-reports-module .search-input {
+    background: var(--input-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+body.dark-theme #lab-reports-module .search-input::placeholder,
+body.theme-dark #lab-reports-module .search-input::placeholder {
+    color: var(--text-secondary);
+}
+
+body.dark-theme #lab-reports-module .search-input:focus,
+body.theme-dark #lab-reports-module .search-input:focus {
+    border-color: var(--primary-color);
+    background: var(--input-bg);
+}
+
+body.dark-theme #lab-reports-module .filter-select,
+body.theme-dark #lab-reports-module .filter-select {
+    background: var(--input-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+body.dark-theme #lab-reports-module .filter-select:focus,
+body.theme-dark #lab-reports-module .filter-select:focus {
+    border-color: var(--primary-color);
+    background: var(--input-bg);
+}
+
+/* Lab Reports Table */
+body.dark-theme #lab-reports-module .records-table-container,
+body.theme-dark #lab-reports-module .records-table-container {
+    background: var(--card-bg);
+}
+
+body.dark-theme #lab-reports-module .data-table,
+body.theme-dark #lab-reports-module .data-table {
+    background: var(--card-bg);
+}
+
+body.dark-theme #lab-reports-module .data-table thead,
+body.theme-dark #lab-reports-module .data-table thead {
+    background: rgba(102, 126, 234, 0.15);
+    border-bottom: 2px solid var(--border-color);
+}
+
+body.dark-theme #lab-reports-module .data-table th,
+body.theme-dark #lab-reports-module .data-table th {
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+body.dark-theme #lab-reports-module .data-table tbody tr,
+body.theme-dark #lab-reports-module .data-table tbody tr {
+    border-bottom: 1px solid var(--border-color);
+}
+
+body.dark-theme #lab-reports-module .data-table tbody tr:hover,
+body.theme-dark #lab-reports-module .data-table tbody tr:hover {
+    background: rgba(102, 126, 234, 0.08);
+}
+
+body.dark-theme #lab-reports-module .data-table td,
+body.theme-dark #lab-reports-module .data-table td {
+    color: var(--text-primary);
+}
+
+/* Lab Reports Status Badges */
+body.dark-theme #lab-reports-module .badge-new,
+body.theme-dark #lab-reports-module .badge-new {
+    background: rgba(102, 126, 234, 0.2);
+    color: #a5b4fc;
+    border: 1px solid rgba(102, 126, 234, 0.3);
+}
+
+body.dark-theme #lab-reports-module .badge-reviewed,
+body.theme-dark #lab-reports-module .badge-reviewed {
+    background: rgba(16, 185, 129, 0.2);
+    color: #6ee7b7;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* Lab Reports Empty State */
+body.dark-theme #lab-reports-module .empty-state,
+body.theme-dark #lab-reports-module .empty-state {
+    color: var(--text-secondary);
+}
+
+body.dark-theme #lab-reports-module .empty-state i,
+body.theme-dark #lab-reports-module .empty-state i {
+    color: var(--text-secondary);
+    opacity: 0.5;
+}
+
+/* Lab Reports Action Buttons */
+body.dark-theme #lab-reports-module .btn-icon,
+body.theme-dark #lab-reports-module .btn-icon {
+    background: var(--input-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+body.dark-theme #lab-reports-module .btn-icon:hover,
+body.theme-dark #lab-reports-module .btn-icon:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+/* Imaging Reports Module - Same styling */
+body.dark-theme #imaging-reports-module .module-header,
+body.theme-dark #imaging-reports-module .module-header {
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+body.dark-theme #imaging-reports-module .stat-card,
+body.theme-dark #imaging-reports-module .stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+}
+
+body.dark-theme #imaging-reports-module .section-header,
+body.theme-dark #imaging-reports-module .section-header {
+    border-bottom: 2px solid var(--border-color);
+}
+
+body.dark-theme #imaging-reports-module .search-input,
+body.dark-theme #imaging-reports-module .filter-select,
+body.theme-dark #imaging-reports-module .search-input,
+body.theme-dark #imaging-reports-module .filter-select {
+    background: var(--input-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+body.dark-theme #imaging-reports-module .data-table,
+body.theme-dark #imaging-reports-module .data-table {
+    background: var(--card-bg);
+}
+
+body.dark-theme #imaging-reports-module .data-table thead,
+body.theme-dark #imaging-reports-module .data-table thead {
+    background: rgba(102, 126, 234, 0.15);
+}
+
+body.dark-theme #imaging-reports-module .data-table tbody tr:hover,
+body.theme-dark #imaging-reports-module .data-table tbody tr:hover {
+    background: rgba(102, 126, 234, 0.08);
+}
+
+body.dark-theme #imaging-reports-module .data-table td,
+body.theme-dark #imaging-reports-module .data-table td {
+    color: var(--text-primary);
+}
+
+/* ========================================
+   Pharmacy POS - Dark Theme Support
+   ======================================== */
+
+/* POS Search Box Dark Theme */
+body.dark-theme .search-box-container .form-input,
+body.theme-dark .search-box-container .form-input {
+    background: var(--input-bg);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+body.dark-theme .search-box-container .form-input:focus,
+body.theme-dark .search-box-container .form-input:focus {
+    background: var(--card-bg);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.15), 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-theme .search-box-container .form-input::placeholder,
+body.theme-dark .search-box-container .form-input::placeholder {
+    color: var(--text-secondary);
+}
+
+body.dark-theme .search-box-container .search-icon,
+body.theme-dark .search-box-container .search-icon {
+    color: var(--text-secondary);
+}
+
+body.dark-theme .search-box-container .form-input:focus ~ .search-icon,
+body.theme-dark .search-box-container .form-input:focus ~ .search-icon {
+    color: var(--primary-color);
+}
+
 
