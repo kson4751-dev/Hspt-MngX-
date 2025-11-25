@@ -1877,6 +1877,11 @@
                                 Lab Reports
                                 <span class="badge" id="labReportsBadge" style="display: none;">0</span>
                             </button>
+                            <button class="btn btn-sm btn-primary" onclick="openImagingReportsModule()" style="position: relative;">
+                                <i class="fas fa-x-ray"></i>
+                                Imaging Reports
+                                <span class="badge" id="imagingReportsBadge" style="display: none;">0</span>
+                            </button>
                             <button class="btn btn-sm btn-primary" onclick="openAllConsultationsModule()">
                                 <i class="fas fa-history"></i>
                                 All Consultations
@@ -2036,6 +2041,120 @@
                                     <div class="empty-state">
                                         <i class="fas fa-flask"></i>
                                         <p>No lab reports available</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Imaging Reports Module -->
+        <div class="module" id="imaging-reports-module">
+            <div class="module-header">
+                <div class="module-header-content">
+                    <div>
+                        <h1 class="module-title">Imaging Reports</h1>
+                        <p class="module-description">View and manage imaging test results and reports</p>
+                    </div>
+                    <button class="btn btn-secondary" onclick="closeImagingReportsModule()" id="imagingReportsBackBtn">
+                        <i class="fas fa-arrow-left"></i>
+                        <span id="imagingReportsBackText">Back</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="module-content">
+                <!-- Stats Grid -->
+                <div class="stats-grid" style="margin-bottom: 30px;">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            <i class="fas fa-x-ray"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">New Reports</span>
+                            <span class="stat-value" id="imagingReportsNewCount">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                            <i class="fas fa-calendar-day"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Today</span>
+                            <span class="stat-value" id="imagingReportsTodayCount">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                            <i class="fas fa-calendar-week"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">This Week</span>
+                            <span class="stat-value" id="imagingReportsWeekCount">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Reviewed</span>
+                            <span class="stat-value" id="imagingReportsReviewedCount">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Imaging Reports Table Section -->
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-x-ray"></i>
+                        Imaging Reports
+                    </h2>
+                    <div class="section-actions imaging-reports-actions">
+                        <input type="search" class="search-input" placeholder="Search patient..." id="imagingReportsSearchInput" oninput="filterImagingReports()">
+                        <select class="form-control filter-select" id="imagingReportsTimeFilter" onchange="filterImagingReports()">
+                            <option value="all">All Time</option>
+                            <option value="today">Today</option>
+                            <option value="yesterday">Yesterday</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                        </select>
+                        <select class="form-control filter-select" id="imagingReportsStatusFilter" onchange="filterImagingReports()">
+                            <option value="">All Reports</option>
+                            <option value="new">New</option>
+                            <option value="reviewed">Reviewed</option>
+                        </select>
+                        <button class="btn btn-sm btn-primary" onclick="refreshImagingReports()">
+                            <i class="fas fa-sync-alt"></i>
+                            <span class="btn-text">Refresh</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="records-table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Report ID</th>
+                                <th>Date Completed</th>
+                                <th>Patient ID</th>
+                                <th>Patient Name</th>
+                                <th>Age</th>
+                                <th>Gender</th>
+                                <th>Imaging Type</th>
+                                <th>Performed By</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="imagingReportsBody">
+                            <tr class="empty-row">
+                                <td colspan="10">
+                                    <div class="empty-state">
+                                        <i class="fas fa-x-ray"></i>
+                                        <p>No imaging reports available</p>
                                     </div>
                                 </td>
                             </tr>
@@ -7961,6 +8080,477 @@
                 <button class="btn btn-primary" onclick="sendToLaboratory()">
                     <i class="fas fa-paper-plane"></i>
                     Send to Laboratory
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Send to Imaging Modal -->
+    <div class="modal" id="sendToImagingModal">
+        <div class="modal-overlay" onclick="closeSendToImagingModal()"></div>
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fas fa-x-ray"></i>
+                    Send to Imaging
+                </h3>
+                <button class="modal-close" onclick="closeSendToImagingModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="imagingPatientRecordId">
+                
+                <!-- Patient Information -->
+                <div class="form-section">
+                    <h4 class="form-section-title">
+                        <i class="fas fa-user"></i>
+                        Patient Information
+                    </h4>
+                    <div class="patient-summary">
+                        <div class="summary-item">
+                            <i class="fas fa-id-card"></i>
+                            <div>
+                                <small>Patient ID</small>
+                                <strong id="imagingPatientId">-</strong>
+                            </div>
+                        </div>
+                        <div class="summary-item">
+                            <i class="fas fa-user"></i>
+                            <div>
+                                <small>Name</small>
+                                <strong id="imagingPatientName">-</strong>
+                            </div>
+                        </div>
+                        <div class="summary-item">
+                            <i class="fas fa-calendar"></i>
+                            <div>
+                                <small>Age/Gender</small>
+                                <strong id="imagingPatientAgeGender">-</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top: 15px;">
+                        <label>Chief Complaint</label>
+                        <div class="info-value" id="imagingPatientComplaint" style="padding: 10px; background: var(--sidebar-bg); border-radius: 6px;">-</div>
+                    </div>
+                </div>
+
+                <!-- Imaging Type Selection -->
+                <div class="form-section">
+                    <h4 class="form-section-title">
+                        <i class="fas fa-x-ray"></i>
+                        Select Imaging Type
+                    </h4>
+                    
+                    <!-- X-Ray -->
+                    <div class="lab-category">
+                        <h5 class="lab-category-title">
+                            <i class="fas fa-x-ray"></i>
+                            X-Ray
+                        </h5>
+                        <div class="lab-tests-grid">
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Chest X-Ray" id="imaging_chest_xray">
+                                <span>Chest X-Ray</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Abdominal X-Ray" id="imaging_abdomen_xray">
+                                <span>Abdominal X-Ray</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Skull X-Ray" id="imaging_skull_xray">
+                                <span>Skull X-Ray</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Spine X-Ray" id="imaging_spine_xray">
+                                <span>Spine X-Ray</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Pelvis X-Ray" id="imaging_pelvis_xray">
+                                <span>Pelvis X-Ray</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Joint X-Ray" id="imaging_joint_xray">
+                                <span>Joint X-Ray (Knee/Shoulder/Hip)</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Hand/Foot X-Ray" id="imaging_extremity_xray">
+                                <span>Hand/Foot X-Ray</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- CT Scan -->
+                    <div class="lab-category">
+                        <h5 class="lab-category-title">
+                            <i class="fas fa-circle-notch"></i>
+                            CT Scan (Computed Tomography)
+                        </h5>
+                        <div class="lab-tests-grid">
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Head CT" id="imaging_head_ct">
+                                <span>Head/Brain CT</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Chest CT" id="imaging_chest_ct">
+                                <span>Chest CT</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Abdomen & Pelvis CT" id="imaging_abdomen_ct">
+                                <span>Abdomen & Pelvis CT</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Spine CT" id="imaging_spine_ct">
+                                <span>Spine CT</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="CT Angiography" id="imaging_cta">
+                                <span>CT Angiography</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- MRI -->
+                    <div class="lab-category">
+                        <h5 class="lab-category-title">
+                            <i class="fas fa-magnet"></i>
+                            MRI (Magnetic Resonance Imaging)
+                        </h5>
+                        <div class="lab-tests-grid">
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Brain MRI" id="imaging_brain_mri">
+                                <span>Brain MRI</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Spine MRI" id="imaging_spine_mri">
+                                <span>Spine MRI</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Joint MRI" id="imaging_joint_mri">
+                                <span>Joint MRI (Knee/Shoulder)</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Abdomen MRI" id="imaging_abdomen_mri">
+                                <span>Abdomen/Pelvis MRI</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Cardiac MRI" id="imaging_cardiac_mri">
+                                <span>Cardiac MRI</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Ultrasound -->
+                    <div class="lab-category">
+                        <h5 class="lab-category-title">
+                            <i class="fas fa-wave-square"></i>
+                            Ultrasound
+                        </h5>
+                        <div class="lab-tests-grid">
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Abdominal Ultrasound" id="imaging_abdomen_us">
+                                <span>Abdominal Ultrasound</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Pelvic Ultrasound" id="imaging_pelvic_us">
+                                <span>Pelvic Ultrasound</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Obstetric Ultrasound" id="imaging_obs_us">
+                                <span>Obstetric Ultrasound</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Thyroid Ultrasound" id="imaging_thyroid_us">
+                                <span>Thyroid Ultrasound</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Breast Ultrasound" id="imaging_breast_us">
+                                <span>Breast Ultrasound</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Cardiac Echo" id="imaging_echo">
+                                <span>Echocardiogram</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Doppler Ultrasound" id="imaging_doppler">
+                                <span>Doppler Ultrasound</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Mammography -->
+                    <div class="lab-category">
+                        <h5 class="lab-category-title">
+                            <i class="fas fa-ribbon"></i>
+                            Mammography
+                        </h5>
+                        <div class="lab-tests-grid">
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Screening Mammogram" id="imaging_screening_mammo">
+                                <span>Screening Mammogram</span>
+                            </label>
+                            <label class="lab-test-checkbox">
+                                <input type="checkbox" name="imagingType" value="Diagnostic Mammogram" id="imaging_diagnostic_mammo">
+                                <span>Diagnostic Mammogram</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Priority Level -->
+                <div class="form-section">
+                    <h4 class="form-section-title">
+                        <i class="fas fa-flag"></i>
+                        Priority Level
+                    </h4>
+                    <div class="form-group">
+                        <select id="imagingPriority" class="form-control">
+                            <option value="routine">Routine</option>
+                            <option value="urgent">Urgent</option>
+                            <option value="stat">STAT (Immediate)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Clinical Indication -->
+                <div class="form-section">
+                    <h4 class="form-section-title">
+                        <i class="fas fa-comment-medical"></i>
+                        Clinical Indication & Instructions
+                    </h4>
+                    <div class="form-group">
+                        <textarea id="imagingInstructions" rows="3" class="form-control" placeholder="Provide clinical indication, suspected diagnosis, or specific instructions for imaging..."></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeSendToImagingModal()">
+                    <i class="fas fa-times"></i>
+                    Cancel
+                </button>
+                <button class="btn btn-primary" onclick="sendToImaging()">
+                    <i class="fas fa-paper-plane"></i>
+                    Send to Imaging
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Imaging Report Modal -->
+    <div class="modal" id="viewImagingReportModal">
+        <div class="modal-overlay" onclick="closeImagingReportModal()"></div>
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title">
+                        <i class="fas fa-x-ray"></i>
+                        Imaging Report Details
+                    </h2>
+                    <p class="modal-subtitle" id="imagingReportModalSubtitle">View complete imaging report</p>
+                </div>
+                <button class="modal-close" onclick="closeImagingReportModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Report Header Info -->
+                <div class="info-grid" style="margin-bottom: 20px;">
+                    <div class="info-card">
+                        <i class="fas fa-hashtag"></i>
+                        <div>
+                            <span class="info-label">Report ID</span>
+                            <span class="info-value" id="imgReportId">-</span>
+                        </div>
+                    </div>
+                    <div class="info-card">
+                        <i class="fas fa-calendar"></i>
+                        <div>
+                            <span class="info-label">Completed Date</span>
+                            <span class="info-value" id="imgReportDate">-</span>
+                        </div>
+                    </div>
+                    <div class="info-card">
+                        <i class="fas fa-user-md"></i>
+                        <div>
+                            <span class="info-label">Performed By</span>
+                            <span class="info-value" id="imgReportPerformer">-</span>
+                        </div>
+                    </div>
+                    <div class="info-card">
+                        <i class="fas fa-check-circle"></i>
+                        <div>
+                            <span class="info-label">Status</span>
+                            <span class="info-value" id="imgReportStatus">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Patient Information -->
+                <div class="section-card" style="margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 15px; color: #667eea; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-user"></i>
+                        Patient Information
+                    </h4>
+                    <div class="info-grid">
+                        <div>
+                            <strong>Patient Name:</strong>
+                            <div id="imgPatientName">-</div>
+                        </div>
+                        <div>
+                            <strong>Patient ID:</strong>
+                            <div id="imgPatientId">-</div>
+                        </div>
+                        <div>
+                            <strong>Age:</strong>
+                            <div id="imgPatientAge">-</div>
+                        </div>
+                        <div>
+                            <strong>Gender:</strong>
+                            <div id="imgPatientGender">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Imaging Details -->
+                <div class="section-card" style="margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 15px; color: #667eea; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-x-ray"></i>
+                        Imaging Details
+                    </h4>
+                    <div class="info-grid">
+                        <div>
+                            <strong>Imaging Type:</strong>
+                            <div id="imgType">-</div>
+                        </div>
+                        <div>
+                            <strong>Body Part:</strong>
+                            <div id="imgBodyPart">-</div>
+                        </div>
+                        <div>
+                            <strong>Priority:</strong>
+                            <div id="imgPriority">-</div>
+                        </div>
+                        <div>
+                            <strong>Requested By:</strong>
+                            <div id="imgRequestedBy">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clinical Indication -->
+                <div class="section-card" style="margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 10px; color: #667eea; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-stethoscope"></i>
+                        Clinical Indication
+                    </h4>
+                    <div id="imgClinicalIndication" style="padding: 10px; background: #f3f4f6; border-radius: 6px; min-height: 50px;">
+                        -
+                    </div>
+                </div>
+
+                <!-- Technician Notes -->
+                <div class="section-card" style="margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 10px; color: #667eea; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-notes-medical"></i>
+                        Technician Notes
+                    </h4>
+                    <div id="imgTechnicianNotes" style="padding: 10px; background: #f3f4f6; border-radius: 6px; min-height: 50px;">
+                        -
+                    </div>
+                </div>
+
+                <!-- Result Files -->
+                <div class="section-card">
+                    <h4 style="margin-bottom: 15px; color: #667eea; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-file-medical"></i>
+                        Result Files
+                        <span id="imgFilesCount" style="background: #667eea; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px;">0</span>
+                    </h4>
+                    <div id="imgResultFiles" style="display: flex; flex-direction: column; gap: 10px;">
+                        <div style="text-align: center; padding: 20px; color: #999;">
+                            <i class="fas fa-folder-open" style="font-size: 32px; margin-bottom: 8px; display: block;"></i>
+                            No files attached
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Review Information -->
+                <div class="section-card" id="imgReviewSection" style="margin-top: 20px; display: none;">
+                    <h4 style="margin-bottom: 10px; color: #10b981; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-user-check"></i>
+                        Review Information
+                    </h4>
+                    <div class="info-grid">
+                        <div>
+                            <strong>Reviewed By:</strong>
+                            <div id="imgReviewedBy">-</div>
+                        </div>
+                        <div>
+                            <strong>Reviewed At:</strong>
+                            <div id="imgReviewedAt">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeImagingReportModal()">
+                    <i class="fas fa-times"></i>
+                    Close
+                </button>
+                <button class="btn btn-success" id="markReviewedBtn" onclick="markCurrentReportReviewed()" style="display: none;">
+                    <i class="fas fa-check"></i>
+                    Mark as Reviewed
+                </button>
+                <button class="btn btn-primary" onclick="printCurrentImagingReport()">
+                    <i class="fas fa-print"></i>
+                    Print Report
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Download Imaging Files Modal -->
+    <div class="modal" id="downloadImagingFilesModal">
+        <div class="modal-overlay" onclick="closeDownloadFilesModal()"></div>
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title">
+                        <i class="fas fa-download"></i>
+                        Download Report Files
+                    </h2>
+                    <p class="modal-subtitle" id="downloadFilesModalSubtitle">View or download imaging files</p>
+                </div>
+                <button class="modal-close" onclick="closeDownloadFilesModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="section-card" style="margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h4 style="margin: 0; color: #667eea; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-file-medical"></i>
+                            Available Files
+                            <span id="downloadFilesCount" style="background: #667eea; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
+                        </h4>
+                        <button class="btn btn-sm btn-primary" onclick="downloadAllImagingFiles()" id="downloadAllBtn" style="display: none;">
+                            <i class="fas fa-download"></i>
+                            Download All
+                        </button>
+                    </div>
+                    <div id="downloadFilesContainer" style="max-height: 400px; overflow-y: auto;">
+                        <div style="text-align: center; padding: 40px; color: #999;">
+                            <i class="fas fa-folder-open" style="font-size: 48px; margin-bottom: 12px; display: block;"></i>
+                            <p>No files available</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDownloadFilesModal()">
+                    <i class="fas fa-times"></i>
+                    Close
                 </button>
             </div>
         </div>

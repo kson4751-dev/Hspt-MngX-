@@ -4414,6 +4414,79 @@ body.dark-theme .module-badge {
     background-color: rgba(16, 185, 129, 0.1);
 }
 
+.btn-icon.btn-download {
+    color: #0891b2;
+}
+
+.btn-icon.btn-download:hover {
+    background-color: rgba(8, 145, 178, 0.1);
+}
+
+/* Imaging Buttons */
+.btn-imaging,
+.action-btn-imaging {
+    background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+    color: white;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.3s ease;
+}
+
+.btn-imaging:hover,
+.action-btn-imaging:hover {
+    background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(6, 182, 212, 0.3);
+}
+
+/* Section Card Styling */
+.section-card {
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.info-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: #f9fafb;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+}
+
+.info-card i {
+    font-size: 20px;
+    color: #667eea;
+}
+
+.info-card .info-label {
+    font-size: 12px;
+    color: #6b7280;
+    display: block;
+}
+
+.info-card .info-value {
+    font-weight: 600;
+    color: #1f2937;
+    display: block;
+}
+
 .empty-state {
     text-align: center;
     padding: 40px 20px;
@@ -5197,6 +5270,26 @@ body.dark-theme .module-badge {
 
 .btn-lab:hover {
     background: linear-gradient(135deg, #5568d3 0%, #65408b 100%);
+    transform: translateY(-2px);
+}
+
+.btn-imaging {
+    background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+    color: white;
+}
+
+.btn-imaging:hover {
+    background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
+    transform: translateY(-2px);
+}
+
+.action-btn-imaging {
+    background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+    color: white;
+}
+
+.action-btn-imaging:hover {
+    background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
     transform: translateY(-2px);
 }
 
@@ -15762,5 +15855,180 @@ body.theme-dark input[type="password"]::placeholder {
     .modal {
         display: none !important;
     }
+}
+
+/* ========================================
+   DARK MODE STYLES FOR IMAGING MODALS
+   ======================================== */
+
+/* Section Card Dark Mode */
+body.dark-theme .section-card,
+body.theme-dark .section-card {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+/* Info Grid Dark Mode */
+body.dark-theme .info-card,
+body.theme-dark .info-card {
+    background: #0f172a;
+    border-color: #334155;
+}
+
+body.dark-theme .info-card .info-label,
+body.theme-dark .info-card .info-label {
+    color: #94a3b8;
+}
+
+body.dark-theme .info-card .info-value,
+body.theme-dark .info-card .info-value {
+    color: #f1f5f9;
+}
+
+/* Modal Text Areas and Content Dark Mode */
+body.dark-theme #imgClinicalIndication,
+body.theme-dark #imgClinicalIndication,
+body.dark-theme #imgTechnicianNotes,
+body.theme-dark #imgTechnicianNotes {
+    background: #0f172a;
+    color: #f1f5f9;
+    border-color: #334155;
+}
+
+/* File Cards in Modal Dark Mode */
+body.dark-theme .section-card > div[style*="background: #f9fafb"],
+body.theme-dark .section-card > div[style*="background: #f9fafb"] {
+    background: #0f172a !important;
+    border-color: #334155 !important;
+}
+
+body.dark-theme .section-card > div[style*="background: #ffffff"],
+body.theme-dark .section-card > div[style*="background: #ffffff"] {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+}
+
+/* Download Files Container Dark Mode */
+body.dark-theme #downloadFilesContainer > div[style*="background: #ffffff"],
+body.theme-dark #downloadFilesContainer > div[style*="background: #ffffff"] {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+}
+
+body.dark-theme #downloadFilesContainer > div[style*="background: #ffffff"]:hover,
+body.theme-dark #downloadFilesContainer > div[style*="background: #ffffff"]:hover {
+    border-color: #667eea !important;
+    background: #1e293b !important;
+}
+
+body.dark-theme #downloadFilesContainer div[style*="color: #1f2937"],
+body.theme-dark #downloadFilesContainer div[style*="color: #1f2937"] {
+    color: #f1f5f9 !important;
+}
+
+body.dark-theme #downloadFilesContainer div[style*="color: #6b7280"],
+body.theme-dark #downloadFilesContainer div[style*="color: #6b7280"] {
+    color: #94a3b8 !important;
+}
+
+/* File Items in View Report Modal Dark Mode */
+body.dark-theme #imgResultFiles > div[style*="background: #f9fafb"],
+body.theme-dark #imgResultFiles > div[style*="background: #f9fafb"] {
+    background: #0f172a !important;
+    border-color: #334155 !important;
+}
+
+body.dark-theme #imgResultFiles div[style*="color: #1f2937"],
+body.theme-dark #imgResultFiles div[style*="color: #1f2937"] {
+    color: #f1f5f9 !important;
+}
+
+body.dark-theme #imgResultFiles div[style*="color: #6b7280"],
+body.theme-dark #imgResultFiles div[style*="color: #6b7280"] {
+    color: #94a3b8 !important;
+}
+
+/* Modal Subtitle Dark Mode */
+body.dark-theme .modal-subtitle,
+body.theme-dark .modal-subtitle {
+    color: #94a3b8;
+}
+
+/* Imaging Report Table Row Hover Dark Mode */
+body.dark-theme .data-table tbody tr[style*="background-color: rgba(139, 92, 246, 0.05)"],
+body.theme-dark .data-table tbody tr[style*="background-color: rgba(139, 92, 246, 0.05)"] {
+    background-color: rgba(139, 92, 246, 0.1) !important;
+}
+
+/* Empty State Dark Mode */
+body.dark-theme .empty-state,
+body.theme-dark .empty-state {
+    color: #64748b;
+}
+
+/* Button Download Icon Dark Mode */
+body.dark-theme .btn-icon.btn-download,
+body.theme-dark .btn-icon.btn-download {
+    color: #06b6d4;
+}
+
+body.dark-theme .btn-icon.btn-download:hover,
+body.theme-dark .btn-icon.btn-download:hover {
+    background-color: rgba(6, 182, 212, 0.1);
+}
+
+/* Imaging Section Headers in Modal Dark Mode */
+body.dark-theme .section-card h4,
+body.theme-dark .section-card h4 {
+    color: #667eea;
+}
+
+/* Info Grid in Modal Dark Mode */
+body.dark-theme .section-card .info-grid > div > strong,
+body.theme-dark .section-card .info-grid > div > strong {
+    color: #f1f5f9;
+}
+
+body.dark-theme .section-card .info-grid > div > div,
+body.theme-dark .section-card .info-grid > div > div {
+    color: #cbd5e1;
+}
+
+/* Review Section Dark Mode */
+body.dark-theme #imgReviewSection h4,
+body.theme-dark #imgReviewSection h4 {
+    color: #10b981;
+}
+
+/* Modal Overlay Dark Mode Enhancement */
+body.dark-theme .modal-overlay,
+body.theme-dark .modal-overlay {
+    background: rgba(0, 0, 0, 0.75);
+}
+
+/* File Count Badge Dark Mode */
+body.dark-theme #imgFilesCount,
+body.theme-dark #imgFilesCount,
+body.dark-theme #downloadFilesCount,
+body.theme-dark #downloadFilesCount {
+    background: #667eea;
+    color: white;
+}
+
+/* Small Text in Modals Dark Mode */
+body.dark-theme .section-card small,
+body.theme-dark .section-card small {
+    color: #64748b !important;
+}
+
+/* Loading and Error States Dark Mode */
+body.dark-theme .data-table tbody td[colspan] p,
+body.theme-dark .data-table tbody td[colspan] p {
+    color: #94a3b8;
+}
+
+body.dark-theme .data-table tbody td[colspan] small,
+body.theme-dark .data-table tbody td[colspan] small {
+    color: #64748b;
 }
 

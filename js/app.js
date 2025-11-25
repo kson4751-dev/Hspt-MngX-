@@ -4406,6 +4406,9 @@ function renderDoctorRecords() {
                     <button class="btn-icon btn-lab" onclick="openSendToLabModal('${record.id}')" title="Send to Lab">
                         <i class="fas fa-flask"></i>
                     </button>
+                    <button class="btn-icon btn-imaging" onclick="openSendToImagingModal('${record.id}')" title="Send to Imaging">
+                        <i class="fas fa-x-ray"></i>
+                    </button>
                     <button class="btn-icon btn-print" onclick="printDoctorRecord('${record.id}')" title="Print">
                         <i class="fas fa-print"></i>
                     </button>
@@ -5330,6 +5333,9 @@ function renderAllConsultations() {
                         </button>
                         <button class="action-btn action-btn-lab" onclick="openSendToLabModal('${record.id}')" title="Send to Lab">
                             <i class="fas fa-flask"></i>
+                        </button>
+                        <button class="action-btn action-btn-imaging" onclick="openSendToImagingModal('${record.id}')" title="Send to Imaging">
+                            <i class="fas fa-x-ray"></i>
                         </button>
                         <button class="action-btn action-btn-print" onclick="printDoctorRecord('${record.id}')" title="Print Record">
                             <i class="fas fa-print"></i>
@@ -6966,6 +6972,884 @@ window.markLabReportAsReviewed = markLabReportAsReviewed;
 window.quickMarkAsReviewed = quickMarkAsReviewed;
 window.printDoctorLabReport = printDoctorLabReport;
 window.printDoctorLabReportFromTable = printDoctorLabReportFromTable;
+
+// ========================================
+// IMAGING REPORTS MODULE FUNCTIONS
+// ========================================
+
+let imagingReportsReturnModule = 'doctor';
+let imagingReportsData = [];
+let imagingReportsListener = null;
+
+// Open Imaging Reports Module from Doctor
+function openImagingReportsModule() {
+    console.log('Opening Imaging Reports Module...');
+    
+    const modules = document.querySelectorAll('.module');
+    const navItems = document.querySelectorAll('.nav-item');
+    
+    // Hide all modules
+    modules.forEach(mod => mod.classList.remove('active'));
+    navItems.forEach(nav => nav.classList.remove('active'));
+    
+    // Show imaging reports module
+    const imagingReportsModule = document.getElementById('imaging-reports-module');
+    if (imagingReportsModule) {
+        imagingReportsModule.classList.add('active');
+        console.log('✅ Module activated');
+    } else {
+        console.error('❌ imaging-reports-module not found');
+    }
+    
+    // Set return module
+    imagingReportsReturnModule = 'doctor';
+    const backText = document.getElementById('imagingReportsBackText');
+    if (backText) backText.textContent = 'Back to Doctor';
+    
+    // Load imaging reports data
+    loadImagingReports();
+}
+
+// Close Imaging Reports Module
+function closeImagingReportsModule() {
+    console.log('Closing Imaging Reports Module...');
+    
+    // Stop listener
+    if (imagingReportsListener) {
+        imagingReportsListener();
+        imagingReportsListener = null;
+    }
+    
+    const modules = document.querySelectorAll('.module');
+    const navItems = document.querySelectorAll('.nav-item');
+    
+    // Hide imaging reports module
+    const imagingReportsModule = document.getElementById('imaging-reports-module');
+    if (imagingReportsModule) {
+        imagingReportsModule.classList.remove('active');
+    }
+    
+    // Show and activate the doctor module
+    const doctorModule = document.getElementById('doctor-module');
+    const doctorNavItem = document.querySelector('.nav-item[data-module="doctor"]');
+    
+    if (doctorModule) {
+        modules.forEach(mod => mod.classList.remove('active'));
+        doctorModule.classList.add('active');
+    }
+    if (doctorNavItem) {
+        navItems.forEach(nav => nav.classList.remove('active'));
+        doctorNavItem.classList.add('active');
+    }
+}
+
+// Load imaging reports with real-time listener
+async function loadImagingReports() {
+    console.log('🔬 Loading Imaging Reports...');
+    
+    const tbody = document.getElementById('imagingReportsBody');
+    if (!tbody) {
+        console.error('❌ imagingReportsBody not found');
+        return;
+    }
+    
+    // Show loading state
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="10" style="text-align: center; padding: 40px;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 24px; color: #667eea;"></i>
+                <p style="margin-top: 10px; color: #666;">Loading reports...</p>
+            </td>
+        </tr>
+    `;
+    
+    try {
+        const { db, collection, query, where, onSnapshot, orderBy } = await import('./firebase-config.js');
+        
+        console.log('✅ Firebase modules imported');
+        
+        // Unsubscribe previous listener if exists
+        if (imagingReportsListener) {
+            imagingReportsListener();
+        }
+        
+        const imagingRef = collection(db, 'imaging_requests');
+        
+        // Query for completed reports - try without orderBy first for debugging
+        const completedQuery = query(
+            imagingRef,
+            where('status', '==', 'Completed')
+        );
+        
+        console.log('📡 Setting up listener...');
+        
+        imagingReportsListener = onSnapshot(completedQuery, 
+            (snapshot) => {
+                console.log('📊 Imaging Reports received:', snapshot.size, 'documents');
+                
+                imagingReportsData = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    console.log('Report data:', data);
+                    imagingReportsData.push({
+                        id: doc.id,
+                        ...data
+                    });
+                });
+                
+                // Sort by date manually
+                imagingReportsData.sort((a, b) => {
+                    const dateA = new Date(a.sentToDoctorAt || a.lastUpdated || a.createdAt);
+                    const dateB = new Date(b.sentToDoctorAt || b.lastUpdated || b.createdAt);
+                    return dateB - dateA;
+                });
+                
+                console.log('✅ Processed reports:', imagingReportsData.length);
+                updateImagingReportsUI();
+            }, 
+            (error) => {
+                console.error('❌ Snapshot error:', error);
+                showImagingErrorState('Error loading reports: ' + error.message);
+            }
+        );
+        
+    } catch (error) {
+        console.error('❌ Import error:', error);
+        showImagingErrorState('Failed to initialize: ' + error.message);
+    }
+}
+
+// Update all UI elements
+function updateImagingReportsUI() {
+    console.log('🔄 Updating UI with', imagingReportsData.length, 'reports');
+    updateImagingStats();
+    displayImagingReportsTable();
+    updateImagingBadge();
+}
+
+// Update statistics
+function updateImagingStats() {
+    try {
+        const today = new Date().setHours(0, 0, 0, 0);
+        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        
+        const newReports = imagingReportsData.filter(r => !r.reviewedByDoctor).length;
+        
+        const todayReports = imagingReportsData.filter(r => {
+            const reportDate = r.sentToDoctorAt || r.lastUpdated || r.createdAt;
+            if (!reportDate) return false;
+            return new Date(reportDate).setHours(0, 0, 0, 0) >= today;
+        }).length;
+        
+        const weekReports = imagingReportsData.filter(r => {
+            const reportDate = r.sentToDoctorAt || r.lastUpdated || r.createdAt;
+            if (!reportDate) return false;
+            return new Date(reportDate) >= weekAgo;
+        }).length;
+        
+        const reviewed = imagingReportsData.filter(r => r.reviewedByDoctor).length;
+        
+        const newCount = document.getElementById('imagingReportsNewCount');
+        const todayCount = document.getElementById('imagingReportsTodayCount');
+        const weekCount = document.getElementById('imagingReportsWeekCount');
+        const reviewedCount = document.getElementById('imagingReportsReviewedCount');
+        
+        if (newCount) newCount.textContent = newReports;
+        if (todayCount) todayCount.textContent = todayReports;
+        if (weekCount) weekCount.textContent = weekReports;
+        if (reviewedCount) reviewedCount.textContent = reviewed;
+        
+        console.log('📊 Stats updated:', { newReports, todayReports, weekReports, reviewed });
+    } catch (error) {
+        console.error('❌ Error updating stats:', error);
+    }
+}
+
+// Display reports in table
+function displayImagingReportsTable() {
+    console.log('📋 Displaying table with', imagingReportsData.length, 'reports');
+    
+    const tbody = document.getElementById('imagingReportsBody');
+    if (!tbody) {
+        console.error('❌ tbody not found');
+        return;
+    }
+    
+    if (imagingReportsData.length === 0) {
+        tbody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="10">
+                    <div class="empty-state">
+                        <i class="fas fa-x-ray"></i>
+                        <p>No completed imaging reports available</p>
+                        <small style="color: #999;">Reports will appear here when imaging department completes them</small>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    try {
+        tbody.innerHTML = imagingReportsData.map((report, index) => {
+            const reportDate = report.sentToDoctorAt || report.lastUpdated || report.createdAt;
+            const date = reportDate ? new Date(reportDate) : new Date();
+            const dateStr = date.toLocaleDateString();
+            const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            const isNew = !report.reviewedByDoctor;
+            
+            const displayId = report.displayId || report.id.substring(0, 8).toUpperCase();
+            const patientId = report.patientId || '-';
+            const patientName = report.patientName || 'Unknown Patient';
+            const age = report.age || '-';
+            const gender = report.gender || '-';
+            const imagingType = report.imagingType || 'N/A';
+            const bodyPart = report.bodyPart || '';
+            const performedBy = report.performedBy || report.technicianName || 'Technician';
+            
+            return `
+                <tr ${isNew ? 'style="background-color: rgba(139, 92, 246, 0.05);"' : ''}>
+                    <td>
+                        ${isNew ? '<span style="background: #8b5cf6; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; margin-right: 5px;">NEW</span>' : ''}
+                        <strong>${displayId}</strong>
+                    </td>
+                    <td>
+                        <div>${dateStr}</div>
+                        <small style="color: #666;">${timeStr}</small>
+                    </td>
+                    <td><strong>${patientId}</strong></td>
+                    <td>${patientName}</td>
+                    <td>${age}</td>
+                    <td>${gender}</td>
+                    <td>
+                        <strong>${imagingType}</strong>
+                        ${bodyPart ? '<br><small style="color: #666;">' + bodyPart + '</small>' : ''}
+                    </td>
+                    <td>${performedBy}</td>
+                    <td>
+                        <span style="padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; ${isNew ? 'background: rgba(139, 92, 246, 0.1); color: #8b5cf6;' : 'background: rgba(16, 185, 129, 0.1); color: #10b981;'}">
+                            ${isNew ? 'New' : 'Reviewed'}
+                        </span>
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 5px;">
+                            <button class="btn-icon btn-view" onclick="viewImagingReport('${report.id}')" title="View Report">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            ${isNew ? `
+                                <button class="btn-icon" onclick="markImagingAsReviewed('${report.id}')" title="Mark Reviewed" style="color: #10b981;">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                            ` : ''}
+                            <button class="btn-icon btn-download" onclick="openDownloadFilesModal('${report.id}')" title="Download Files" style="color: #0891b2;">
+                                <i class="fas fa-download"></i>
+                            </button>
+                            <button class="btn-icon btn-print" onclick="printImagingReport('${report.id}')" title="Print Report">
+                                <i class="fas fa-print"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        
+        console.log('✅ Table rendered successfully');
+    } catch (error) {
+        console.error('❌ Error rendering table:', error);
+        showImagingErrorState('Error displaying reports');
+    }
+}
+
+// Update badge counter
+function updateImagingBadge() {
+    const badge = document.getElementById('imagingReportsBadge');
+    if (!badge) return;
+    
+    const newCount = imagingReportsData.filter(r => !r.reviewedByDoctor).length;
+    
+    if (newCount > 0) {
+        badge.textContent = newCount;
+        badge.style.display = 'inline-block';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+// Filter reports
+function filterImagingReports() {
+    const searchInput = document.getElementById('imagingReportsSearchInput');
+    const timeFilter = document.getElementById('imagingReportsTimeFilter');
+    const statusFilter = document.getElementById('imagingReportsStatusFilter');
+    
+    if (!searchInput || !timeFilter || !statusFilter) return;
+    
+    const searchTerm = searchInput.value.toLowerCase();
+    const time = timeFilter.value;
+    const status = statusFilter.value;
+    
+    let filtered = [...imagingReportsData];
+    
+    // Search filter
+    if (searchTerm) {
+        filtered = filtered.filter(r => 
+            (r.patientName || '').toLowerCase().includes(searchTerm) ||
+            (r.patientId || '').toLowerCase().includes(searchTerm) ||
+            (r.imagingType || '').toLowerCase().includes(searchTerm)
+        );
+    }
+    
+    // Time filter
+    if (time !== 'all') {
+        const now = new Date();
+        filtered = filtered.filter(r => {
+            const reportDate = r.sentToDoctorAt || r.lastUpdated || r.createdAt;
+            if (!reportDate) return false;
+            
+            const date = new Date(reportDate);
+            if (time === 'today') {
+                return date.toDateString() === now.toDateString();
+            } else if (time === 'yesterday') {
+                const yesterday = new Date(now);
+                yesterday.setDate(yesterday.getDate() - 1);
+                return date.toDateString() === yesterday.toDateString();
+            } else if (time === 'week') {
+                const weekAgo = new Date(now);
+                weekAgo.setDate(weekAgo.getDate() - 7);
+                return date >= weekAgo;
+            } else if (time === 'month') {
+                const monthAgo = new Date(now);
+                monthAgo.setMonth(monthAgo.getMonth() - 1);
+                return date >= monthAgo;
+            }
+            return true;
+        });
+    }
+    
+    // Status filter
+    if (status === 'new') {
+        filtered = filtered.filter(r => !r.reviewedByDoctor);
+    } else if (status === 'reviewed') {
+        filtered = filtered.filter(r => r.reviewedByDoctor);
+    }
+    
+    // Temporarily replace data and update display
+    const original = imagingReportsData;
+    imagingReportsData = filtered;
+    displayImagingReportsTable();
+    imagingReportsData = original;
+}
+
+// Refresh reports
+function refreshImagingReports() {
+    console.log('🔄 Refreshing...');
+    const btn = event?.target?.closest('button');
+    const icon = btn?.querySelector('i');
+    
+    if (icon) icon.classList.add('fa-spin');
+    
+    loadImagingReports();
+    
+    setTimeout(() => {
+        if (icon) icon.classList.remove('fa-spin');
+    }, 1000);
+}
+
+// ========================================
+// IMAGING REPORT MODAL FUNCTIONS
+// ========================================
+
+let currentViewingReport = null;
+
+// View report details in modal
+function viewImagingReport(reportId) {
+    const report = imagingReportsData.find(r => r.id === reportId);
+    if (!report) {
+        alert('Report not found');
+        return;
+    }
+    
+    currentViewingReport = report;
+    
+    // Populate modal fields
+    const reportDate = new Date(report.sentToDoctorAt || report.lastUpdated || report.createdAt);
+    
+    document.getElementById('imgReportId').textContent = report.displayId || report.id.substring(0, 8).toUpperCase();
+    document.getElementById('imgReportDate').textContent = reportDate.toLocaleString();
+    document.getElementById('imgReportPerformer').textContent = report.performedBy || report.technicianName || 'Technician';
+    
+    const statusEl = document.getElementById('imgReportStatus');
+    if (report.reviewedByDoctor) {
+        statusEl.innerHTML = '<span style="color: #10b981; font-weight: 600;"><i class="fas fa-check-circle"></i> Reviewed</span>';
+    } else {
+        statusEl.innerHTML = '<span style="color: #8b5cf6; font-weight: 600;"><i class="fas fa-circle"></i> New</span>';
+    }
+    
+    // Patient info
+    document.getElementById('imgPatientName').textContent = report.patientName || '-';
+    document.getElementById('imgPatientId').textContent = report.patientId || '-';
+    document.getElementById('imgPatientAge').textContent = report.age || '-';
+    document.getElementById('imgPatientGender').textContent = report.gender || '-';
+    
+    // Imaging details
+    document.getElementById('imgType').textContent = report.imagingType || '-';
+    document.getElementById('imgBodyPart').textContent = report.bodyPart || '-';
+    document.getElementById('imgPriority').textContent = report.priority || 'Normal';
+    document.getElementById('imgRequestedBy').textContent = report.requestedBy || 'Doctor';
+    
+    // Clinical indication
+    document.getElementById('imgClinicalIndication').textContent = report.clinicalIndication || 'Not specified';
+    
+    // Technician notes
+    document.getElementById('imgTechnicianNotes').textContent = report.technicianNotes || 'No notes provided';
+    
+    // Result files
+    const filesContainer = document.getElementById('imgResultFiles');
+    const filesCount = document.getElementById('imgFilesCount');
+    const files = report.resultFiles || [];
+    
+    filesCount.textContent = files.length;
+    
+    if (files.length > 0) {
+        filesContainer.innerHTML = files.map((file, index) => {
+            const fileName = file.name || `File ${index + 1}`;
+            const fileUrl = file.url || file.downloadURL || '#';
+            const fileSize = file.size ? formatFileSize(file.size) : 'Unknown size';
+            
+            return `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px;">
+                    <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+                        <i class="fas fa-file-medical" style="font-size: 24px; color: #667eea;"></i>
+                        <div>
+                            <div style="font-weight: 600; color: #1f2937;">${fileName}</div>
+                            <div style="font-size: 12px; color: #6b7280;">${fileSize}</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-sm btn-primary" onclick="viewImagingFile('${fileUrl}', '${fileName}')" title="View File">
+                            <i class="fas fa-eye"></i>
+                            View
+                        </button>
+                        <button class="btn btn-sm btn-success" onclick="downloadImagingFile('${fileUrl}', '${fileName}')" title="Download File">
+                            <i class="fas fa-download"></i>
+                            Download
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } else {
+        filesContainer.innerHTML = `
+            <div style="text-align: center; padding: 20px; color: #999;">
+                <i class="fas fa-folder-open" style="font-size: 32px; margin-bottom: 8px; display: block;"></i>
+                No files attached
+            </div>
+        `;
+    }
+    
+    // Review information
+    const reviewSection = document.getElementById('imgReviewSection');
+    const markReviewedBtn = document.getElementById('markReviewedBtn');
+    
+    if (report.reviewedByDoctor) {
+        reviewSection.style.display = 'block';
+        document.getElementById('imgReviewedBy').textContent = report.reviewedBy || 'Doctor';
+        document.getElementById('imgReviewedAt').textContent = report.reviewedAt ? new Date(report.reviewedAt).toLocaleString() : '-';
+        markReviewedBtn.style.display = 'none';
+    } else {
+        reviewSection.style.display = 'none';
+        markReviewedBtn.style.display = 'inline-flex';
+    }
+    
+    // Show modal
+    document.getElementById('viewImagingReportModal').classList.add('active');
+}
+
+// Close imaging report modal
+function closeImagingReportModal() {
+    document.getElementById('viewImagingReportModal').classList.remove('active');
+    currentViewingReport = null;
+}
+
+// Mark current report as reviewed
+async function markCurrentReportReviewed() {
+    if (!currentViewingReport) return;
+    
+    await markImagingAsReviewed(currentViewingReport.id);
+    
+    // Update modal display
+    setTimeout(() => {
+        viewImagingReport(currentViewingReport.id);
+    }, 500);
+}
+
+// Print current imaging report
+function printCurrentImagingReport() {
+    if (!currentViewingReport) return;
+    printImagingReport(currentViewingReport.id);
+}
+
+// ========================================
+// DOWNLOAD FILES MODAL FUNCTIONS
+// ========================================
+
+let currentDownloadReport = null;
+
+// Open download files modal
+function openDownloadFilesModal(reportId) {
+    const report = imagingReportsData.find(r => r.id === reportId);
+    if (!report) {
+        alert('Report not found');
+        return;
+    }
+    
+    currentDownloadReport = report;
+    
+    const subtitle = document.getElementById('downloadFilesModalSubtitle');
+    subtitle.textContent = `${report.patientName} - ${report.imagingType}`;
+    
+    const filesContainer = document.getElementById('downloadFilesContainer');
+    const filesCount = document.getElementById('downloadFilesCount');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    const files = report.resultFiles || [];
+    
+    filesCount.textContent = files.length;
+    
+    if (files.length > 0) {
+        downloadAllBtn.style.display = 'inline-flex';
+        
+        filesContainer.innerHTML = files.map((file, index) => {
+            const fileName = file.name || `File ${index + 1}`;
+            const fileUrl = file.url || file.downloadURL || '#';
+            const fileSize = file.size ? formatFileSize(file.size) : 'Unknown size';
+            const uploadDate = file.uploadedAt ? new Date(file.uploadedAt).toLocaleDateString() : 'Unknown date';
+            
+            return `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 15px; background: #ffffff; border: 2px solid #e5e7eb; border-radius: 8px; transition: all 0.3s ease;" onmouseenter="this.style.borderColor='#667eea'; this.style.boxShadow='0 2px 8px rgba(102, 126, 234, 0.15)';" onmouseleave="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                    <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-file-medical" style="font-size: 24px; color: white;"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; color: #1f2937; margin-bottom: 4px;">${fileName}</div>
+                            <div style="font-size: 12px; color: #6b7280; display: flex; gap: 12px;">
+                                <span><i class="fas fa-hdd"></i> ${fileSize}</span>
+                                <span><i class="fas fa-calendar"></i> ${uploadDate}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-sm btn-primary" onclick="viewImagingFile('${fileUrl}', '${fileName}')" title="View in browser">
+                            <i class="fas fa-eye"></i>
+                            View
+                        </button>
+                        <button class="btn btn-sm btn-success" onclick="downloadImagingFile('${fileUrl}', '${fileName}')" title="Download to device">
+                            <i class="fas fa-download"></i>
+                            Download
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } else {
+        downloadAllBtn.style.display = 'none';
+        filesContainer.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: #999;">
+                <i class="fas fa-folder-open" style="font-size: 48px; margin-bottom: 12px; display: block;"></i>
+                <p>No files available for download</p>
+                <small>Files will appear here when the imaging department uploads them</small>
+            </div>
+        `;
+    }
+    
+    // Show modal
+    document.getElementById('downloadImagingFilesModal').classList.add('active');
+}
+
+// Close download files modal
+function closeDownloadFilesModal() {
+    document.getElementById('downloadImagingFilesModal').classList.remove('active');
+    currentDownloadReport = null;
+}
+
+// View imaging file
+function viewImagingFile(fileUrl, fileName) {
+    if (!fileUrl || fileUrl === '#') {
+        alert('File URL not available');
+        return;
+    }
+    
+    console.log('📄 Opening file:', fileName);
+    window.open(fileUrl, '_blank');
+}
+
+// Download imaging file
+async function downloadImagingFile(fileUrl, fileName) {
+    if (!fileUrl || fileUrl === '#') {
+        alert('File URL not available');
+        return;
+    }
+    
+    console.log('⬇️ Downloading file:', fileName);
+    
+    try {
+        const response = await fetch(fileUrl);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        console.log('✅ File downloaded successfully');
+    } catch (error) {
+        console.error('❌ Download error:', error);
+        
+        // Fallback: open in new tab
+        window.open(fileUrl, '_blank');
+    }
+}
+
+// Download all imaging files
+async function downloadAllImagingFiles() {
+    if (!currentDownloadReport || !currentDownloadReport.resultFiles || currentDownloadReport.resultFiles.length === 0) {
+        alert('No files to download');
+        return;
+    }
+    
+    console.log('⬇️ Downloading all files...');
+    
+    const files = currentDownloadReport.resultFiles;
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileName = file.name || `File_${i + 1}`;
+        const fileUrl = file.url || file.downloadURL;
+        
+        if (fileUrl && fileUrl !== '#') {
+            await downloadImagingFile(fileUrl, fileName);
+            // Add delay between downloads
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+    
+    console.log('✅ All files downloaded');
+}
+
+// Format file size
+function formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return '0 Bytes';
+    
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+}
+
+// Mark report as reviewed
+async function markImagingAsReviewed(reportId) {
+    try {
+        const { db, doc, updateDoc } = await import('./firebase-config.js');
+        
+        const reportRef = doc(db, 'imaging_requests', reportId);
+        await updateDoc(reportRef, {
+            reviewedByDoctor: true,
+            reviewedAt: new Date().toISOString(),
+            reviewedBy: localStorage.getItem('userName') || 'Doctor'
+        });
+        
+        console.log('✅ Report marked as reviewed');
+    } catch (error) {
+        console.error('❌ Error marking as reviewed:', error);
+        alert('Failed to mark as reviewed: ' + error.message);
+    }
+}
+
+// Print report
+function printImagingReport(reportId) {
+    const report = imagingReportsData.find(r => r.id === reportId);
+    if (!report) {
+        alert('Report not found');
+        return;
+    }
+    
+    alert('Print functionality - Coming soon!\n\nReport: ' + (report.displayId || report.id.substring(0, 8)));
+}
+
+// Show error state
+function showImagingErrorState(message = 'Failed to load reports') {
+    const tbody = document.getElementById('imagingReportsBody');
+    if (tbody) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="10" style="text-align: center; padding: 40px;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 10px; display: block; color: #f59e0b;"></i>
+                    <p style="color: #666; margin-bottom: 10px;">${message}</p>
+                    <button class="btn btn-sm btn-primary" onclick="refreshImagingReports()">
+                        <i class="fas fa-sync-alt"></i> Try Again
+                    </button>
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// Make functions globally available
+window.openImagingReportsModule = openImagingReportsModule;
+window.closeImagingReportsModule = closeImagingReportsModule;
+window.filterImagingReports = filterImagingReports;
+window.refreshImagingReports = refreshImagingReports;
+window.viewImagingReport = viewImagingReport;
+window.markImagingAsReviewed = markImagingAsReviewed;
+window.printImagingReport = printImagingReport;
+window.closeImagingReportModal = closeImagingReportModal;
+window.markCurrentReportReviewed = markCurrentReportReviewed;
+window.printCurrentImagingReport = printCurrentImagingReport;
+window.openDownloadFilesModal = openDownloadFilesModal;
+window.closeDownloadFilesModal = closeDownloadFilesModal;
+window.viewImagingFile = viewImagingFile;
+window.downloadImagingFile = downloadImagingFile;
+window.downloadAllImagingFiles = downloadAllImagingFiles;
+
+// ========================================
+// SEND TO IMAGING FUNCTIONALITY
+// ========================================
+
+// Open Send to Imaging Modal
+function openSendToImagingModal(recordId) {
+    // Try to find record in doctorRecords first, then in allConsultationsData
+    let record = doctorRecords.find(r => r.id === recordId);
+    if (!record) {
+        record = allConsultationsData.find(r => r.id === recordId);
+    }
+    
+    if (!record) {
+        alert('Patient record not found');
+        return;
+    }
+    
+    console.log('Opening Send to Imaging modal for record:', recordId);
+    
+    // Store record ID
+    document.getElementById('imagingPatientRecordId').value = recordId;
+    
+    // Populate patient information
+    document.getElementById('imagingPatientId').textContent = record.patientId;
+    document.getElementById('imagingPatientName').textContent = record.patientName;
+    document.getElementById('imagingPatientAgeGender').textContent = `${record.age} years / ${record.gender || 'N/A'}`;
+    document.getElementById('imagingPatientComplaint').textContent = record.complaint || 'Not specified';
+    
+    // Clear previous selections
+    document.querySelectorAll('input[name="imagingType"]').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    document.getElementById('imagingPriority').value = 'routine';
+    document.getElementById('imagingInstructions').value = '';
+    
+    // Show modal
+    const modal = document.getElementById('sendToImagingModal');
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+// Close Send to Imaging Modal
+function closeSendToImagingModal() {
+    const modal = document.getElementById('sendToImagingModal');
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+// Send to Imaging
+async function sendToImaging() {
+    const recordId = document.getElementById('imagingPatientRecordId').value;
+    
+    // Try to find record in doctorRecords first, then in allConsultationsData
+    let record = doctorRecords.find(r => r.id === recordId);
+    if (!record) {
+        record = allConsultationsData.find(r => r.id === recordId);
+    }
+    
+    if (!record) {
+        alert('Patient record not found');
+        return;
+    }
+    
+    // Get selected imaging types
+    const selectedImaging = [];
+    document.querySelectorAll('input[name="imagingType"]:checked').forEach(checkbox => {
+        selectedImaging.push(checkbox.value);
+    });
+    
+    if (selectedImaging.length === 0) {
+        alert('Please select at least one imaging type');
+        return;
+    }
+    
+    const priority = document.getElementById('imagingPriority').value;
+    const instructions = document.getElementById('imagingInstructions').value;
+    
+    // Get current user info
+    const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
+    const userName = localStorage.getItem('userName') || sessionStorage.getItem('userName') || 'Doctor';
+    
+    // Create imaging request
+    const imagingRequest = {
+        displayId: 'IMG-' + Date.now(), // Human-readable ID for display
+        patientId: record.patientId,
+        patientName: record.patientName,
+        patientNumber: record.patientId, // Using patientId as patientNumber for compatibility
+        age: record.age,
+        gender: record.gender || 'N/A',
+        complaint: record.complaint || 'Not specified',
+        diagnosis: record.diagnosis || 'Pending',
+        imagingTypes: selectedImaging, // Array of selected imaging types
+        imagingType: selectedImaging.join(', '), // Comma-separated string for display
+        bodyPart: 'Multiple', // Can be customized if needed
+        priority: priority.charAt(0).toUpperCase() + priority.slice(1), // Capitalize first letter
+        instructions: instructions,
+        requestedBy: userName,
+        requestedById: userId,
+        requestDate: new Date().toISOString(),
+        dateTime: new Date().toISOString(), // For compatibility with imaging module
+        requestDateTime: new Date().toLocaleString(),
+        status: 'Pending',
+        results: null,
+        completedDate: null,
+        performedBy: null,
+        consultationRecordId: recordId,
+        createdAt: new Date().toISOString(),
+        reviewed: false
+    };
+    
+    console.log('Sending imaging request:', imagingRequest);
+    
+    // Save to Firestore
+    try {
+        const { db } = await import('./firebase-config.js');
+        const { collection, addDoc } = await import('./firebase-config.js');
+        
+        const docRef = await addDoc(collection(db, 'imaging_requests'), imagingRequest);
+        console.log('✅ Imaging request saved to Firestore with ID:', docRef.id);
+        
+        // Show success message
+        alert(`Imaging request sent successfully!\n\nImaging types: ${selectedImaging.join(', ')}\nPriority: ${priority.toUpperCase()}`);
+        closeSendToImagingModal();
+        
+        // Optional: Show success notification
+        showNotification('Imaging Request Sent', `${record.patientName} sent to Imaging department`);
+        
+    } catch (error) {
+        console.error('❌ Error sending imaging request:', error);
+        alert('Failed to send imaging request. Please try again.');
+    }
+}
+
+// Make functions globally available
+window.openSendToImagingModal = openSendToImagingModal;
+window.closeSendToImagingModal = closeSendToImagingModal;
+window.sendToImaging = sendToImaging;
 
 // Initialize badge update on page load
 if (typeof initializeModuleFunctions !== 'undefined') {
