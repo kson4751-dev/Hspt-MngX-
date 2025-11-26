@@ -2,15 +2,108 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Login - RxFlow Hospital Management System</title>
+    
+    <!-- Preconnect for faster loading -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+    
+    <!-- Preload critical assets -->
+    <link rel="preload" href="css/login.css" as="style">
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" as="style">
+    
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Main Stylesheet -->
     <link rel="stylesheet" href="css/login.css">
+    
+    <!-- Inline Critical CSS for instant render -->
+    <style>
+        /* Critical CSS for first paint */
+        body {
+            font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+        }
+        .page-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+        .page-loader.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+        .loader-content {
+            text-align: center;
+            color: #667eea;
+        }
+        .loader-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(102, 126, 234, 0.2);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .bg-image-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            overflow: hidden;
+        }
+        .bg-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: blur(6px);
+            transform: scale(1.05);
+            opacity: 0;
+            transition: opacity 0.8s ease;
+        }
+        .bg-image.loaded {
+            opacity: 1;
+        }
+    </style>
 </head>
 <body>
+    <!-- Page Loader -->
+    <div class="page-loader" id="pageLoader">
+        <div class="loader-content">
+            <div class="loader-spinner"></div>
+            <p>Loading RxFlow...</p>
+        </div>
+    </div>
+
+    <!-- Background Image Container (Firebase Storage) -->
+    <div class="bg-image-container">
+        <img class="bg-image" id="bgImage" alt="Background">
+    </div>
+
+    <!-- Gradient Overlay -->
+    <div class="gradient-overlay"></div>
+
     <!-- Crystal Background Shapes -->
     <div class="crystal-bg">
         <div class="crystal-shape"></div>
@@ -32,7 +125,7 @@
             </div>
 
             <!-- Login Form -->
-            <form id="loginForm" class="login-form">
+            <form id="loginForm" class="login-form" autocomplete="on">
                 <div class="form-group">
                     <label for="email">
                         <i class="fas fa-envelope"></i>
@@ -45,6 +138,7 @@
                         placeholder="Enter your email"
                         required
                         autocomplete="email"
+                        inputmode="email"
                     >
                 </div>
 
@@ -62,7 +156,7 @@
                             required
                             autocomplete="current-password"
                         >
-                        <button type="button" class="toggle-password" id="togglePassword">
+                        <button type="button" class="toggle-password" id="togglePassword" aria-label="Toggle password visibility">
                             <i class="fas fa-eye"></i>
                         </button>
                     </div>
@@ -97,12 +191,12 @@
     </div>
 
     <!-- Floating Emergency Alarm Button -->
-    <button class="emergency-fab" id="emergencyFab" title="Emergency Alarm">
+    <button class="emergency-fab" id="emergencyFab" title="Emergency Alarm" aria-label="Trigger Emergency Alarm">
         <i class="fas fa-bell"></i>
     </button>
 
     <!-- Emergency Confirmation Modal -->
-    <div class="emergency-modal" id="emergencyModal">
+    <div class="emergency-modal" id="emergencyModal" role="dialog" aria-modal="true">
         <div class="emergency-modal-content">
             <div class="emergency-modal-header">
                 <i class="fas fa-exclamation-triangle"></i>
@@ -124,7 +218,7 @@
     </div>
 
     <!-- Emergency Success Modal -->
-    <div class="emergency-success-modal" id="emergencySuccessModal">
+    <div class="emergency-success-modal" id="emergencySuccessModal" role="dialog" aria-modal="true">
         <div class="emergency-success-content">
             <div class="emergency-success-icon">
                 <i class="fas fa-check-circle"></i>
@@ -140,6 +234,7 @@
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
         import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getStorage, ref, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 
         // Firebase configuration
         const firebaseConfig = {
@@ -157,6 +252,72 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        const storage = getStorage(app);
+
+        // ===== BACKGROUND IMAGE LOADING (Firebase Storage with Fallback) =====
+        const bgImage = document.getElementById('bgImage');
+        const pageLoader = document.getElementById('pageLoader');
+
+        // Firebase Storage URL for background image
+        const FIREBASE_BG_IMAGE_PATH = 'assets/login-bg.jpg';
+        // Local fallback
+        const LOCAL_BG_IMAGE = 'images/doctor.jpg';
+        // Cache key for localStorage
+        const BG_CACHE_KEY = 'rxflow_login_bg_url';
+        const BG_CACHE_EXPIRY_KEY = 'rxflow_login_bg_expiry';
+        const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+        async function loadBackgroundImage() {
+            try {
+                // Check cache first for instant loading
+                const cachedUrl = localStorage.getItem(BG_CACHE_KEY);
+                const cacheExpiry = localStorage.getItem(BG_CACHE_EXPIRY_KEY);
+                
+                if (cachedUrl && cacheExpiry && Date.now() < parseInt(cacheExpiry)) {
+                    // Use cached URL for instant loading
+                    loadImageWithFallback(cachedUrl);
+                    return;
+                }
+
+                // Try Firebase Storage
+                const storageRef = ref(storage, FIREBASE_BG_IMAGE_PATH);
+                const url = await getDownloadURL(storageRef);
+                
+                // Cache the URL
+                localStorage.setItem(BG_CACHE_KEY, url);
+                localStorage.setItem(BG_CACHE_EXPIRY_KEY, (Date.now() + CACHE_DURATION).toString());
+                
+                loadImageWithFallback(url);
+            } catch (error) {
+                console.log('Firebase Storage image not found, using local fallback');
+                loadImageWithFallback(LOCAL_BG_IMAGE);
+            }
+        }
+
+        function loadImageWithFallback(src) {
+            const img = new Image();
+            img.onload = () => {
+                bgImage.src = src;
+                bgImage.classList.add('loaded');
+                hideLoader();
+            };
+            img.onerror = () => {
+                // Final fallback to local image
+                bgImage.src = LOCAL_BG_IMAGE;
+                bgImage.classList.add('loaded');
+                hideLoader();
+            };
+            img.src = src;
+        }
+
+        function hideLoader() {
+            setTimeout(() => {
+                pageLoader.classList.add('hidden');
+            }, 300);
+        }
+
+        // Start loading background immediately
+        loadBackgroundImage();
 
         // DOM Elements
         const loginForm = document.getElementById('loginForm');
