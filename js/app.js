@@ -82,7 +82,6 @@ const profileNameElement = document.getElementById('profileName');
 // Initialize real-time emergency alarm listener for ALL logged-in users
 let emergencyAlarmListener = null;
 let activeAlarmIds = new Set(); // Track which alarms we've already shown
-let listenerStartTime = null; // Track when listener started
 
 async function initEmergencyAlarmListener() {
     try {
@@ -97,9 +96,6 @@ async function initEmergencyAlarmListener() {
             return;
         }
         
-        // Record the time when listener starts - only show alarms from last 30 seconds
-        listenerStartTime = new Date(Date.now() - 30000); // 30 seconds ago
-        
         // Listen to ALL recent emergency alarms (active or recently stabilized)
         const alarmsRef = collection(db, 'emergency_alarms');
         const q = query(
@@ -113,14 +109,9 @@ async function initEmergencyAlarmListener() {
                 const alarm = change.doc.data();
                 const alarmId = change.doc.id;
                 
-                // Get alarm timestamp
-                const alarmTime = alarm.timestamp?.toDate ? alarm.timestamp.toDate() : new Date(alarm.timestamp);
-                
                 if (change.type === 'added') {
-                    // Only show alarms created in the last 30 seconds (recent alarms)
-                    const isRecent = alarmTime > listenerStartTime;
-                    
-                    if (alarm.active && isRecent && (!alarm.acknowledged || !alarm.acknowledged.includes(currentUserId))) {
+                    const alreadyShown = activeAlarmIds.has(alarmId);
+                    if (alarm.active && !alreadyShown && (!alarm.acknowledged || !alarm.acknowledged.includes(currentUserId))) {
                         console.log('🚨 NEW EMERGENCY ALARM RECEIVED:', alarm);
                         
                         // Play emergency siren sound
