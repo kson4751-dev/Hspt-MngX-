@@ -1,5 +1,5 @@
 // Firebase Helper Functions for RxFlow Hospital Management System
-import { db, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, onSnapshot, orderBy, addDoc, serverTimestamp } from './firebase-config.js';
+import { db, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, limit } from './firebase-config.js';
 
 // ==================== PATIENTS ====================
 
@@ -939,15 +939,48 @@ export async function updateWardPatient(patientId, updates) {
 
 // ==================== ACTIVITY TRACKING ====================
 
-// Add activity to Firebase
-export async function logActivity(activityData) {
+function getStoredUserContext() {
+    const storage = localStorage.getItem('userId') ? localStorage : sessionStorage;
+    if (!storage) {
+        return {};
+    }
+    return {
+        userId: storage.getItem('userId') || undefined,
+        userName: storage.getItem('userName') || undefined,
+        userEmail: storage.getItem('userEmail') || undefined,
+        userRole: storage.getItem('userRole') || undefined,
+        department: storage.getItem('userDepartment') || undefined,
+        sessionId: storage.getItem('sessionId') || undefined
+    };
+}
+
+// Add activity to Firebase audit log
+export async function logActivity(activityData = {}) {
     try {
-        const activitiesRef = collection(db, 'activities');
-        const docRef = await addDoc(activitiesRef, {
-            ...activityData,
+        const storedUser = getStoredUserContext();
+        const activityRecord = {
+            type: activityData.type || activityData.module || 'general',
+            module: activityData.module || activityData.type || 'General',
+            action: activityData.action || 'Activity',
+            patient: activityData.patient || null,
+            patientId: activityData.patientId || null,
+            userId: activityData.userId || storedUser.userId || 'system',
+            userName: activityData.userName || storedUser.userName || 'System',
+            userEmail: activityData.userEmail || storedUser.userEmail || '',
+            userRole: activityData.userRole || storedUser.userRole || '',
+            department: activityData.department || storedUser.department || '',
+            sessionId: activityData.sessionId || storedUser.sessionId || '',
+            status: activityData.status || 'info',
+            statusText: activityData.statusText || activityData.action || 'Completed',
+            description: activityData.description || '',
+            metadata: activityData.metadata || {},
+            accountSource: activityData.accountSource || 'app',
+            ipAddress: activityData.ipAddress || null,
             timestamp: serverTimestamp(),
             createdAt: serverTimestamp()
-        });
+        };
+        const activitiesRef = collection(db, 'activity_logs');
+        const docRef = await addDoc(activitiesRef, activityRecord);
         console.log('Activity logged with ID:', docRef.id);
         return { success: true, id: docRef.id };
     } catch (error) {
@@ -1043,22 +1076,21 @@ export async function deleteEmergencyCase(caseId) {
 }
 
 // Subscribe to activities (realtime) - get latest activities
-export function subscribeToActivities(callback, limit = 50) {
-    const activitiesRef = collection(db, 'activities');
-    const q = query(activitiesRef, orderBy('timestamp', 'desc'));
+export function subscribeToActivities(callback, maxResults = 50) {
+    const activitiesRef = collection(db, 'activity_logs');
+    const q = query(activitiesRef, orderBy('timestamp', 'desc'), limit(maxResults));
     
     return onSnapshot(q, (snapshot) => {
         const activities = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data();
+        snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
             activities.push({ 
-                id: doc.id, 
+                id: docSnap.id, 
                 ...data,
-                // Convert Firestore timestamp to JS Date for display
-                timestamp: data.timestamp?.toDate() || new Date()
+                timestamp: data.timestamp?.toDate?.() || data.createdAt?.toDate?.() || new Date()
             });
         });
-        callback(activities.slice(0, limit));
+        callback(activities);
     }, (error) => {
         console.error('Error fetching activities:', error);
         callback([]);
@@ -1066,25 +1098,26 @@ export function subscribeToActivities(callback, limit = 50) {
 }
 
 // Get activities by module
-export function subscribeToActivitiesByModule(module, callback, limit = 20) {
-    const activitiesRef = collection(db, 'activities');
+export function subscribeToActivitiesByModule(module, callback, maxResults = 20) {
+    const activitiesRef = collection(db, 'activity_logs');
     const q = query(
         activitiesRef, 
         where('module', '==', module),
-        orderBy('timestamp', 'desc')
+        orderBy('timestamp', 'desc'),
+        limit(maxResults)
     );
     
     return onSnapshot(q, (snapshot) => {
         const activities = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data();
+        snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
             activities.push({ 
-                id: doc.id, 
+                id: docSnap.id, 
                 ...data,
-                timestamp: data.timestamp?.toDate() || new Date()
+                timestamp: data.timestamp?.toDate?.() || data.createdAt?.toDate?.() || new Date()
             });
         });
-        callback(activities.slice(0, limit));
+        callback(activities);
     }, (error) => {
         console.error('Error fetching module activities:', error);
         callback([]);
@@ -1092,25 +1125,26 @@ export function subscribeToActivitiesByModule(module, callback, limit = 20) {
 }
 
 // Get activities by user
-export function subscribeToActivitiesByUser(userId, callback, limit = 20) {
-    const activitiesRef = collection(db, 'activities');
+export function subscribeToActivitiesByUser(userId, callback, maxResults = 20) {
+    const activitiesRef = collection(db, 'activity_logs');
     const q = query(
         activitiesRef, 
         where('userId', '==', userId),
-        orderBy('timestamp', 'desc')
+        orderBy('timestamp', 'desc'),
+        limit(maxResults)
     );
     
     return onSnapshot(q, (snapshot) => {
         const activities = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data();
+        snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
             activities.push({ 
-                id: doc.id, 
+                id: docSnap.id, 
                 ...data,
-                timestamp: data.timestamp?.toDate() || new Date()
+                timestamp: data.timestamp?.toDate?.() || data.createdAt?.toDate?.() || new Date()
             });
         });
-        callback(activities.slice(0, limit));
+        callback(activities);
     }, (error) => {
         console.error('Error fetching user activities:', error);
         callback([]);
@@ -1119,7 +1153,7 @@ export function subscribeToActivitiesByUser(userId, callback, limit = 20) {
 
 // Get activities by patient
 export function subscribeToActivitiesByPatient(patientId, callback) {
-    const activitiesRef = collection(db, 'activities');
+    const activitiesRef = collection(db, 'activity_logs');
     const q = query(
         activitiesRef, 
         where('patientId', '==', patientId),
@@ -1128,12 +1162,12 @@ export function subscribeToActivitiesByPatient(patientId, callback) {
     
     return onSnapshot(q, (snapshot) => {
         const activities = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data();
+        snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
             activities.push({ 
-                id: doc.id, 
+                id: docSnap.id, 
                 ...data,
-                timestamp: data.timestamp?.toDate() || new Date()
+                timestamp: data.timestamp?.toDate?.() || data.createdAt?.toDate?.() || new Date()
             });
         });
         callback(activities);
@@ -1149,7 +1183,7 @@ export async function deleteOldActivities(daysOld = 30) {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - daysOld);
         
-        const activitiesRef = collection(db, 'activities');
+        const activitiesRef = collection(db, 'activity_logs');
         const q = query(activitiesRef, where('timestamp', '<', cutoffDate));
         const snapshot = await getDocs(q);
         

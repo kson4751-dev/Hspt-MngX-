@@ -438,13 +438,19 @@ window.confirmStabilization = async function(alarmId) {
         
         // Log activity
         import('./firebase-helpers.js').then(({ logActivity }) => {
-            logActivity(
-                'Emergency Department',
-                'STABILIZED',
-                currentUserName,
-                'PATIENT STABILIZED',
-                `✅ ${alarmData.patientName || 'Patient'} marked as stabilized by ${currentUserName}. ${notes ? `Notes: ${notes}` : ''}`
-            );
+            logActivity({
+                module: 'Emergency Department',
+                action: 'Patient Stabilized',
+                userName: currentUserName,
+                status: 'success',
+                statusText: 'Stabilized',
+                description: `✅ ${alarmData.patientName || 'Patient'} marked as stabilized by ${currentUserName}. ${notes ? `Notes: ${notes}` : ''}`,
+                metadata: {
+                    alarmId,
+                    patientName: alarmData.patientName || null,
+                    stabilizedBy: currentUserName
+                }
+            });
         }).catch(error => {
             console.error('Error logging stabilization activity:', error);
         });
@@ -1517,6 +1523,19 @@ window.refreshDashboard = refreshDashboard;
 let recentActivities = [];
 let activitiesUnsubscribe = null;
 
+function renderActivityUserCell(activity) {
+    const name = activity.userName || 'System';
+    const details = [activity.userEmail, activity.userRole || activity.department]
+        .filter(Boolean)
+        .join(' • ');
+    return `
+        <div class="activity-user">
+            <span class="activity-user-name">${name}</span>
+            ${details ? `<span class="activity-user-meta">${details}</span>` : ''}
+        </div>
+    `.trim();
+}
+
 // Get current user info
 function getCurrentUserInfo() {
     try {
@@ -1526,19 +1545,28 @@ function getCurrentUserInfo() {
             const user = JSON.parse(userStr);
             return {
                 userId: user.uid || user.id,
-                userName: user.displayName || user.name || user.email?.split('@')[0] || 'User'
+                userName: user.displayName || user.name || user.email?.split('@')[0] || 'User',
+                userEmail: user.email || '',
+                userRole: user.role || '',
+                department: user.department || '',
+                sessionId: user.sessionId || ''
             };
         }
         
         // Fallback to individual storage items
-        const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
-        const userName = localStorage.getItem('userName') || sessionStorage.getItem('userName');
-        const userEmail = localStorage.getItem('userEmail') || sessionStorage.getItem('userEmail');
+        const storage = localStorage.getItem('userId') ? localStorage : sessionStorage;
+        const userId = storage.getItem('userId');
+        const userName = storage.getItem('userName');
+        const userEmail = storage.getItem('userEmail');
         
         if (userId) {
             return {
                 userId: userId,
-                userName: userName || userEmail?.split('@')[0] || 'User'
+                userName: userName || userEmail?.split('@')[0] || 'User',
+                userEmail: userEmail || '',
+                userRole: storage.getItem('userRole') || '',
+                department: storage.getItem('userDepartment') || '',
+                sessionId: storage.getItem('sessionId') || ''
             };
         }
     } catch (error) {
@@ -1546,7 +1574,8 @@ function getCurrentUserInfo() {
     }
     return {
         userId: 'system',
-        userName: 'System'
+        userName: 'System',
+        userEmail: ''
     };
 }
 
@@ -1593,6 +1622,10 @@ async function addActivity(activity) {
             module: activity.module,
             userId: userInfo.userId,
             userName: activity.user || userInfo.userName,
+            userEmail: userInfo.userEmail,
+            userRole: userInfo.userRole,
+            department: userInfo.department,
+            sessionId: userInfo.sessionId,
             status: activity.status || 'info',
             statusText: activity.statusText || 'Completed',
             description: activity.description || null,
@@ -1648,17 +1681,19 @@ function updateRecentActivitiesDisplay() {
             timeStr = time.toLocaleDateString([], { month: 'short', day: 'numeric' });
         }
         
-        // Status badge styling
-        const statusClass = activity.status || 'info';
+        const moduleLabel = activity.module || activity.metadata?.moduleName || activity.type || 'General';
+        const statusClass = activity.status || (activity.type === 'error' ? 'negative' : activity.type === 'warning' ? 'warning' : 'info');
+        const statusText = activity.statusText || activity.action || 'Activity';
+        const userCell = renderActivityUserCell(activity);
         
         return `
             <tr>
                 <td><span class="activity-time">${timeStr}</span></td>
-                <td><strong>${activity.action}</strong></td>
+                <td><strong>${activity.action || 'Activity'}</strong></td>
                 <td>${activity.patient || 'N/A'}</td>
-                <td><span class="module-badge">${activity.module}</span></td>
-                <td>${activity.userName || 'System'}</td>
-                <td><span class="activity-badge ${statusClass}">${activity.statusText}</span></td>
+                <td><span class="module-badge">${moduleLabel}</span></td>
+                <td>${userCell}</td>
+                <td><span class="activity-badge ${statusClass}">${statusText}</span></td>
             </tr>
         `;
     }).join('');
@@ -1719,16 +1754,19 @@ function displayAllActivitiesTable(filteredActivities = null) {
             hour: '2-digit', 
             minute: '2-digit' 
         });
-        const statusClass = activity.status || 'info';
+        const moduleLabel = activity.module || activity.metadata?.moduleName || activity.type || 'General';
+        const statusClass = activity.status || (activity.type === 'error' ? 'negative' : activity.type === 'warning' ? 'warning' : 'info');
+        const statusText = activity.statusText || activity.action || 'Activity';
+        const userCell = renderActivityUserCell(activity);
         
         return `
             <tr>
                 <td><span class="activity-time">${timeStr}</span></td>
-                <td><strong>${activity.action}</strong></td>
+                <td><strong>${activity.action || 'Activity'}</strong></td>
                 <td>${activity.patient || 'N/A'}</td>
-                <td><span class="module-badge">${activity.module}</span></td>
-                <td>${activity.userName || 'System'}</td>
-                <td><span class="activity-badge ${statusClass}">${activity.statusText}</span></td>
+                <td><span class="module-badge">${moduleLabel}</span></td>
+                <td>${userCell}</td>
+                <td><span class="activity-badge ${statusClass}">${statusText}</span></td>
             </tr>
         `;
     }).join('');
@@ -1757,10 +1795,12 @@ function setupActivityFilters() {
         if (searchInput && searchInput.value.trim()) {
             const searchTerm = searchInput.value.toLowerCase().trim();
             filtered = filtered.filter(a => 
-                a.action.toLowerCase().includes(searchTerm) ||
+                a.action?.toLowerCase().includes(searchTerm) ||
                 (a.patient && a.patient.toLowerCase().includes(searchTerm)) ||
                 (a.userName && a.userName.toLowerCase().includes(searchTerm)) ||
-                a.module.toLowerCase().includes(searchTerm)
+                (a.userEmail && a.userEmail.toLowerCase().includes(searchTerm)) ||
+                (a.module && a.module.toLowerCase().includes(searchTerm)) ||
+                (a.description && a.description.toLowerCase().includes(searchTerm))
             );
         }
         
@@ -1830,16 +1870,19 @@ function showAllActivitiesModal() {
                                 hour: '2-digit', 
                                 minute: '2-digit' 
                             });
-                            const statusClass = activity.status || 'info';
+                            const moduleLabel = activity.module || activity.metadata?.moduleName || activity.type || 'General';
+                            const statusClass = activity.status || (activity.type === 'error' ? 'negative' : activity.type === 'warning' ? 'warning' : 'info');
+                            const statusText = activity.statusText || activity.action || 'Activity';
+                            const userCell = renderActivityUserCell(activity);
                             
                             return `
                                 <tr>
                                     <td><span class="activity-time">${timeStr}</span></td>
-                                    <td><strong>${activity.action}</strong></td>
+                                    <td><strong>${activity.action || 'Activity'}</strong></td>
                                     <td>${activity.patient || 'N/A'}</td>
-                                    <td><span class="module-badge">${activity.module}</span></td>
-                                    <td>${activity.userName || 'System'}</td>
-                                    <td><span class="activity-badge ${statusClass}">${activity.statusText}</span></td>
+                                    <td><span class="module-badge">${moduleLabel}</span></td>
+                                    <td>${userCell}</td>
+                                    <td><span class="activity-badge ${statusClass}">${statusText}</span></td>
                                 </tr>
                             `;
                         }).join('')}
@@ -12767,15 +12810,21 @@ window.soundEmergencyAlarm = async function(patientInfo = null) {
         
         // Log activity for all departments
         import('./firebase-helpers.js').then(({ logActivity }) => {
-            logActivity(
-                'Emergency Department',
-                'ALARM',
-                currentUserName,
-                'EMERGENCY ALARM ACTIVATED',
-                patientInfo?.patientName 
+            logActivity({
+                module: 'Emergency Department',
+                action: 'Emergency Alarm Activated',
+                userName: currentUserName,
+                status: 'warning',
+                statusText: 'Alarm Broadcasted',
+                description: patientInfo?.patientName 
                     ? `🚨 Emergency alarm for ${patientInfo.patientName} broadcasted to all hospital staff by ${currentUserName}`
-                    : `🚨 Code Red alarm broadcasted to all hospital staff by ${currentUserName}`
-            );
+                    : `🚨 Code Red alarm broadcasted to all hospital staff by ${currentUserName}`,
+                metadata: {
+                    alarmId: alarmRef.id,
+                    patientName: patientInfo?.patientName || null,
+                    chiefComplaint: patientInfo?.chiefComplaint || null
+                }
+            });
         }).catch(error => {
             console.error('Error logging alarm activity:', error);
         });
