@@ -11,134 +11,134 @@
     <link rel="stylesheet" href="css/login.css">
 </head>
 <body>
+    <!-- Crystal Background Shapes -->
+    <div class="crystal-bg">
+        <div class="crystal-shape"></div>
+        <div class="crystal-shape"></div>
+        <div class="crystal-shape"></div>
+        <div class="crystal-shape"></div>
+        <div class="crystal-shape"></div>
+    </div>
+
     <div class="login-container">
-        <!-- Left Side - Branding -->
-        <div class="login-left">
-            <div class="branding-content">
-                <div class="logo-section">
+        <div class="login-card">
+            <!-- Logo Section -->
+            <div class="logo-section">
+                <div class="logo-icon">
                     <i class="fas fa-heartbeat"></i>
-                    <h1>RxFlow</h1>
                 </div>
-                <h2>Hospital Management System</h2>
-                <p class="tagline">Streamline your healthcare operations with our comprehensive management solution</p>
-                
-                <div class="features-list">
-                    <div class="feature-item">
-                        <i class="fas fa-check-circle"></i>
-                        <span>Multi-user role-based access control</span>
-                    </div>
-                    <div class="feature-item">
-                        <i class="fas fa-check-circle"></i>
-                        <span>14 specialized modules for complete operations</span>
-                    </div>
-                    <div class="feature-item">
-                        <i class="fas fa-check-circle"></i>
-                        <span>Real-time data synchronization</span>
-                    </div>
-                    <div class="feature-item">
-                        <i class="fas fa-check-circle"></i>
-                        <span>Secure and compliant system</span>
+                <h1>RxFlow</h1>
+                <p>Hospital Management System</p>
+            </div>
+
+            <!-- Login Form -->
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="email">
+                        <i class="fas fa-envelope"></i>
+                        Email
+                    </label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        placeholder="Enter your email"
+                        required
+                        autocomplete="email"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="password">
+                        <i class="fas fa-lock"></i>
+                        Password
+                    </label>
+                    <div class="password-input-wrapper">
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="password" 
+                            placeholder="Enter your password"
+                            required
+                            autocomplete="current-password"
+                        >
+                        <button type="button" class="toggle-password" id="togglePassword">
+                            <i class="fas fa-eye"></i>
+                        </button>
                     </div>
                 </div>
 
-                <div class="stats-section">
-                    <div class="stat-item">
-                        <h3>14+</h3>
-                        <p>Modules</p>
-                    </div>
-                    <div class="stat-item">
-                        <h3>100%</h3>
-                        <p>Secure</p>
-                    </div>
-                    <div class="stat-item">
-                        <h3>24/7</h3>
-                        <p>Support</p>
-                    </div>
+                <div class="form-options">
+                    <a href="#" class="forgot-password" id="forgotPasswordLink">Forgot Password?</a>
                 </div>
+
+                <button type="submit" class="btn-login" id="loginBtn">
+                    <span class="btn-text">Login</span>
+                    <span class="btn-loader" style="display: none;">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </span>
+                </button>
+
+                <div id="errorMessage" class="error-message" style="display: none;">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span id="errorText"></span>
+                </div>
+
+                <div id="successMessage" class="success-message" style="display: none;">
+                    <i class="fas fa-check-circle"></i>
+                    <span id="successText"></span>
+                </div>
+            </form>
+
+            <div class="form-footer">
+                <p>Don't have an account? <a href="#" id="contactAdmin">Contact Administrator</a></p>
             </div>
         </div>
+    </div>
 
-        <!-- Right Side - Login Form -->
-        <div class="login-right">
-            <div class="login-form-container">
-                <div class="form-header">
-                    <h2>Welcome Back</h2>
-                    <p>Please login to your account</p>
-                </div>
+    <!-- Floating Emergency Alarm Button -->
+    <button class="emergency-fab" id="emergencyFab" title="Emergency Alarm">
+        <i class="fas fa-bell"></i>
+    </button>
 
-                <form id="loginForm" class="login-form">
-                    <div class="form-group">
-                        <label for="email">
-                            <i class="fas fa-envelope"></i>
-                            Email Address
-                        </label>
-                        <input 
-                            type="email" 
-                            id="email" 
-                            name="email" 
-                            placeholder="Enter your email"
-                            required
-                            autocomplete="email"
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label for="password">
-                            <i class="fas fa-lock"></i>
-                            Password
-                        </label>
-                        <div class="password-input-wrapper">
-                            <input 
-                                type="password" 
-                                id="password" 
-                                name="password" 
-                                placeholder="Enter your password"
-                                required
-                                autocomplete="current-password"
-                            >
-                            <button type="button" class="toggle-password" id="togglePassword">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="form-options">
-                        <label class="remember-me">
-                            <input type="checkbox" id="rememberMe">
-                            <span>Remember me</span>
-                        </label>
-                        <a href="#" class="forgot-password" id="forgotPasswordLink">Forgot Password?</a>
-                    </div>
-
-                    <button type="submit" class="btn-login" id="loginBtn">
-                        <span class="btn-text">Login</span>
-                        <span class="btn-loader" style="display: none;">
-                            <i class="fas fa-spinner fa-spin"></i>
-                        </span>
-                    </button>
-
-                    <div id="errorMessage" class="error-message" style="display: none;">
-                        <i class="fas fa-exclamation-circle"></i>
-                        <span id="errorText"></span>
-                    </div>
-
-                    <div id="successMessage" class="success-message" style="display: none;">
-                        <i class="fas fa-check-circle"></i>
-                        <span id="successText"></span>
-                    </div>
-                </form>
-
-                <div class="form-footer">
-                    <p>Don't have an account? <a href="#" id="contactAdmin">Contact Administrator</a></p>
-                </div>
+    <!-- Emergency Confirmation Modal -->
+    <div class="emergency-modal" id="emergencyModal">
+        <div class="emergency-modal-content">
+            <div class="emergency-modal-header">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h2>Emergency Alert</h2>
             </div>
+            <div class="emergency-modal-body">
+                <p>You are about to trigger a <strong>hospital-wide emergency alarm</strong>.</p>
+                <p>This will notify all medical staff immediately.</p>
+                <p class="emergency-warning">Only use this for genuine emergencies!</p>
+            </div>
+            <div class="emergency-modal-footer">
+                <button class="emergency-cancel-btn" id="emergencyCancelBtn">Cancel</button>
+                <button class="emergency-confirm-btn" id="emergencyConfirmBtn">
+                    <i class="fas fa-bell"></i>
+                    TRIGGER ALARM
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Emergency Success Modal -->
+    <div class="emergency-success-modal" id="emergencySuccessModal">
+        <div class="emergency-success-content">
+            <div class="emergency-success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h2>Alert Sent!</h2>
+            <p>Emergency services have been notified. Help is on the way.</p>
+            <button class="emergency-ok-btn" id="emergencyOkBtn">OK</button>
         </div>
     </div>
 
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
         import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
         // Firebase configuration
@@ -162,7 +162,6 @@
         const loginForm = document.getElementById('loginForm');
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
-        const rememberMeCheckbox = document.getElementById('rememberMe');
         const loginBtn = document.getElementById('loginBtn');
         const btnText = loginBtn.querySelector('.btn-text');
         const btnLoader = loginBtn.querySelector('.btn-loader');
@@ -227,7 +226,6 @@
 
             const email = emailInput.value.trim();
             const password = passwordInput.value;
-            const rememberMe = rememberMeCheckbox.checked;
 
             // Validation
             if (!email || !password) {
@@ -242,9 +240,8 @@
             errorMessage.style.display = 'none';
 
             try {
-                // Set persistence based on remember me checkbox
-                const persistence = rememberMe ? browserLocalPersistence : browserSessionPersistence;
-                await setPersistence(auth, persistence);
+                // Set persistence to local (keeps user logged in)
+                await setPersistence(auth, browserLocalPersistence);
 
                 // Sign in with email and password
                 const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -254,13 +251,12 @@
                 const userData = await getUserRole(user.uid);
 
                 if (userData) {
-                    // Store user data in session/local storage
-                    const storageType = rememberMe ? localStorage : sessionStorage;
-                    storageType.setItem('userRole', userData.role || 'user');
-                    storageType.setItem('userPermissions', JSON.stringify(userData.permissions || []));
-                    storageType.setItem('userName', userData.displayName || user.displayName || 'User');
-                    storageType.setItem('userEmail', user.email);
-                    storageType.setItem('userId', user.uid);
+                    // Store user data in localStorage
+                    localStorage.setItem('userRole', userData.role || 'user');
+                    localStorage.setItem('userPermissions', JSON.stringify(userData.permissions || []));
+                    localStorage.setItem('userName', userData.displayName || user.displayName || 'User');
+                    localStorage.setItem('userEmail', user.email);
+                    localStorage.setItem('userId', user.uid);
 
                     // Log login activity
                     try {
@@ -412,6 +408,106 @@
                 }
             }
         });
+
+        // ===== EMERGENCY ALARM BUTTON FUNCTIONALITY =====
+        const emergencyFab = document.getElementById('emergencyFab');
+        const emergencyModal = document.getElementById('emergencyModal');
+        const emergencyCancelBtn = document.getElementById('emergencyCancelBtn');
+        const emergencyConfirmBtn = document.getElementById('emergencyConfirmBtn');
+        const emergencySuccessModal = document.getElementById('emergencySuccessModal');
+        const emergencyOkBtn = document.getElementById('emergencyOkBtn');
+
+        // Open emergency confirmation modal
+        emergencyFab.addEventListener('click', () => {
+            emergencyModal.classList.add('active');
+        });
+
+        // Close modal on cancel
+        emergencyCancelBtn.addEventListener('click', () => {
+            emergencyModal.classList.remove('active');
+        });
+
+        // Close modal when clicking outside
+        emergencyModal.addEventListener('click', (e) => {
+            if (e.target === emergencyModal) {
+                emergencyModal.classList.remove('active');
+            }
+        });
+
+        // Trigger emergency alarm - connects to Firebase real-time
+        emergencyConfirmBtn.addEventListener('click', async () => {
+            emergencyConfirmBtn.disabled = true;
+            emergencyConfirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+            try {
+                // Create emergency alarm in Firebase - same collection as emergency module
+                const alarmData = {
+                    triggeredBy: 'guest',
+                    triggeredByName: 'Guest (Login Page)',
+                    message: '🚨 CODE RED - EMERGENCY ALARM ACTIVATED',
+                    description: 'Emergency alarm triggered from login page by a visitor/guest. All staff report to emergency stations immediately.',
+                    severity: 'critical',
+                    timestamp: serverTimestamp(),
+                    acknowledged: [],
+                    active: true,
+                    source: 'login-page'
+                };
+
+                const alarmRef = await addDoc(collection(db, 'emergency_alarms'), alarmData);
+                console.log('✅ Emergency alarm broadcasted:', alarmRef.id);
+
+                // Play emergency siren sound
+                playEmergencySiren();
+
+                // Close confirmation and show success
+                emergencyModal.classList.remove('active');
+                emergencySuccessModal.classList.add('active');
+
+            } catch (error) {
+                console.error('Error triggering emergency alarm:', error);
+                alert('Failed to send emergency alert. Please try again or call emergency services directly.');
+            } finally {
+                emergencyConfirmBtn.disabled = false;
+                emergencyConfirmBtn.innerHTML = '<i class="fas fa-bell"></i> TRIGGER ALARM';
+            }
+        });
+
+        // Close success modal
+        emergencyOkBtn.addEventListener('click', () => {
+            emergencySuccessModal.classList.remove('active');
+        });
+
+        // Play emergency siren sound (ambulance style)
+        function playEmergencySiren() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const startTime = audioContext.currentTime;
+                
+                for (let i = 0; i < 6; i++) {
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    oscillator.type = 'sine';
+                    
+                    const startFreq = i % 2 === 0 ? 800 : 600;
+                    const endFreq = i % 2 === 0 ? 600 : 800;
+                    const segmentStart = startTime + (i * 0.5);
+                    const segmentEnd = segmentStart + 0.5;
+                    
+                    oscillator.frequency.setValueAtTime(startFreq, segmentStart);
+                    oscillator.frequency.linearRampToValueAtTime(endFreq, segmentEnd);
+                    gainNode.gain.setValueAtTime(0.3, segmentStart);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, segmentEnd);
+                    
+                    oscillator.start(segmentStart);
+                    oscillator.stop(segmentEnd);
+                }
+            } catch (error) {
+                console.log('Could not play emergency sound:', error);
+            }
+        }
     </script>
 </body>
 </html>
