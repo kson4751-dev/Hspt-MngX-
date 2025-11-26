@@ -2,7 +2,7 @@
 // RxFlow Hospital Management System
 
 import { db } from './firebase-config.js';
-import { collection, addDoc, updateDoc, doc, query, where, orderBy, limit, onSnapshot, serverTimestamp, deleteDoc, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, addDoc, updateDoc, doc, query, where, onSnapshot, serverTimestamp, deleteDoc, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 let notificationsUnsubscribe = null;
 let currentUserId = null;
@@ -29,31 +29,43 @@ function subscribeToNotifications() {
     
     try {
         const notificationsRef = collection(db, 'notifications');
+        // Avoid Firestore composite index requirement by querying by userId only
+        // and performing ordering/limiting on the client.
         const q = query(
             notificationsRef,
-            where('userId', '==', currentUserId),
-            orderBy('timestamp', 'desc'),
-            limit(50)
+            where('userId', '==', currentUserId)
         );
         
         notificationsUnsubscribe = onSnapshot(q, (snapshot) => {
             const notifications = [];
             
-            snapshot.forEach((doc) => {
-                const data = doc.data();
+            snapshot.forEach((docSnapshot) => {
+                const data = docSnapshot.data();
                 notifications.push({
-                    id: doc.id,
+                    id: docSnapshot.id,
                     ...data,
-                    timestamp: data.timestamp?.toDate() || new Date()
+                    timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date()
                 });
             });
+
+            // Sort newest first and keep only the 50 most recent notifications client-side.
+            notifications.sort((a, b) => {
+                const timeA = a.timestamp?.getTime ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
+                const timeB = b.timestamp?.getTime ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
+                return timeB - timeA;
+            });
+
+            const latestNotifications = notifications.slice(0, 50);
             
             // Update the UI with real-time notifications
             if (window.updateNotificationUI) {
-                window.updateNotificationUI(notifications);
+                window.updateNotificationUI(latestNotifications);
             }
         }, (error) => {
             console.error('Error listening to notifications:', error);
+            if (window.updateNotificationUI) {
+                window.updateNotificationUI([]);
+            }
         });
         
     } catch (error) {
