@@ -11,8 +11,16 @@
     --text-primary: #1e293b;
     --text-secondary: #64748b;
     --border-color: #e2e8f0;
+    --table-header-bg: #f1f5f9;
+    --table-header-text: #1f2937;
+    --table-header-border: #dbe3ef;
+    --billing-surface: #ffffff;
+    --billing-surface-alt: #f8fafc;
+    --billing-border-strong: #e2e8f0;
+    --billing-input-bg: #ffffff;
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+    --table-row-hover: rgba(37, 99, 235, 0.05);
     --sidebar-width: 260px;
     --sidebar-collapsed-width: 70px;
     --topbar-height: 70px;
@@ -33,6 +41,14 @@ body.theme-dark {
     --text-primary: #f1f5f9;
     --text-secondary: #94a3b8;
     --border-color: #334155;
+    --table-header-bg: #1e293b;
+    --table-header-text: #e2e8f0;
+    --table-header-border: #475569;
+    --billing-surface: #1b2540;
+    --billing-surface-alt: #131c2f;
+    --billing-border-strong: rgba(148, 163, 184, 0.45);
+    --billing-input-bg: #0f1b2f;
+    --table-row-hover: rgba(59, 130, 246, 0.1);
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.3);
 }
@@ -60,6 +76,10 @@ body.theme-blue {
     --text-primary: #0c4a6e;
     --text-secondary: #0369a1;
     --border-color: #bae6fd;
+    --table-header-bg: #e0f2fe;
+    --table-header-text: #0c4a6e;
+    --table-header-border: #7dd3fc;
+    --table-row-hover: rgba(2, 132, 199, 0.08);
 }
 
 /* Green Theme */
@@ -73,6 +93,10 @@ body.theme-green {
     --text-primary: #064e3b;
     --text-secondary: #047857;
     --border-color: #bbf7d0;
+    --table-header-bg: #dcfce7;
+    --table-header-text: #064e3b;
+    --table-header-border: #86efac;
+    --table-row-hover: rgba(5, 150, 105, 0.08);
 }
 
 /* Reset & Base Styles */
@@ -2964,6 +2988,19 @@ body.dark-theme .module-badge {
     cursor: pointer;
 }
 
+#billing-module .form-group input,
+#billing-module .form-group select,
+#billing-module .form-group textarea {
+    background-color: var(--billing-input-bg);
+    border-color: var(--billing-border-strong);
+}
+
+#billing-module .form-group input:focus,
+#billing-module .form-group select:focus,
+#billing-module .form-group textarea:focus {
+    background-color: var(--billing-surface);
+}
+
 /* Radio Group */
 .radio-group {
     display: flex;
@@ -4632,12 +4669,65 @@ body.dark-theme .module-badge {
     vertical-align: middle;
 }
 
-.data-table tbody tr {
+/* Unified table header styling */
+.data-table thead,
+.activities-table thead,
+.patients-table thead,
+.expenses-table thead,
+.billing-table thead,
+.inventory-table thead,
+.recent-billings-table thead,
+.imaging-table thead,
+.lab-requests-table thead,
+.triage-records-table thead {
+    background-color: var(--table-header-bg);
+    border-bottom: 2px solid var(--table-header-border);
+}
+
+.data-table th,
+.activities-table th,
+.patients-table th,
+.expenses-table th,
+.billing-table th,
+.inventory-table th,
+.recent-billings-table th,
+.imaging-table th,
+.lab-requests-table th,
+.triage-records-table th {
+    color: var(--table-header-text);
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    background-color: transparent;
+    border-bottom: 2px solid var(--table-header-border);
+}
+
+
+.data-table tbody tr,
+.activities-table tbody tr,
+.patients-table tbody tr,
+.expenses-table tbody tr,
+.billing-table tbody tr,
+.inventory-table tbody tr,
+.recent-billings-table tbody tr,
+.imaging-table tbody tr,
+.lab-requests-table tbody tr,
+.triage-records-table tbody tr {
     transition: var(--transition);
 }
 
-.data-table tbody tr:hover {
-    background-color: var(--bg-color);
+.data-table tbody tr:hover,
+.activities-table tbody tr:hover,
+.patients-table tbody tr:hover,
+.expenses-table tbody tr:hover,
+.billing-table tbody tr:hover,
+.inventory-table tbody tr:hover,
+.recent-billings-table tbody tr:hover,
+.imaging-table tbody tr:hover,
+.lab-requests-table tbody tr:hover,
+.triage-records-table tbody tr:hover {
+    background-color: var(--table-row-hover);
 }
 
 .data-table tbody tr.empty-row:hover {
@@ -7900,8 +7990,8 @@ body.theme-dark #imagingReportsBadge {
 }
 
 #billing-module .stat-card {
-    background: white;
-    border: 2px solid transparent;
+    background: var(--billing-surface);
+    border: 2px solid var(--billing-border-strong);
     position: relative;
     overflow: hidden;
 }
@@ -7925,12 +8015,12 @@ body.theme-dark #imagingReportsBadge {
 }
 
 .billing-section {
-    background: white;
-    border: 2px solid var(--border-color);
+    background: var(--billing-surface);
+    border: 2px solid var(--billing-border-strong);
     border-radius: 16px;
     padding: 28px;
     margin-bottom: 24px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.08);
     transition: all 0.3s ease;
 }
 
@@ -8013,6 +8103,15 @@ body.theme-dark #imagingReportsBadge {
     color: var(--text-primary);
 }
 
+#billing-module .search-input-wrapper .form-input {
+    background: var(--billing-input-bg);
+    border-color: var(--billing-border-strong);
+}
+
+#billing-module .search-input-wrapper .form-input:focus {
+    background: var(--billing-surface);
+}
+
 body.dark-theme .search-input-wrapper .form-input {
     background: var(--bg-color);
 }
@@ -8058,8 +8157,8 @@ body.dark-theme .search-input-wrapper .form-input {
     align-items: center;
     justify-content: space-between;
     padding: 18px 20px;
-    background: white;
-    border: 2px solid var(--border-color);
+    background: var(--billing-surface-alt);
+    border: 2px solid var(--billing-border-strong);
     border-radius: 12px;
     margin-bottom: 12px;
     cursor: pointer;
@@ -8174,6 +8273,11 @@ body.dark-theme .search-input-wrapper .form-input {
     border: 1px solid rgba(52, 152, 219, 0.15);
 }
 
+#billing-module .info-item {
+    background: var(--billing-surface-alt);
+    border: 1px solid var(--billing-border-strong);
+}
+
 .info-item label {
     font-size: 11px;
     color: var(--text-secondary);
@@ -8199,13 +8303,13 @@ body.dark-theme .search-input-wrapper .form-input {
 
 /* Bill Item Section */
 .bill-item-section {
-    background: white;
-    border: 2px solid var(--border-color);
+    background: var(--billing-surface);
+    border: 2px solid var(--billing-border-strong);
     border-radius: 12px;
     padding: 20px;
     margin-bottom: 18px;
     transition: all 0.3s ease;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
 }
 
 .bill-item-section:hover {
@@ -8296,8 +8400,8 @@ body.dark-theme .toggle-slider {
     grid-template-columns: 2fr 1fr auto;
     gap: 12px;
     padding: 12px;
-    background: white;
-    border: 1px solid var(--border-color);
+    background: var(--billing-surface-alt);
+    border: 1px solid var(--billing-border-strong);
     border-radius: 8px;
     margin-bottom: 10px;
     align-items: end;
@@ -8504,8 +8608,8 @@ body.dark-theme .manual-patient-entry {
 
 .manual-patient-entry .form-input,
 .manual-patient-entry .form-select {
-    background: white;
-    border: 2px solid var(--border-color);
+    background: var(--billing-input-bg);
+    border: 2px solid var(--billing-border-strong);
     transition: all 0.3s ease;
 }
 
@@ -8636,7 +8740,7 @@ body.dark-theme .dropdown-item:hover {
     min-width: 700px;
     border-collapse: separate;
     border-spacing: 0;
-    background: white;
+    background: var(--billing-surface);
     border-radius: 8px;
     overflow: hidden;
 }
@@ -12444,84 +12548,86 @@ body.dark-theme .medication-item {
    DARK MODE - BILLING MODULE
    ======================================== */
 
-body.dark-theme #billing-module .stat-card {
-    background: var(--sidebar-bg);
-    border-color: var(--border-color);
+:is(body.dark-theme, body.theme-dark) #billing-module .stat-card {
+    background: var(--billing-surface);
+    border-color: var(--billing-border-strong);
+    box-shadow: 0 16px 36px rgba(2, 6, 23, 0.45);
 }
 
-body.dark-theme #billing-module .stat-card:hover {
-    background: rgba(52, 152, 219, 0.05);
-    border-color: rgba(52, 152, 219, 0.3);
+:is(body.dark-theme, body.theme-dark) #billing-module .stat-card:hover {
+    background: rgba(52, 152, 219, 0.08);
+    border-color: rgba(52, 152, 219, 0.35);
 }
 
-body.dark-theme .billing-section {
-    background: var(--sidebar-bg);
-    border-color: var(--border-color);
+:is(body.dark-theme, body.theme-dark) .billing-section {
+    background: var(--billing-surface);
+    border-color: var(--billing-border-strong);
+    box-shadow: 0 20px 40px rgba(2, 6, 23, 0.45);
 }
 
-body.dark-theme .search-input-wrapper .form-input {
-    background: var(--bg-color);
-    border-color: var(--border-color);
+:is(body.dark-theme, body.theme-dark) #billing-module .search-input-wrapper .form-input {
+    background: var(--billing-input-bg);
+    border-color: var(--billing-border-strong);
     color: var(--text-primary);
 }
 
-body.dark-theme .search-input-wrapper .form-input:focus {
-    background: var(--sidebar-bg);
+:is(body.dark-theme, body.theme-dark) #billing-module .search-input-wrapper .form-input:focus {
+    background: var(--billing-surface);
     border-color: var(--primary-color);
 }
 
-body.dark-theme .patient-result-item {
-    background: var(--sidebar-bg);
-    border-color: var(--border-color);
+:is(body.dark-theme, body.theme-dark) #billing-module .patient-result-item {
+    background: var(--billing-surface-alt);
+    border-color: var(--billing-border-strong);
 }
 
-body.dark-theme .patient-result-item:hover {
-    background: rgba(52, 152, 219, 0.08);
+:is(body.dark-theme, body.theme-dark) #billing-module .patient-result-item:hover {
+    background: rgba(52, 152, 219, 0.12);
     border-color: var(--primary-color);
 }
 
-body.dark-theme .patient-result-info .patient-meta span {
-    background: rgba(52, 152, 219, 0.15);
-    border-color: rgba(52, 152, 219, 0.3);
-}
-
-body.dark-theme .patient-info-card {
-    background: linear-gradient(135deg, rgba(52, 152, 219, 0.12) 0%, rgba(155, 89, 182, 0.1) 100%);
+:is(body.dark-theme, body.theme-dark) #billing-module .patient-result-info .patient-meta span {
+    background: rgba(52, 152, 219, 0.18);
     border-color: rgba(52, 152, 219, 0.4);
 }
 
-body.dark-theme .info-item {
-    background: var(--bg-color);
-    border-color: rgba(52, 152, 219, 0.2);
+:is(body.dark-theme, body.theme-dark) #billing-module .patient-info-card {
+    background: linear-gradient(135deg, rgba(52, 152, 219, 0.18) 0%, rgba(155, 89, 182, 0.14) 100%);
+    border-color: rgba(52, 152, 219, 0.5);
 }
 
-body.dark-theme .bill-item-section {
-    background: var(--sidebar-bg);
-    border-color: var(--border-color);
+:is(body.dark-theme, body.theme-dark) #billing-module .info-item {
+    background: var(--billing-surface-alt);
+    border-color: var(--billing-border-strong);
 }
 
-body.dark-theme .bill-item-section:hover {
-    border-color: rgba(52, 152, 219, 0.4);
+:is(body.dark-theme, body.theme-dark) #billing-module .bill-item-section {
+    background: var(--billing-surface);
+    border-color: var(--billing-border-strong);
 }
 
-body.dark-theme .service-item {
-    background: var(--bg-color);
-    border-color: var(--border-color);
+:is(body.dark-theme, body.theme-dark) #billing-module .bill-item-section:hover {
+    border-color: rgba(52, 152, 219, 0.45);
 }
 
-body.dark-theme .bill-summary-section {
-    background: linear-gradient(135deg, rgba(46, 204, 113, 0.15) 0%, rgba(39, 174, 96, 0.1) 100%);
-    border-color: rgba(46, 204, 113, 0.3);
+:is(body.dark-theme, body.theme-dark) #billing-module .service-item {
+    background: var(--billing-surface-alt);
+    border-color: var(--billing-border-strong);
 }
 
-body.dark-theme .summary-total {
-    background: rgba(46, 204, 113, 0.1);
-    border-color: rgba(46, 204, 113, 0.4);
+:is(body.dark-theme, body.theme-dark) #billing-module .bill-summary-section {
+    background: linear-gradient(135deg, rgba(46, 204, 113, 0.2) 0%, rgba(39, 174, 96, 0.15) 100%);
+    border-color: rgba(46, 204, 113, 0.5);
 }
 
-body.dark-theme .billing-controls {
-    background: var(--sidebar-bg);
-    border-color: var(--border-color);
+:is(body.dark-theme, body.theme-dark) #billing-module .summary-total {
+    background: rgba(46, 204, 113, 0.18);
+    border-color: rgba(46, 204, 113, 0.45);
+}
+
+:is(body.dark-theme, body.theme-dark) .billing-controls {
+    background: var(--billing-surface);
+    border-color: var(--billing-border-strong);
 }
 
 body.dark-theme .billing-table thead {
@@ -12532,97 +12638,97 @@ body.dark-theme .billing-table tbody tr:hover {
     background: rgba(52, 152, 219, 0.05);
 }
 
-body.dark-theme .bill-action-btn {
+:is(body.dark-theme, body.theme-dark) .bill-action-btn {
     background: var(--bg-color);
     border-color: var(--border-color);
     color: var(--text-primary);
 }
 
-body.dark-theme .bill-action-btn:hover {
+:is(body.dark-theme, body.theme-dark) .bill-action-btn:hover {
     background: var(--sidebar-bg);
 }
 
-body.dark-theme .receipt-modal {
+:is(body.dark-theme, body.theme-dark) .receipt-modal {
     background: rgba(0, 0, 0, 0.85);
 }
 
-body.dark-theme .receipt-content {
+:is(body.dark-theme, body.theme-dark) .receipt-content {
     background: var(--sidebar-bg);
     color: var(--text-primary);
     border: 2px solid var(--border-color);
 }
 
-body.dark-theme .receipt-header {
+:is(body.dark-theme, body.theme-dark) .receipt-header {
     border-color: var(--border-color);
 }
 
-body.dark-theme .receipt-section {
+:is(body.dark-theme, body.theme-dark) .receipt-section {
     background: var(--bg-color);
     border-color: var(--border-color);
 }
 
-body.dark-theme .receipt-items table thead {
+:is(body.dark-theme, body.theme-dark) .receipt-items table thead {
     background: var(--bg-color);
 }
 
-body.dark-theme .receipt-items table tbody tr {
+:is(body.dark-theme, body.theme-dark) .receipt-items table tbody tr {
     border-color: var(--border-color);
 }
 
-body.dark-theme .receipt-total {
+:is(body.dark-theme, body.theme-dark) .receipt-total {
     background: linear-gradient(135deg, rgba(46, 204, 113, 0.15) 0%, rgba(39, 174, 96, 0.1) 100%);
     border-color: rgba(46, 204, 113, 0.3);
 }
 
-body.dark-theme .receipt-footer {
+:is(body.dark-theme, body.theme-dark) .receipt-footer {
     border-color: var(--border-color);
     color: var(--text-secondary);
 }
 
 /* Dark mode for form inputs in billing */
-body.dark-theme .billing-section .form-input,
-body.dark-theme .billing-section .form-select,
-body.dark-theme .billing-section textarea {
-    background: var(--bg-color);
-    border-color: var(--border-color);
+:is(body.dark-theme, body.theme-dark) .billing-section .form-input,
+:is(body.dark-theme, body.theme-dark) .billing-section .form-select,
+:is(body.dark-theme, body.theme-dark) .billing-section textarea {
+    background: var(--billing-input-bg);
+    border-color: var(--billing-border-strong);
     color: var(--text-primary);
 }
 
-body.dark-theme .billing-section .form-input:focus,
-body.dark-theme .billing-section .form-select:focus,
-body.dark-theme .billing-section textarea:focus {
-    background: var(--sidebar-bg);
+:is(body.dark-theme, body.theme-dark) .billing-section .form-input:focus,
+:is(body.dark-theme, body.theme-dark) .billing-section .form-select:focus,
+:is(body.dark-theme, body.theme-dark) .billing-section textarea:focus {
+    background: var(--billing-surface);
     border-color: var(--primary-color);
 }
 
 /* Dark mode for toggles */
-body.dark-theme .toggle-switch {
+:is(body.dark-theme, body.theme-dark) .toggle-switch {
     background: var(--border-color);
 }
 
-body.dark-theme .toggle-switch input:checked + .toggle-slider {
+:is(body.dark-theme, body.theme-dark) .toggle-switch input:checked + .toggle-slider {
     background: var(--primary-color);
 }
 
 /* Dark mode for empty states */
-body.dark-theme .empty-state-content {
+:is(body.dark-theme, body.theme-dark) .empty-state-content {
     color: var(--text-secondary);
 }
 
 /* Dark mode for pagination */
-body.dark-theme .pagination-container {
+:is(body.dark-theme, body.theme-dark) .pagination-container {
     background: var(--sidebar-bg);
     border-color: var(--border-color);
 }
 
-body.dark-theme .page-size-select {
+:is(body.dark-theme, body.theme-dark) .page-size-select {
     background: var(--bg-color);
     border-color: var(--border-color);
     color: var(--text-primary);
 }
 
 /* Ensure stat cards in dark mode maintain visibility */
-body.dark-theme #billing-module .stat-details h3 {
+:is(body.dark-theme, body.theme-dark) #billing-module .stat-details h3 {
     background: linear-gradient(135deg, #3498db 0%, #9b59b6 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -12630,11 +12736,11 @@ body.dark-theme #billing-module .stat-details h3 {
 }
 
 /* Dark mode scrollbar for search results */
-body.dark-theme .patient-search-results::-webkit-scrollbar-track {
+:is(body.dark-theme, body.theme-dark) .patient-search-results::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.05);
 }
 
-body.dark-theme .patient-search-results::-webkit-scrollbar-thumb {
+:is(body.dark-theme, body.theme-dark) .patient-search-results::-webkit-scrollbar-thumb {
     background: var(--primary-color);
 }
 

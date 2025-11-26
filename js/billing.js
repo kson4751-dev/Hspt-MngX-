@@ -1,1363 +1,88 @@
 // ===================================
 // BILLING MODULE - RxFlow HMS
+// Stable Rebuild v3.0
 // ===================================
 
-/**
- * Billing and Payment Management System
- * Handles patient billing, payment processing, and receipt generation
- */
+import { 
+    db, 
+    collection, 
+    addDoc, 
+    getDocs, 
+    updateDoc, 
+    doc, 
+    query, 
+    orderBy, 
+    where, 
+    onSnapshot, 
+    serverTimestamp,
+    limit
+} from './firebase-config.js';
+import { logActivity } from './firebase-helpers.js';
 
-// Import Firebase configuration
-import { db, collection, addDoc, getDocs, updateDoc, doc, query, orderBy, where, onSnapshot, serverTimestamp } from './firebase-config.js';
-
-// Module state
-let selectedPatient = null;
-let additionalServices = [];
-let allPatients = [];
-let allBills = [];
-let currentBillPage = 1;
-let billPageSize = 25;
-let filteredBills = [];
-let isInitialized = false;
-let billsListenerUnsubscribe = null;
-
-/**
- * Initialize Billing Module
- */
-export async function initBillingModule() {
-    // Prevent multiple initializations
-    if (isInitialized) {
-        console.log('Billing Module already initialized, skipping...');
-        return;
-    }
-    
-    console.log('Initializing Billing Module...');
-    
-    // Load patients for search
-    await loadPatients();
-    
-    // Setup event listeners
-    setupPatientSearch();
-    setupBillingForm();
-    setupToggleSwitches();
-    setupServiceButtons();
-    setupModeToggle();
-    
-    // Setup real-time listener for bills (only once)
-    if (!billsListenerUnsubscribe) {
-        billsListenerUnsubscribe = setupBillsRealtimeListener();
-    }
-    
-    // Load stats
-    updateBillingStats();
-    
-    isInitialized = true;
-    console.log('Billing Module initialized successfully');
-}
-
-/**
- * Load all patients from Firestore
- */
-async function loadPatients() {
-    try {
-        console.log('Loading patients from Firestore...');
-        // Load from new patients collection
-        const patientsCollection = collection(db, 'patients');
-        const querySnapshot = await getDocs(patientsCollection);
-        
-        allPatients = [];
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            const patient = {
-                id: doc.id,
-                patientNumber: data.patientNumber || data.patientId || doc.id,
-                fullName: data.fullName || `${data.firstName || ''} ${data.lastName || ''}`.trim(),
-                firstName: data.firstName || '',
-                lastName: data.lastName || '',
-                age: data.age,
-                gender: data.gender,
-                phone: data.phone || data.phoneNumber || data.contact,
-                consultationFeePaid: data.consultationFeePaid || false
-            };
-            allPatients.push(patient);
-            console.log('Loaded patient:', patient.patientNumber, patient.fullName);
-        });
-        
-        console.log(`✅ Loaded ${allPatients.length} patients successfully`);
-        
-        // If no patients, show helpful message
-        if (allPatients.length === 0) {
-            console.warn('No patients found in database');
-        }
-    } catch (error) {
-        console.error('Error loading patients:', error);
-        showNotification('Error loading patients: ' + error.message, 'error');
-    }
-}
-
-/**
- * Setup patient search functionality
- */
-function setupPatientSearch() {
-    const searchInput = document.getElementById('billingPatientSearchInput');
-    const resultsContainer = document.getElementById('billingPatientSearchResults');
-    
-    if (!searchInput) return;
-    
-    let searchTimeout;
-    
-    // Show all patients when input is focused (if empty)
-    searchInput.addEventListener('focus', () => {
-        if (searchInput.value.trim().length === 0) {
-            if (allPatients.length > 0) {
-                displayPatientResults(allPatients);
-            } else {
-                resultsContainer.innerHTML = `
-                    <div style="text-align:center;padding:30px 20px;color:var(--text-secondary);">
-                        <i class="fas fa-users" style="font-size:48px;opacity:0.3;margin-bottom:16px;"></i>
-                        <p style="font-size:15px;margin:0;">No patients in system</p>
-                        <p style="font-size:13px;margin:8px 0 0 0;opacity:0.8;">Register patients in the Reception module first</p>
-                    </div>
-                `;
-            }
-        }
-    });
-    
-    // Clear results when clicking outside
-    document.addEventListener('click', (e) => {
-        if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
-            if (searchInput.value.trim().length === 0) {
-                resultsContainer.innerHTML = '';
-            }
-        }
-    });
-    
-    searchInput.addEventListener('input', (e) => {
-        clearTimeout(searchTimeout);
-        const searchTerm = e.target.value.trim().toLowerCase();
-        
-        if (searchTerm.length === 0) {
-            // Show all patients when search is cleared
-            if (allPatients.length > 0) {
-                displayPatientResults(allPatients);
-            } else {
-                resultsContainer.innerHTML = `
-                    <div style="text-align:center;padding:30px 20px;color:var(--text-secondary);">
-                        <i class="fas fa-users" style="font-size:48px;opacity:0.3;margin-bottom:16px;"></i>
-                        <p style="font-size:15px;margin:0;">No patients in system</p>
-                        <p style="font-size:13px;margin:8px 0 0 0;opacity:0.8;">Register patients in the Reception module first</p>
-                    </div>
-                `;
-            }
-            return;
-        }
-        
-        if (searchTerm.length < 2) {
-            resultsContainer.innerHTML = `
-                <div style="text-align:center;padding:20px;color:var(--text-secondary);">
-                    <i class="fas fa-keyboard" style="font-size:32px;opacity:0.3;margin-bottom:12px;"></i>
-                    <p style="font-size:14px;margin:0;">Type at least 2 characters to search...</p>
-                </div>
-            `;
-            return;
-        }
-        
-        // Show loading indicator
-        resultsContainer.innerHTML = `
-            <div style="text-align:center;padding:30px;">
-                <div class="spinner" style="width:40px;height:40px;border:4px solid rgba(52,152,219,0.2);border-top-color:var(--primary-color);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;"></div>
-                <p style="color:var(--text-secondary);font-size:14px;margin:0;">Searching patients...</p>
-            </div>
-        `;
-        
-        searchTimeout = setTimeout(() => {
-            console.log('Searching for:', searchTerm);
-            console.log('Total patients:', allPatients.length);
-            
-            const results = allPatients.filter(patient => {
-                // Safely get values with fallbacks
-                const patientNumber = (patient.patientNumber || '').toString().toLowerCase();
-                const fullName = (patient.fullName || '').toString().toLowerCase();
-                const firstName = (patient.firstName || '').toString().toLowerCase();
-                const lastName = (patient.lastName || '').toString().toLowerCase();
-                const phone = (patient.phone || '').toString();
-                
-                // Check if search term matches any field
-                const matches = patientNumber.includes(searchTerm) ||
-                               fullName.includes(searchTerm) ||
-                               firstName.includes(searchTerm) ||
-                               lastName.includes(searchTerm) ||
-                               phone.includes(searchTerm);
-                
-                return matches;
-            });
-            
-            console.log('Found', results.length, 'matching patients');
-            displayPatientResults(results);
-        }, 300);
-    });
-}
-
-// Add spinner animation to stylesheet if not present
-if (!document.getElementById('billing-animations')) {
-    const style = document.createElement('style');
-    style.id = 'billing-animations';
-    style.textContent = `
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-    `;
-    document.head.appendChild(style);
-}
-
-/**
- * Display patient search results
- */
-function displayPatientResults(patients) {
-    const resultsContainer = document.getElementById('billingPatientSearchResults');
-    
-    if (patients.length === 0) {
-        resultsContainer.innerHTML = `
-            <div style="text-align:center;padding:40px 20px;">
-                <i class="fas fa-user-slash" style="font-size:48px;color:var(--text-secondary);opacity:0.3;margin-bottom:16px;"></i>
-                <p style="color:var(--text-secondary);font-size:15px;margin:0;">No patients found</p>
-                <p style="color:var(--text-secondary);font-size:13px;margin:8px 0 0 0;opacity:0.8;">Try searching with a different term</p>
-            </div>
-        `;
-        return;
-    }
-    
-    // Add a subtle header showing count
-    const headerHTML = `
-        <div style="padding:8px 12px;margin-bottom:12px;background:linear-gradient(135deg,rgba(52,152,219,0.08) 0%,rgba(155,89,182,0.05) 100%);border-radius:8px;display:flex;align-items:center;gap:8px;">
-            <i class="fas fa-users" style="color:var(--primary-color);"></i>
-            <span style="font-size:13px;font-weight:600;color:var(--text-primary);">${patients.length} Patient${patients.length > 1 ? 's' : ''} Found</span>
-        </div>
-    `;
-    
-    resultsContainer.innerHTML = headerHTML + patients.map(patient => `
-        <div class="patient-result-item" onclick="selectPatient('${patient.id}')">
-            <div class="patient-result-info">
-                <h5>${patient.fullName}</h5>
-                <p>Patient #: ${patient.patientNumber}</p>
-                <div class="patient-meta">
-                    <span><i class="fas fa-user"></i> ${patient.gender || 'N/A'}</span>
-                    <span><i class="fas fa-birthday-cake"></i> ${patient.age || 'N/A'} years</span>
-                    ${patient.phone ? `<span><i class="fas fa-phone"></i> ${patient.phone}</span>` : ''}
-                </div>
-            </div>
-            <i class="fas fa-chevron-right" style="color:var(--primary-color);"></i>
-        </div>
-    `).join('');
-}
-
-/**
- * Select a patient for billing
- */
-window.selectPatient = function(patientId) {
-    selectedPatient = allPatients.find(p => p.id === patientId);
-    
-    if (!selectedPatient) return;
-    
-    // Display patient info
-    document.getElementById('displayPatientNumber').textContent = selectedPatient.patientNumber;
-    document.getElementById('displayPatientName').textContent = selectedPatient.fullName;
-    document.getElementById('displayPatientAge').textContent = selectedPatient.age || 'N/A';
-    document.getElementById('displayPatientGender').textContent = selectedPatient.gender || 'N/A';
-    
-    // Show sections
-    document.getElementById('selectedPatientSection').style.display = 'block';
-    document.getElementById('billingFormSection').style.display = 'block';
-    
-    // Clear search
-    const searchInput = document.getElementById('billingPatientSearchInput');
-    const resultsContainer = document.getElementById('billingPatientSearchResults');
-    if (searchInput) searchInput.value = '';
-    if (resultsContainer) resultsContainer.innerHTML = '';
-    
-    // Reset form
-    resetBillingForm();
-    
-    showNotification(`Patient ${selectedPatient.fullName} selected`, 'success');
+// ===================================
+// MODULE STATE - Single Source of Truth
+// ===================================
+const State = {
+    patients: [],
+    bills: [],
+    filteredBills: [],
+    isFiltering: false,
+    billsPrimed: false,
+    selectedPatient: null,
+    currentPage: 1,
+    pageSize: 25,
+    initialized: false,
+    processing: false,
+    listenersAttached: {
+        bills: false,
+        search: false,
+        form: false,
+        services: false,
+        viewBills: false,
+        export: false
+    },
+    unsubscribeBills: null
 };
 
-/**
- * Setup mode toggle for patient selection
- */
-function setupModeToggle() {
-    const searchBtn = document.getElementById('searchPatientBtn');
-    const manualBtn = document.getElementById('manualBillBtn');
-    
-    if (searchBtn && manualBtn) {
-        // Set initial state
-        searchBtn.classList.add('active');
-    }
-}
+// ===================================
+// UTILITIES
+// ===================================
+const $ = (id) => document.getElementById(id);
 
-/**
- * Toggle between search and manual billing modes
- */
-window.toggleBillingMode = function(mode) {
-    const searchMode = document.getElementById('patientSearchMode');
-    const manualMode = document.getElementById('manualPatientMode');
-    const searchBtn = document.getElementById('searchPatientBtn');
-    const manualBtn = document.getElementById('manualBillBtn');
-    
-    if (mode === 'search') {
-        searchMode.style.display = 'block';
-        manualMode.style.display = 'none';
-        searchBtn.classList.add('active');
-        manualBtn.classList.remove('active');
-        
-        // Clear manual inputs
-        document.getElementById('manualPatientNumber').value = '';
-        document.getElementById('manualPatientName').value = '';
-        document.getElementById('manualPatientAge').value = '';
-        document.getElementById('manualPatientGender').value = '';
-    } else {
-        searchMode.style.display = 'none';
-        manualMode.style.display = 'block';
-        searchBtn.classList.remove('active');
-        manualBtn.classList.add('active');
-        
-        // Clear search
-        const searchInput = document.getElementById('billingPatientSearchInput');
-        const resultsContainer = document.getElementById('billingPatientSearchResults');
-        if (searchInput) searchInput.value = '';
-        if (resultsContainer) resultsContainer.innerHTML = '';
-    }
-    
-    // Hide patient info section
-    document.getElementById('selectedPatientSection').style.display = 'none';
-    document.getElementById('billingFormSection').style.display = 'none';
+const toClassName = (value) => (value || 'unknown')
+    .toString()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-');
+
+const formatMoney = (amount) => {
+    const num = parseFloat(amount) || 0;
+    return `KSh ${num.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-/**
- * Use manual patient information
- */
-window.useManualPatient = function() {
-    const patientNumber = document.getElementById('manualPatientNumber').value.trim() || 'WALK-IN-' + Date.now();
-    const patientName = document.getElementById('manualPatientName').value.trim();
-    const patientAge = document.getElementById('manualPatientAge').value.trim();
-    const patientGender = document.getElementById('manualPatientGender').value;
-    
-    if (!patientName) {
-        showNotification('Please enter patient name', 'warning');
-        document.getElementById('manualPatientName').focus();
-        return;
-    }
-    
-    // Create temporary patient object
-    selectedPatient = {
-        id: 'manual-' + Date.now(),
-        patientNumber: patientNumber,
-        fullName: patientName,
-        age: patientAge || 'N/A',
-        gender: patientGender || 'N/A',
-        isManualEntry: true
-    };
-    
-    // Display patient info
-    document.getElementById('displayPatientNumber').textContent = selectedPatient.patientNumber;
-    document.getElementById('displayPatientName').textContent = selectedPatient.fullName;
-    document.getElementById('displayPatientAge').textContent = selectedPatient.age;
-    document.getElementById('displayPatientGender').textContent = selectedPatient.gender;
-    
-    // Show sections
-    document.getElementById('selectedPatientSection').style.display = 'block';
-    document.getElementById('billingFormSection').style.display = 'block';
-    
-    // Reset form
-    resetBillingForm();
-    
-    showNotification(`Manual entry created for ${selectedPatient.fullName}`, 'success');
+const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-/**
- * Setup toggle switches
- */
-function setupToggleSwitches() {
-    const consultationToggle = document.getElementById('consultationFeeToggle');
-    const pharmacyToggle = document.getElementById('pharmacyPaymentToggle');
-    
-    if (consultationToggle) {
-        consultationToggle.addEventListener('change', (e) => {
-            document.getElementById('consultationFeeContent').style.display = 
-                e.target.checked ? 'block' : 'none';
-            updateBillSummary();
-        });
-    }
-    
-    if (pharmacyToggle) {
-        pharmacyToggle.addEventListener('change', (e) => {
-            document.getElementById('pharmacyPaymentContent').style.display = 
-                e.target.checked ? 'block' : 'none';
-            updateBillSummary();
-        });
-    }
-}
-
-/**
- * Setup service buttons
- */
-function setupServiceButtons() {
-    const addServiceBtn = document.getElementById('addServiceBtn');
-    
-    if (addServiceBtn) {
-        addServiceBtn.addEventListener('click', addServiceItem);
-    }
-}
-
-/**
- * Add a new service item
- */
-function addServiceItem() {
-    const serviceId = 'service-' + Date.now();
-    const servicesContainer = document.getElementById('servicesContainer');
-    
-    const serviceHTML = `
-        <div class="service-item" id="${serviceId}">
-            <div class="form-group">
-                <label>Service Description</label>
-                <input type="text" class="form-input service-description" placeholder="e.g., X-Ray, Lab Test, Imaging...">
-            </div>
-            <div class="form-group">
-                <label>Amount (KSh)</label>
-                <input type="number" class="form-input service-amount" min="0" step="0.01" value="0" onchange="updateBillSummary()">
-            </div>
-            <button type="button" class="remove-service-btn" onclick="removeService('${serviceId}')">
-                <i class="fas fa-trash"></i>
-            </button>
-        </div>
-    `;
-    
-    servicesContainer.insertAdjacentHTML('beforeend', serviceHTML);
-    updateBillSummary();
-}
-
-/**
- * Remove a service item
- */
-window.removeService = function(serviceId) {
-    document.getElementById(serviceId).remove();
-    updateBillSummary();
+const formatTime = (dateStr) => {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
 };
 
-/**
- * Update bill summary
- */
-function updateBillSummary() {
-    let consultationFee = 0;
-    let servicesTotal = 0;
-    let pharmacyTotal = 0;
+const notify = (message, type = 'info') => {
+    // Remove any existing notifications
+    document.querySelectorAll('.billing-toast').forEach(n => n.remove());
     
-    // Consultation fee
-    const consultationToggle = document.getElementById('consultationFeeToggle');
-    if (consultationToggle && consultationToggle.checked) {
-        consultationFee = parseFloat(document.getElementById('consultationAmount').value) || 0;
-    }
+    const toast = document.createElement('div');
+    toast.className = `billing-toast billing-toast-${type}`;
     
-    // Additional services
-    const serviceAmounts = document.querySelectorAll('.service-amount');
-    serviceAmounts.forEach(input => {
-        servicesTotal += parseFloat(input.value) || 0;
-    });
-    
-    // Pharmacy payment
-    const pharmacyToggle = document.getElementById('pharmacyPaymentToggle');
-    if (pharmacyToggle && pharmacyToggle.checked) {
-        pharmacyTotal = parseFloat(document.getElementById('pharmacyAmount').value) || 0;
-    }
-    
-    const total = consultationFee + servicesTotal + pharmacyTotal;
-    
-    // Update summary display
-    document.getElementById('summaryConsultation').textContent = formatCurrency(consultationFee);
-    document.getElementById('summaryServices').textContent = formatCurrency(servicesTotal);
-    document.getElementById('summaryPharmacy').textContent = formatCurrency(pharmacyTotal);
-    document.getElementById('summaryTotal').textContent = formatCurrency(total);
-}
-
-/**
- * Setup billing form submission
- */
-function setupBillingForm() {
-    const billingForm = document.getElementById('billingForm');
-    const clearBtn = document.getElementById('clearBillingBtn');
-    
-    console.log('Setting up billing form...', billingForm ? 'Form found' : 'Form NOT found');
-    
-    // Add input listeners for real-time calculation
-    const consultationAmount = document.getElementById('consultationAmount');
-    const pharmacyAmount = document.getElementById('pharmacyAmount');
-    
-    if (consultationAmount) {
-        consultationAmount.removeEventListener('input', updateBillSummary);
-        consultationAmount.addEventListener('input', updateBillSummary);
-    }
-    if (pharmacyAmount) {
-        pharmacyAmount.removeEventListener('input', updateBillSummary);
-        pharmacyAmount.addEventListener('input', updateBillSummary);
-    }
-    
-    if (billingForm) {
-        // Clone and replace form to remove all old event listeners
-        const newForm = billingForm.cloneNode(true);
-        billingForm.parentNode.replaceChild(newForm, billingForm);
-        
-        // Add submit handler to the new form
-        newForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            console.log('📝 Form submitted, processing billing...');
-            await processBilling();
-        });
-        console.log('✅ Billing form submit handler attached (cleaned)');
-    } else {
-        console.error('❌ Billing form element not found!');
-    }
-    
-    // Re-get clear button after cloning
-    const newClearBtn = document.getElementById('clearBillingBtn');
-    if (newClearBtn) {
-        newClearBtn.addEventListener('click', () => {
-            if (confirm('Clear all billing information?')) {
-                resetBillingForm();
-                selectedPatient = null;
-                document.getElementById('selectedPatientSection').style.display = 'none';
-                document.getElementById('billingFormSection').style.display = 'none';
-            }
-        });
-    }
-}
-
-/**
- * Generate sequential receipt number
- */
-async function generateReceiptNumber() {
-    try {
-        // Get the latest bill to determine next number
-        const billsCollection = collection(db, 'bills');
-        const q = query(billsCollection, orderBy('createdAt', 'desc'));
-        const snapshot = await getDocs(q);
-        
-        let maxNumber = 0;
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            if (data.receiptNumber && data.receiptNumber.startsWith('RCP-')) {
-                const numPart = data.receiptNumber.replace('RCP-', '');
-                const num = parseInt(numPart);
-                if (!isNaN(num) && num > maxNumber) {
-                    maxNumber = num;
-                }
-            }
-        });
-        
-        // Generate next number
-        const nextNumber = maxNumber + 1;
-        return 'RCP-' + String(nextNumber).padStart(3, '0');
-    } catch (error) {
-        console.error('Error generating receipt number:', error);
-        // Fallback to timestamp-based
-        return 'RCP-' + Date.now();
-    }
-}
-
-/**
- * Process billing and save to Firestore
- */
-async function processBilling() {
-    console.log('🔍 Starting billing process...');
-    
-    if (!selectedPatient) {
-        console.warn('⚠️ No patient selected');
-        showNotification('Please select a patient first', 'warning');
-        return;
-    }
-    
-    console.log('✓ Patient selected:', selectedPatient.fullName);
-    
-    const paymentMethodEl = document.getElementById('billingPaymentMethod');
-    console.log('Payment method element:', paymentMethodEl);
-    const paymentMethod = paymentMethodEl ? paymentMethodEl.value : '';
-    console.log('Payment method value:', paymentMethod);
-    
-    if (!paymentMethod || paymentMethod === '') {
-        console.warn('⚠️ No payment method selected');
-        showNotification('Please select a payment method', 'warning');
-        return;
-    }
-    
-    console.log('✓ Payment method:', paymentMethod);
-    
-    try {
-        // Collect bill items
-        const billItems = [];
-        let totalAmount = 0;
-        
-        console.log('📋 Collecting bill items...');
-        
-        // Consultation fee
-        const consultationToggle = document.getElementById('consultationFeeToggle');
-        if (consultationToggle && consultationToggle.checked) {
-            const amount = parseFloat(document.getElementById('consultationAmount').value) || 0;
-            const status = document.getElementById('consultationStatus').value;
-            billItems.push({
-                type: 'consultation',
-                description: 'Consultation Fee',
-                amount: amount,
-                status: status
-            });
-            totalAmount += amount;
-            console.log('  ✓ Consultation:', amount);
-        }
-        
-        // Additional services
-        const serviceItems = document.querySelectorAll('.service-item');
-        console.log('  Found', serviceItems.length, 'service items');
-        serviceItems.forEach((item, index) => {
-            const descriptionEl = item.querySelector('.service-description');
-            const amountEl = item.querySelector('.service-amount');
-            const description = descriptionEl ? descriptionEl.value.trim() : '';
-            const amount = parseFloat(amountEl ? amountEl.value : 0) || 0;
-            
-            console.log(`  Service ${index + 1}:`, description, amount);
-            
-            if (description && amount > 0) {
-                billItems.push({
-                    type: 'service',
-                    description: description,
-                    amount: amount,
-                    status: 'paid'
-                });
-                totalAmount += amount;
-                console.log('    ✓ Added to bill');
-            } else if (description && amount === 0) {
-                console.warn('    ⚠️ Service has 0 amount, skipped');
-            } else if (!description) {
-                console.warn('    ⚠️ Service has no description, skipped');
-            }
-        });
-        
-        // Pharmacy payment
-        const pharmacyToggle = document.getElementById('pharmacyPaymentToggle');
-        if (pharmacyToggle && pharmacyToggle.checked) {
-            const amount = parseFloat(document.getElementById('pharmacyAmount').value) || 0;
-            const prescriptionNumber = document.getElementById('pharmacyPrescriptionNumber').value;
-            if (amount > 0) {
-                billItems.push({
-                    type: 'pharmacy',
-                    description: 'Pharmacy Payment' + (prescriptionNumber ? ` (${prescriptionNumber})` : ''),
-                    amount: amount,
-                    status: 'paid',
-                    prescriptionNumber: prescriptionNumber
-                });
-                totalAmount += amount;
-                console.log('  ✓ Pharmacy:', amount);
-            }
-        }
-        
-        if (billItems.length === 0) {
-            console.warn('⚠️ No bill items added');
-            showNotification('Please add at least one bill item', 'warning');
-            return;
-        }
-        
-        console.log('✓ Total items:', billItems.length, 'Total amount:', totalAmount);
-        
-        // Generate sequential receipt number
-        const receiptNumber = await generateReceiptNumber();
-        console.log('✓ Receipt number:', receiptNumber);
-        
-        // Prepare bill data (with proper null checks)
-        const billData = {
-            receiptNumber: receiptNumber,
-            patientId: selectedPatient.id || '',
-            patientNumber: selectedPatient.patientNumber || '',
-            patientName: selectedPatient.fullName || '',
-            patientAge: selectedPatient.age || null,
-            patientGender: selectedPatient.gender || null,
-            items: billItems,
-            totalAmount: totalAmount,
-            paymentMethod: paymentMethod,
-            paymentReference: document.getElementById('paymentReference')?.value || null,
-            notes: document.getElementById('billingNotes')?.value || null,
-            status: 'paid',
-            createdAt: serverTimestamp(),
-            createdBy: 'Current User',
-            dateTime: new Date().toISOString()
-        };
-        
-        console.log('💾 Saving to Firestore...', billData);
-        
-        // Save to Firestore
-        const billsCollection = collection(db, 'bills');
-        const docRef = await addDoc(billsCollection, billData);
-        
-        console.log('✅ Bill saved to Firestore with ID:', docRef.id);
-        
-        // Show receipt
-        showReceipt({ ...billData, id: docRef.id });
-        
-        // Reset form
-        resetBillingForm();
-        selectedPatient = null;
-        document.getElementById('selectedPatientSection').style.display = 'none';
-        document.getElementById('billingFormSection').style.display = 'none';
-        
-        showNotification('✅ Payment processed successfully!', 'success');
-        
-        // Update stats
-        updateBillingStats();
-        
-        console.log('✅ Billing process completed successfully');
-        
-    } catch (error) {
-        console.error('❌ Error processing billing:', error);
-        console.error('Error details:', error.message, error.stack);
-        showNotification('Error processing payment: ' + error.message, 'error');
-    }
-}
-
-/**
- * Reset billing form
- */
-function resetBillingForm() {
-    document.getElementById('billingForm').reset();
-    document.getElementById('consultationFeeToggle').checked = false;
-    document.getElementById('pharmacyPaymentToggle').checked = false;
-    document.getElementById('consultationFeeContent').style.display = 'none';
-    document.getElementById('pharmacyPaymentContent').style.display = 'none';
-    document.getElementById('servicesContainer').innerHTML = '';
-    updateBillSummary();
-}
-
-/**
- * Show receipt modal
- */
-function showReceipt(billData) {
-    const modal = document.getElementById('receiptModal');
-    const receiptContent = document.getElementById('receiptContent');
-    
-    const itemsHTML = billData.items.map(item => `
-        <tr>
-            <td>${item.description}</td>
-            <td style="text-align:right;">${formatCurrency(item.amount)}</td>
-        </tr>
-    `).join('');
-    
-    receiptContent.innerHTML = `
-        <div class="receipt-header">
-            <h2>RxFlow Hospital Management System</h2>
-            <p>Payment Receipt</p>
-            <p><strong>Receipt #: ${billData.receiptNumber}</strong></p>
-        </div>
-        
-        <div class="receipt-details">
-            <div class="receipt-section">
-                <h4>Patient Information</h4>
-                <p><strong>Patient #:</strong> ${billData.patientNumber}</p>
-                <p><strong>Name:</strong> ${billData.patientName}</p>
-                <p><strong>Age:</strong> ${billData.patientAge || 'N/A'}</p>
-                <p><strong>Gender:</strong> ${billData.patientGender || 'N/A'}</p>
-            </div>
-            <div class="receipt-section">
-                <h4>Payment Information</h4>
-                <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
-                <p><strong>Time:</strong> ${new Date().toLocaleTimeString()}</p>
-                <p><strong>Method:</strong> ${billData.paymentMethod.toUpperCase()}</p>
-                ${billData.paymentReference ? `<p><strong>Ref:</strong> ${billData.paymentReference}</p>` : ''}
-            </div>
-        </div>
-        
-        <div class="receipt-items">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Description</th>
-                        <th style="text-align:right;">Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${itemsHTML}
-                </tbody>
-            </table>
-        </div>
-        
-        <div class="receipt-total">
-            TOTAL PAID: ${formatCurrency(billData.totalAmount)}
-        </div>
-        
-        ${billData.notes ? `<p style="margin-top:20px;"><strong>Notes:</strong> ${billData.notes}</p>` : ''}
-        
-        <div class="receipt-footer">
-            <p>Thank you for choosing RxFlow Hospital</p>
-            <p>This is a computer-generated receipt</p>
-        </div>
-    `;
-    
-    modal.style.display = 'flex';
-}
-
-/**
- * Close receipt modal
- */
-window.closeReceiptModal = function() {
-    document.getElementById('receiptModal').style.display = 'none';
-};
-
-/**
- * Print receipt
- */
-window.printReceipt = function() {
-    const receiptContent = document.getElementById('receiptContent').innerHTML;
-    const printWindow = window.open('', '', 'height=600,width=800');
-    printWindow.document.write('<html><head><title>Receipt</title>');
-    printWindow.document.write('<style>body{font-family:Arial,sans-serif;padding:20px;}table{width:100%;border-collapse:collapse;}th,td{padding:8px;border-bottom:1px solid #ddd;}th{background:#f5f5f5;text-align:left;}</style>');
-    printWindow.document.write('</head><body>');
-    printWindow.document.write(receiptContent);
-    printWindow.document.write('</body></html>');
-    printWindow.document.close();
-    printWindow.print();
-};
-
-/**
- * Setup bills real-time listener
- */
-function setupBillsRealtimeListener() {
-    try {
-        const billsCollection = collection(db, 'bills');
-        const q = query(billsCollection, orderBy('dateTime', 'desc'));
-        
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            allBills = [];
-            snapshot.forEach((doc) => {
-                allBills.push({
-                    id: doc.id,
-                    ...doc.data()
-                });
-            });
-            
-            console.log(`🔔 Real-time update: ${allBills.length} bills synced`);
-            
-            // Update view if on bills module
-            const viewModule = document.getElementById('billing-view-module');
-            if (viewModule && viewModule.classList.contains('active')) {
-                filterAndRenderBills();
-            }
-            
-            updateBillingStats();
-        });
-        
-        console.log('✅ Bills real-time listener setup');
-        return unsubscribe;
-    } catch (error) {
-        console.error('Error setting up bills listener:', error);
-        return null;
-    }
-}
-
-/**
- * Initialize view bills module
- */
-export function initViewBillsModule() {
-    console.log('Initializing View Bills Module...');
-    
-    setupBillSearch();
-    setupBillFilters();
-    setupExportDropdown();
-    filterAndRenderBills();
-}
-
-/**
- * Setup export dropdown
- */
-function setupExportDropdown() {
-    const dropdownBtn = document.getElementById('exportDropdownBtn');
-    const dropdown = document.getElementById('exportDropdown');
-    
-    if (dropdownBtn && dropdown) {
-        dropdownBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
-        });
-        
-        // Close dropdown when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!dropdownBtn.contains(e.target) && !dropdown.contains(e.target)) {
-                dropdown.style.display = 'none';
-            }
-        });
-    }
-}
-
-/**
- * Setup bill search
- */
-function setupBillSearch() {
-    const searchInput = document.getElementById('billSearchInput');
-    
-    if (searchInput) {
-        let searchTimeout;
-        searchInput.addEventListener('input', (e) => {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                filterAndRenderBills();
-            }, 300);
-        });
-    }
-}
-
-/**
- * Setup bill filters
- */
-function setupBillFilters() {
-    const filterStatus = document.getElementById('filterPaymentStatus');
-    const filterMethod = document.getElementById('filterPaymentMethod');
-    const filterDate = document.getElementById('filterDate');
-    const clearFiltersBtn = document.getElementById('clearBillFiltersBtn');
-    
-    [filterStatus, filterMethod, filterDate].forEach(filter => {
-        if (filter) {
-            filter.addEventListener('change', filterAndRenderBills);
-        }
-    });
-    
-    if (clearFiltersBtn) {
-        clearFiltersBtn.addEventListener('click', () => {
-            document.getElementById('billSearchInput').value = '';
-            if (filterStatus) filterStatus.value = '';
-            if (filterMethod) filterMethod.value = '';
-            if (filterDate) filterDate.value = '';
-            filterAndRenderBills();
-        });
-    }
-}
-
-/**
- * Filter and render bills
- */
-function filterAndRenderBills() {
-    const searchTerm = document.getElementById('billSearchInput')?.value.toLowerCase() || '';
-    const statusFilter = document.getElementById('filterPaymentStatus')?.value || '';
-    const methodFilter = document.getElementById('filterPaymentMethod')?.value || '';
-    const dateFilter = document.getElementById('filterDate')?.value || '';
-    
-    filteredBills = allBills.filter(bill => {
-        const matchesSearch = !searchTerm || 
-            bill.patientName.toLowerCase().includes(searchTerm) ||
-            bill.patientNumber.toLowerCase().includes(searchTerm) ||
-            bill.receiptNumber.toLowerCase().includes(searchTerm);
-        
-        const matchesStatus = !statusFilter || bill.status === statusFilter;
-        const matchesMethod = !methodFilter || bill.paymentMethod === methodFilter;
-        
-        let matchesDate = true;
-        if (dateFilter && bill.dateTime) {
-            const billDate = new Date(bill.dateTime).toISOString().split('T')[0];
-            matchesDate = billDate === dateFilter;
-        }
-        
-        return matchesSearch && matchesStatus && matchesMethod && matchesDate;
-    });
-    
-    renderBillsTable();
-}
-
-/**
- * Render bills table
- */
-function renderBillsTable() {
-    const tbody = document.getElementById('billingTableBody');
-    if (!tbody) return;
-    
-    const startIndex = (currentBillPage - 1) * billPageSize;
-    const endIndex = startIndex + billPageSize;
-    const pageItems = filteredBills.slice(startIndex, endIndex);
-    
-    if (filteredBills.length === 0) {
-        tbody.innerHTML = `
-            <tr class="empty-state">
-                <td colspan="9">
-                    <div class="empty-state-content">
-                        <i class="fas fa-file-invoice"></i>
-                        <p>No billing records found</p>
-                    </div>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-    
-    tbody.innerHTML = pageItems.map(bill => {
-        const date = new Date(bill.dateTime);
-        const servicesCount = bill.items.length;
-        const servicesSummary = bill.items.map(item => item.description).join(', ');
-        
-        return `
-            <tr>
-                <td><strong>${bill.receiptNumber}</strong></td>
-                <td>${date.toLocaleDateString()} ${date.toLocaleTimeString()}</td>
-                <td>${bill.patientNumber}</td>
-                <td>${bill.patientName}</td>
-                <td title="${servicesSummary}">${servicesCount} item(s)</td>
-                <td><strong>${formatCurrency(bill.totalAmount)}</strong></td>
-                <td>${bill.paymentMethod.toUpperCase()}</td>
-                <td><span class="status-badge ${bill.status}">${bill.status.toUpperCase()}</span></td>
-                <td>
-                    <button class="bill-action-btn view" onclick="viewBill('${bill.id}')" title="View Receipt">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="bill-action-btn print" onclick="printBill('${bill.id}')" title="Print Bill">
-                        <i class="fas fa-print"></i>
-                    </button>
-                    ${bill.status !== 'cancelled' ? `
-                    <button class="bill-action-btn cancel" onclick="cancelBill('${bill.id}')" title="Cancel">
-                        <i class="fas fa-ban"></i>
-                    </button>
-                    ` : ''}
-                </td>
-            </tr>
-        `;
-    }).join('');
-    
-    // Update pagination
-    updateBillPagination();
-}
-
-/**
- * View bill details
- */
-window.viewBill = function(billId) {
-    const bill = allBills.find(b => b.id === billId);
-    if (bill) {
-        showReceipt(bill);
-    }
-};
-
-/**
- * Print bill
- */
-window.printBill = function(billId) {
-    const bill = allBills.find(b => b.id === billId);
-    if (!bill) {
-        showNotification('Bill not found', 'error');
-        return;
-    }
-    
-    // Create print window with receipt
-    const printWindow = window.open('', '_blank');
-    const date = new Date(bill.dateTime);
-    
-    const itemsHTML = bill.items.map(item => `
-        <tr>
-            <td style="padding:8px;border-bottom:1px solid #ddd;">${item.description}</td>
-            <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${formatCurrency(item.amount)}</td>
-        </tr>
-    `).join('');
-    
-    printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Receipt - ${bill.receiptNumber}</title>
-            <style>
-                body { font-family: 'Courier New', monospace; max-width: 800px; margin: 0 auto; padding: 20px; }
-                .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 20px; }
-                .header h1 { margin: 0; font-size: 24px; }
-                .header p { margin: 5px 0; font-size: 12px; }
-                .info { margin-bottom: 20px; }
-                .info table { width: 100%; }
-                .info td { padding: 5px 0; }
-                .items table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-                .items th { background: #f0f0f0; padding: 10px; text-align: left; border-bottom: 2px solid #000; }
-                .total { text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; border-top: 2px solid #000; padding-top: 10px; }
-                .footer { text-align: center; margin-top: 40px; border-top: 1px solid #ddd; padding-top: 20px; font-size: 12px; }
-                @media print {
-                    body { margin: 0; padding: 10mm; }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>RxFlow Hospital Management System</h1>
-                <p>Payment Receipt</p>
-                <p>Receipt No: <strong>${bill.receiptNumber}</strong></p>
-                <p>Date: ${date.toLocaleDateString()} ${date.toLocaleTimeString()}</p>
-            </div>
-            
-            <div class="info">
-                <table>
-                    <tr>
-                        <td><strong>Patient Number:</strong></td>
-                        <td>${bill.patientNumber}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Patient Name:</strong></td>
-                        <td>${bill.patientName}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Payment Method:</strong></td>
-                        <td>${bill.paymentMethod.toUpperCase()}</td>
-                    </tr>
-                    ${bill.paymentReference ? `
-                    <tr>
-                        <td><strong>Reference:</strong></td>
-                        <td>${bill.paymentReference}</td>
-                    </tr>
-                    ` : ''}
-                </table>
-            </div>
-            
-            <div class="items">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Description</th>
-                            <th style="text-align:right;">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${itemsHTML}
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="total">
-                <p>TOTAL AMOUNT: ${formatCurrency(bill.totalAmount)}</p>
-            </div>
-            
-            ${bill.notes ? `
-            <div style="margin-top:20px;">
-                <p><strong>Notes:</strong> ${bill.notes}</p>
-            </div>
-            ` : ''}
-            
-            <div class="footer">
-                <p>Thank you for choosing RxFlow Hospital</p>
-                <p>This is an official receipt</p>
-            </div>
-            
-            <script>
-                window.onload = function() {
-                    window.print();
-                    // Close after print dialog is closed (optional)
-                    // window.onafterprint = function() { window.close(); };
-                }
-            </script>
-        </body>
-        </html>
-    `);
-    
-    printWindow.document.close();
-};
-
-/**
- * Cancel bill
- */
-window.cancelBill = async function(billId) {
-    if (!confirm('Are you sure you want to cancel this bill?')) return;
-    
-    try {
-        const billDoc = doc(db, 'bills', billId);
-        await updateDoc(billDoc, {
-            status: 'cancelled',
-            cancelledAt: serverTimestamp(),
-            cancelledBy: 'Current User'
-        });
-        
-        showNotification('Bill cancelled successfully', 'success');
-    } catch (error) {
-        console.error('Error cancelling bill:', error);
-        showNotification('Error cancelling bill', 'error');
-    }
-};
-
-/**
- * Update bill pagination
- */
-function updateBillPagination() {
-    const totalItems = filteredBills.length;
-    const totalPages = Math.ceil(totalItems / billPageSize);
-    const startIndex = (currentBillPage - 1) * billPageSize + 1;
-    const endIndex = Math.min(startIndex + billPageSize - 1, totalItems);
-    
-    document.getElementById('billShowingStart').textContent = totalItems > 0 ? startIndex : 0;
-    document.getElementById('billShowingEnd').textContent = endIndex;
-    document.getElementById('billTotalItems').textContent = totalItems;
-    
-    const prevBtn = document.getElementById('billPrevBtn');
-    const nextBtn = document.getElementById('billNextBtn');
-    
-    if (prevBtn) prevBtn.disabled = currentBillPage === 1;
-    if (nextBtn) nextBtn.disabled = currentBillPage >= totalPages;
-}
-
-/**
- * Go to previous page
- */
-window.billPrevPage = function() {
-    if (currentBillPage > 1) {
-        currentBillPage--;
-        renderBillsTable();
-    }
-};
-
-/**
- * Go to next page
- */
-window.billNextPage = function() {
-    const totalPages = Math.ceil(filteredBills.length / billPageSize);
-    if (currentBillPage < totalPages) {
-        currentBillPage++;
-        renderBillsTable();
-    }
-};
-
-/**
- * Change page size
- */
-window.changeBillPageSize = function(newSize) {
-    billPageSize = parseInt(newSize);
-    currentBillPage = 1;
-    renderBillsTable();
-};
-
-/**
- * Update billing stats
- */
-function updateBillingStats() {
-    const today = new Date().toISOString().split('T')[0];
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    
-    // Today's revenue
-    const todayBills = allBills.filter(bill => {
-        const billDate = new Date(bill.dateTime).toISOString().split('T')[0];
-        return billDate === today && bill.status === 'paid';
-    });
-    const todayRevenue = todayBills.reduce((sum, bill) => sum + bill.totalAmount, 0);
-    
-    // This month's revenue
-    const monthBills = allBills.filter(bill => {
-        const billDate = new Date(bill.dateTime);
-        return billDate.getMonth() === currentMonth && 
-               billDate.getFullYear() === currentYear &&
-               bill.status === 'paid';
-    });
-    const monthRevenue = monthBills.reduce((sum, bill) => sum + bill.totalAmount, 0);
-    
-    // Pending bills
-    const pendingBills = allBills.filter(bill => bill.status === 'pending').length;
-    
-    document.getElementById('todayRevenue').textContent = formatCurrency(todayRevenue);
-    document.getElementById('todayPayments').textContent = todayBills.length;
-    document.getElementById('pendingBills').textContent = pendingBills;
-    document.getElementById('monthRevenue').textContent = formatCurrency(monthRevenue);
-    
-    // Update recent billings table
-    updateRecentBillings();
-}
-
-/**
- * Update recent billings table
- */
-function updateRecentBillings() {
-    const tbody = document.getElementById('recentBillingsTableBody');
-    if (!tbody) return;
-    
-    // Get last 5 bills, sorted by date
-    const recentBills = [...allBills]
-        .sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime))
-        .slice(0, 5);
-    
-    if (recentBills.length === 0) {
-        tbody.innerHTML = `
-            <tr class="empty-state">
-                <td colspan="7">
-                    <div class="empty-state-content">
-                        <i class="fas fa-file-invoice"></i>
-                        <p>No recent transactions</p>
-                    </div>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-    
-    tbody.innerHTML = recentBills.map(bill => {
-        const date = new Date(bill.dateTime);
-        const timeAgo = getTimeAgo(date);
-        
-        return `
-            <tr>
-                <td class="time-col">${timeAgo}</td>
-                <td class="receipt-col">${bill.receiptNumber}</td>
-                <td>${bill.patientName}</td>
-                <td class="amount-col">${formatCurrency(bill.totalAmount)}</td>
-                <td><span class="method-badge"><i class="fas fa-${getPaymentIcon(bill.paymentMethod)}"></i> ${bill.paymentMethod.toUpperCase()}</span></td>
-                <td><span class="status-badge ${bill.status}">${bill.status.toUpperCase()}</span></td>
-                <td>
-                    <button class="action-btn-sm" onclick="viewBill('${bill.id}')" title="View Receipt">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                </td>
-            </tr>
-        `;
-    }).join('');
-}
-
-/**
- * Get time ago string
- */
-function getTimeAgo(date) {
-    const seconds = Math.floor((new Date() - date) / 1000);
-    
-    if (seconds < 60) return 'Just now';
-    
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}d ago`;
-    
-    return date.toLocaleDateString();
-}
-
-/**
- * Get payment method icon
- */
-function getPaymentIcon(method) {
-    const icons = {
-        'cash': 'money-bill-wave',
-        'mpesa': 'mobile-alt',
-        'card': 'credit-card',
-        'bank-transfer': 'university',
-        'insurance': 'shield-alt'
-    };
-    return icons[method] || 'money-check';
-}
-
-/**
- * Format currency
- */
-function formatCurrency(amount) {
-    return `KSh ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-/**
- * Show notification - Clean and simple
- */
-function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    
-    const bgColors = {
-        success: '#27ae60',
-        error: '#e74c3c',
-        warning: '#f39c12',
-        info: '#3498db'
+    const colors = {
+        success: '#10b981',
+        error: '#ef4444', 
+        warning: '#f59e0b',
+        info: '#3b82f6'
     };
     
     const icons = {
@@ -1367,243 +92,1398 @@ function showNotification(message, type = 'info') {
         info: 'info-circle'
     };
     
-    notification.innerHTML = `
-        <div style="display:flex;align-items:center;gap:10px;">
-            <i class="fas fa-${icons[type]}" style="font-size:16px;"></i>
-            <span style="flex:1;">${message}</span>
-            <button onclick="this.parentElement.parentElement.remove()" style="background:none;border:none;color:white;cursor:pointer;font-size:14px;padding:0;">
+    toast.innerHTML = `<i class="fas fa-${icons[type]}"></i> ${message}`;
+    toast.style.cssText = `
+        position: fixed; top: 20px; right: 20px; z-index: 99999;
+        padding: 14px 20px; border-radius: 8px;
+        background: ${colors[type]}; color: white;
+        font-size: 14px; font-weight: 500;
+        display: flex; align-items: center; gap: 10px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        animation: toastIn 0.3s ease;
+    `;
+    
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.style.animation = 'toastOut 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+
+    if (typeof window !== 'undefined' && typeof window.showNotification === 'function') {
+        try {
+            window.showNotification(message, type);
+        } catch (err) {
+            console.warn('Billing: Global notification failed', err);
+        }
+    }
+};
+
+const getUserContext = () => {
+    if (typeof window === 'undefined') return {};
+    const storage = window.localStorage?.getItem('userId') ? window.localStorage : window.sessionStorage;
+    if (!storage) return {};
+    return {
+        userId: storage.getItem('userId') || '',
+        userName: storage.getItem('userName') || 'System',
+        userRole: storage.getItem('userRole') || 'Staff'
+    };
+};
+
+async function dispatchBillingNotification(bill) {
+    try {
+        if (typeof window === 'undefined') return;
+        const { userId } = getUserContext();
+        if (!userId) return;
+
+        const message = `${bill.patientName || 'Patient'} paid ${formatMoney(bill.totalAmount)} via ${bill.paymentMethod || 'N/A'}.`;
+
+        if (typeof window.createNotification === 'function') {
+            await window.createNotification(
+                userId,
+                'success',
+                'Billing Receipt Processed',
+                message,
+                'fa-receipt',
+                {
+                    receiptNumber: bill.receiptNumber,
+                    amount: bill.totalAmount,
+                    patient: bill.patientName,
+                    paymentMethod: bill.paymentMethod
+                }
+            );
+        }
+    } catch (err) {
+        console.warn('Billing: Notification dispatch failed', err);
+    }
+}
+
+async function logBillingActivityEntry(bill) {
+    try {
+        await logActivity({
+            module: 'Billing',
+            type: 'billing',
+            action: 'Receipt Processed',
+            patient: bill.patientName,
+            patientId: bill.patientId,
+            status: 'success',
+            statusText: 'Completed',
+            description: `Receipt ${bill.receiptNumber} processed for ${formatMoney(bill.totalAmount)} (${bill.paymentMethod || 'N/A'})`,
+            metadata: {
+                receiptNumber: bill.receiptNumber,
+                patientNumber: bill.patientNumber,
+                paymentMethod: bill.paymentMethod,
+                totalAmount: bill.totalAmount,
+                billId: bill.id || null
+            }
+        });
+    } catch (err) {
+        console.warn('Billing: Activity log failed', err);
+    }
+}
+
+// ===================================
+// INITIALIZATION
+// ===================================
+export async function initBillingModule() {
+    if (State.initialized) {
+        console.log('Billing: Already initialized');
+        return;
+    }
+    
+    console.log('Billing: Initializing...');
+    
+    try {
+        await loadPatients();
+        attachSearchListeners();
+        attachFormListeners();
+        attachServiceListeners();
+        startBillsListener();
+        
+        State.initialized = true;
+        console.log('Billing: Ready ✓');
+    } catch (err) {
+        console.error('Billing: Init failed', err);
+        notify('Failed to initialize billing', 'error');
+    }
+}
+
+// ===================================
+// LOAD PATIENTS
+// ===================================
+async function loadPatients() {
+    try {
+        const snap = await getDocs(collection(db, 'patients'));
+        State.patients = [];
+        
+        snap.forEach(doc => {
+            const d = doc.data();
+            State.patients.push({
+                id: doc.id,
+                number: d.patientNumber || d.patientId || doc.id,
+                name: d.fullName || `${d.firstName || ''} ${d.lastName || ''}`.trim() || 'Unknown',
+                age: d.age || '-',
+                gender: d.gender || '-',
+                phone: d.phone || d.phoneNumber || ''
+            });
+        });
+        
+        console.log(`Billing: Loaded ${State.patients.length} patients`);
+    } catch (err) {
+        console.error('Billing: Failed to load patients', err);
+    }
+}
+
+// ===================================
+// PATIENT SEARCH
+// ===================================
+function attachSearchListeners() {
+    if (State.listenersAttached.search) return;
+    
+    const input = $('billingPatientSearchInput');
+    const results = $('billingPatientSearchResults');
+    
+    if (!input || !results) return;
+    
+    let timer;
+    
+    input.addEventListener('focus', () => {
+        if (!input.value.trim()) {
+            showPatientResults(State.patients.slice(0, 15));
+        }
+    });
+    
+    input.addEventListener('input', () => {
+        clearTimeout(timer);
+        const term = input.value.trim().toLowerCase();
+        
+        if (!term) {
+            showPatientResults(State.patients.slice(0, 15));
+            return;
+        }
+        
+        if (term.length < 2) {
+            results.innerHTML = '<div class="search-msg"><i class="fas fa-keyboard"></i> Type 2+ characters</div>';
+            return;
+        }
+        
+        results.innerHTML = '<div class="search-msg"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
+        
+        timer = setTimeout(() => {
+            const matches = State.patients.filter(p => 
+                p.number.toLowerCase().includes(term) ||
+                p.name.toLowerCase().includes(term) ||
+                p.phone.includes(term)
+            );
+            showPatientResults(matches);
+        }, 250);
+    });
+    
+    // Event delegation for patient selection
+    results.addEventListener('click', (e) => {
+        const item = e.target.closest('.search-patient-item');
+        if (item) {
+            const id = item.dataset.id;
+            selectPatient(id);
+        }
+    });
+    
+    // Close on outside click
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !results.contains(e.target)) {
+            results.innerHTML = '';
+        }
+    });
+    
+    State.listenersAttached.search = true;
+}
+
+function showPatientResults(patients) {
+    const results = $('billingPatientSearchResults');
+    if (!results) return;
+    
+    if (!patients.length) {
+        results.innerHTML = '<div class="search-msg"><i class="fas fa-user-slash"></i> No patients found</div>';
+        return;
+    }
+    
+    results.innerHTML = patients.map(p => `
+        <div class="search-patient-item" data-id="${p.id}">
+            <div class="patient-info">
+                <strong>${p.name}</strong>
+                <span class="patient-id">#${p.number}</span>
+            </div>
+            <div class="patient-details">
+                <span><i class="fas fa-venus-mars"></i> ${p.gender}</span>
+                <span><i class="fas fa-birthday-cake"></i> ${p.age}</span>
+                ${p.phone ? `<span><i class="fas fa-phone"></i> ${p.phone}</span>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+function selectPatient(id) {
+    const patient = State.patients.find(p => p.id === id);
+    if (!patient) {
+        notify('Patient not found', 'error');
+        return;
+    }
+    
+    State.selectedPatient = patient;
+    
+    // Update display
+    const num = $('displayPatientNumber');
+    const name = $('displayPatientName');
+    const age = $('displayPatientAge');
+    const gender = $('displayPatientGender');
+    
+    if (num) num.textContent = patient.number;
+    if (name) name.textContent = patient.name;
+    if (age) age.textContent = patient.age;
+    if (gender) gender.textContent = patient.gender;
+    
+    // Show sections
+    const infoSection = $('selectedPatientSection');
+    const formSection = $('billingFormSection');
+    
+    if (infoSection) infoSection.style.display = 'block';
+    if (formSection) formSection.style.display = 'block';
+    
+    // Clear search
+    const input = $('billingPatientSearchInput');
+    const results = $('billingPatientSearchResults');
+    if (input) input.value = '';
+    if (results) results.innerHTML = '';
+    
+    // Reset form
+    resetForm();
+    
+    // Scroll to form
+    if (infoSection) {
+        setTimeout(() => infoSection.scrollIntoView({ behavior: 'smooth' }), 100);
+    }
+    
+    notify(`Selected: ${patient.name}`, 'success');
+}
+
+// Global access
+window.selectPatient = selectPatient;
+
+// ===================================
+// MODE TOGGLE
+// ===================================
+window.toggleBillingMode = function(mode) {
+    const searchMode = $('patientSearchMode');
+    const manualMode = $('manualPatientMode');
+    const searchBtn = $('searchPatientBtn');
+    const manualBtn = $('manualBillBtn');
+    
+    if (mode === 'search') {
+        if (searchMode) searchMode.style.display = 'block';
+        if (manualMode) manualMode.style.display = 'none';
+        if (searchBtn) searchBtn.classList.add('active');
+        if (manualBtn) manualBtn.classList.remove('active');
+    } else {
+        if (searchMode) searchMode.style.display = 'none';
+        if (manualMode) manualMode.style.display = 'block';
+        if (searchBtn) searchBtn.classList.remove('active');
+        if (manualBtn) manualBtn.classList.add('active');
+    }
+    
+    // Hide billing sections
+    const infoSection = $('selectedPatientSection');
+    const formSection = $('billingFormSection');
+    if (infoSection) infoSection.style.display = 'none';
+    if (formSection) formSection.style.display = 'none';
+    
+    State.selectedPatient = null;
+};
+
+window.useManualPatient = function() {
+    const name = $('manualPatientName')?.value.trim();
+    const number = $('manualPatientNumber')?.value.trim() || `WLK-${Date.now().toString().slice(-6)}`;
+    const age = $('manualPatientAge')?.value || '-';
+    const gender = $('manualPatientGender')?.value || '-';
+    
+    if (!name) {
+        notify('Please enter patient name', 'warning');
+        $('manualPatientName')?.focus();
+        return;
+    }
+    
+    State.selectedPatient = { id: `manual-${Date.now()}`, number, name, age, gender, isManual: true };
+    
+    // Update display
+    const numEl = $('displayPatientNumber');
+    const nameEl = $('displayPatientName');
+    const ageEl = $('displayPatientAge');
+    const genderEl = $('displayPatientGender');
+    
+    if (numEl) numEl.textContent = number;
+    if (nameEl) nameEl.textContent = name;
+    if (ageEl) ageEl.textContent = age;
+    if (genderEl) genderEl.textContent = gender;
+    
+    // Show sections
+    const infoSection = $('selectedPatientSection');
+    const formSection = $('billingFormSection');
+    if (infoSection) infoSection.style.display = 'block';
+    if (formSection) formSection.style.display = 'block';
+    
+    resetForm();
+    
+    if (infoSection) {
+        setTimeout(() => infoSection.scrollIntoView({ behavior: 'smooth' }), 100);
+    }
+    
+    notify(`Walk-in: ${name}`, 'success');
+};
+
+// ===================================
+// BILLING FORM
+// ===================================
+function attachFormListeners() {
+    if (State.listenersAttached.form) return;
+    
+    const form = $('billingForm');
+    const consultToggle = $('consultationFeeToggle');
+    const pharmToggle = $('pharmacyPaymentToggle');
+    const clearBtn = $('clearBillingBtn');
+    
+    // Toggles
+    if (consultToggle) {
+        consultToggle.addEventListener('change', (e) => {
+            const content = $('consultationFeeContent');
+            if (content) content.style.display = e.target.checked ? 'block' : 'none';
+            updateSummary();
+        });
+    }
+    
+    if (pharmToggle) {
+        pharmToggle.addEventListener('change', (e) => {
+            const content = $('pharmacyPaymentContent');
+            if (content) content.style.display = e.target.checked ? 'block' : 'none';
+            updateSummary();
+        });
+    }
+    
+    // Amount inputs
+    ['consultationAmount', 'pharmacyAmount'].forEach(id => {
+        const el = $(id);
+        if (el) el.addEventListener('input', updateSummary);
+    });
+    
+    // Form submit
+    if (form) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (State.processing) {
+                console.log('Billing: Already processing');
+                return;
+            }
+            
+            await processPayment();
+        });
+    }
+    
+    // Clear button
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            if (confirm('Clear all billing data?')) {
+                clearAll();
+            }
+        });
+    }
+    
+    State.listenersAttached.form = true;
+}
+
+function attachServiceListeners() {
+    if (State.listenersAttached.services) return;
+    
+    const addBtn = $('addServiceBtn');
+    if (addBtn) {
+        addBtn.addEventListener('click', addService);
+    }
+    
+    window.removeService = (id) => {
+        const el = $(id);
+        if (el) {
+            el.remove();
+            updateSummary();
+        }
+    };
+    
+    window.updateBillSummary = updateSummary;
+    
+    State.listenersAttached.services = true;
+}
+
+function addService() {
+    const container = $('servicesContainer');
+    if (!container) return;
+    
+    const id = `svc-${Date.now()}`;
+    const html = `
+        <div class="service-row" id="${id}">
+            <input type="text" class="form-input svc-desc" placeholder="Service description">
+            <input type="number" class="form-input svc-amt" min="0" step="0.01" value="0" oninput="updateBillSummary()">
+            <button type="button" class="btn-remove-svc" onclick="removeService('${id}')">
                 <i class="fas fa-times"></i>
             </button>
         </div>
     `;
-    
-    notification.style.cssText = `
-        position: fixed;
-        top: 80px;
-        right: 20px;
-        background: ${bgColors[type]};
-        color: white;
-        padding: 12px 16px;
-        border-radius: 6px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        z-index: 10001;
-        min-width: 280px;
-        max-width: 400px;
-        font-family: 'Montserrat', sans-serif;
-        font-size: 13px;
-        font-weight: 500;
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Remove after 3 seconds
-    setTimeout(() => {
-        notification.style.opacity = '0';
-        notification.style.transition = 'opacity 0.3s';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
+    container.insertAdjacentHTML('beforeend', html);
 }
 
-/**
- * Export bills as PDF
- */
-window.exportBillsAsPDF = function() {
-    try {
-        // Close dropdown
-        document.getElementById('exportDropdown').style.display = 'none';
-        
-        if (filteredBills.length === 0) {
-            showNotification('No bills to export', 'warning');
-            return;
-        }
-        
-        // Create printable content
-        const printContent = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Bills Report - ${new Date().toLocaleDateString()}</title>
-                <style>
-                    body { font-family: Arial, sans-serif; padding: 20px; }
-                    h1 { color: #2563eb; text-align: center; }
-                    .meta { text-align: center; color: #666; margin-bottom: 30px; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                    th { background: #2563eb; color: white; padding: 12px; text-align: left; }
-                    td { padding: 10px; border-bottom: 1px solid #ddd; }
-                    tr:hover { background: #f5f5f5; }
-                    .total { font-weight: bold; font-size: 18px; margin-top: 20px; text-align: right; }
-                    .status { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
-                    .paid { background: #d4edda; color: #155724; }
-                    .pending { background: #fff3cd; color: #856404; }
-                    .cancelled { background: #f8d7da; color: #721c24; }
-                </style>
-            </head>
-            <body>
-                <h1>RxFlow Hospital - Bills Report</h1>
-                <div class="meta">
-                    <p>Generated on: ${new Date().toLocaleString()}</p>
-                    <p>Total Records: ${filteredBills.length}</p>
-                </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Receipt</th>
-                            <th>Date</th>
-                            <th>Patient</th>
-                            <th>Amount</th>
-                            <th>Method</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${filteredBills.map((bill, index) => `
-                            <tr>
-                                <td>${index + 1}</td>
-                                <td>${bill.receiptNumber}</td>
-                                <td>${new Date(bill.dateTime).toLocaleDateString()}</td>
-                                <td>${bill.patientName}</td>
-                                <td>${formatCurrency(bill.totalAmount)}</td>
-                                <td>${bill.paymentMethod.toUpperCase()}</td>
-                                <td><span class="status ${bill.status}">${bill.status.toUpperCase()}</span></td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-                <div class="total">
-                    Total Amount: ${formatCurrency(filteredBills.reduce((sum, bill) => sum + (bill.status === 'paid' ? bill.totalAmount : 0), 0))}
-                </div>
-            </body>
-            </html>
-        `;
-        
-        // Open print dialog
-        const printWindow = window.open('', '', 'height=800,width=1000');
-        printWindow.document.write(printContent);
-        printWindow.document.close();
-        printWindow.print();
-        
-        showNotification(`Exported ${filteredBills.length} bills to PDF`, 'success');
-    } catch (error) {
-        console.error('Error exporting PDF:', error);
-        showNotification('Error exporting PDF', 'error');
+function updateSummary() {
+    let consultation = 0;
+    let services = 0;
+    let pharmacy = 0;
+    
+    // Consultation
+    if ($('consultationFeeToggle')?.checked) {
+        consultation = parseFloat($('consultationAmount')?.value) || 0;
     }
-};
+    
+    // Services
+    document.querySelectorAll('.svc-amt').forEach(input => {
+        services += parseFloat(input.value) || 0;
+    });
+    
+    // Pharmacy
+    if ($('pharmacyPaymentToggle')?.checked) {
+        pharmacy = parseFloat($('pharmacyAmount')?.value) || 0;
+    }
+    
+    const total = consultation + services + pharmacy;
+    
+    const sumConsult = $('summaryConsultation');
+    const sumSvc = $('summaryServices');
+    const sumPharm = $('summaryPharmacy');
+    const sumTotal = $('summaryTotal');
+    
+    if (sumConsult) sumConsult.textContent = formatMoney(consultation);
+    if (sumSvc) sumSvc.textContent = formatMoney(services);
+    if (sumPharm) sumPharm.textContent = formatMoney(pharmacy);
+    if (sumTotal) sumTotal.textContent = formatMoney(total);
+}
 
-/**
- * Export bills as Excel
- */
-window.exportBillsAsExcel = function() {
+function resetForm() {
+    const form = $('billingForm');
+    if (form) form.reset();
+    
+    const consultToggle = $('consultationFeeToggle');
+    const pharmToggle = $('pharmacyPaymentToggle');
+    const consultContent = $('consultationFeeContent');
+    const pharmContent = $('pharmacyPaymentContent');
+    const servicesContainer = $('servicesContainer');
+    
+    if (consultToggle) consultToggle.checked = false;
+    if (pharmToggle) pharmToggle.checked = false;
+    if (consultContent) consultContent.style.display = 'none';
+    if (pharmContent) pharmContent.style.display = 'none';
+    if (servicesContainer) servicesContainer.innerHTML = '';
+    
+    updateSummary();
+}
+
+function clearAll() {
+    resetForm();
+    State.selectedPatient = null;
+    
+    const infoSection = $('selectedPatientSection');
+    const formSection = $('billingFormSection');
+    if (infoSection) infoSection.style.display = 'none';
+    if (formSection) formSection.style.display = 'none';
+    
+    notify('Form cleared', 'info');
+}
+
+// ===================================
+// PAYMENT PROCESSING
+// ===================================
+async function processPayment() {
+    if (State.processing) return;
+    
+    State.processing = true;
+    
+    const submitBtn = document.querySelector('#billingForm button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    }
+    
     try {
-        // Close dropdown
-        document.getElementById('exportDropdown').style.display = 'none';
-        
-        if (filteredBills.length === 0) {
-            showNotification('No bills to export', 'warning');
+        // Validate
+        if (!State.selectedPatient) {
+            notify('Select a patient first', 'warning');
             return;
         }
         
-        // Create HTML table for Excel
-        let htmlTable = `
-            <table>
+        const paymentMethod = $('billingPaymentMethod')?.value;
+        if (!paymentMethod) {
+            notify('Select payment method', 'warning');
+            return;
+        }
+        
+        // Collect items
+        const items = [];
+        let total = 0;
+        
+        // Consultation
+        if ($('consultationFeeToggle')?.checked) {
+            const amt = parseFloat($('consultationAmount')?.value) || 0;
+            if (amt > 0) {
+                items.push({ description: 'Consultation Fee', amount: amt });
+                total += amt;
+            }
+        }
+        
+        // Services
+        document.querySelectorAll('.service-row').forEach(row => {
+            const desc = row.querySelector('.svc-desc')?.value.trim();
+            const amt = parseFloat(row.querySelector('.svc-amt')?.value) || 0;
+            if (desc && amt > 0) {
+                items.push({ description: desc, amount: amt });
+                total += amt;
+            }
+        });
+        
+        // Pharmacy
+        if ($('pharmacyPaymentToggle')?.checked) {
+            const amt = parseFloat($('pharmacyAmount')?.value) || 0;
+            const rx = $('pharmacyPrescriptionNumber')?.value.trim();
+            if (amt > 0) {
+                items.push({ description: `Pharmacy${rx ? ` (Rx: ${rx})` : ''}`, amount: amt });
+                total += amt;
+            }
+        }
+        
+        if (items.length === 0) {
+            notify('Add at least one item', 'warning');
+            return;
+        }
+        
+        // Generate receipt number
+        const receiptNumber = await generateReceiptNumber();
+        
+        // Bill data
+        const bill = {
+            receiptNumber,
+            patientId: State.selectedPatient.id,
+            patientNumber: State.selectedPatient.number,
+            patientName: State.selectedPatient.name,
+            patientAge: State.selectedPatient.age,
+            patientGender: State.selectedPatient.gender,
+            items,
+            totalAmount: total,
+            paymentMethod,
+            paymentReference: $('paymentReference')?.value.trim() || null,
+            notes: $('billingNotes')?.value.trim() || null,
+            status: 'paid',
+            createdAt: serverTimestamp(),
+            dateTime: new Date().toISOString()
+        };
+        
+        // Save
+        const docRef = await addDoc(collection(db, 'bills'), bill);
+        console.log('Billing: Saved', docRef.id);
+        
+        const savedBill = { ...bill, id: docRef.id };
+        
+        // Show receipt
+        showReceipt(savedBill);
+        
+        // Log activity + push notifications (non-blocking)
+        Promise.allSettled([
+            logBillingActivityEntry(savedBill),
+            dispatchBillingNotification(savedBill)
+        ]);
+        
+        // Clear
+        clearAll();
+        
+        notify('Payment successful!', 'success');
+        
+    } catch (err) {
+        console.error('Billing: Error', err);
+        notify('Payment failed: ' + err.message, 'error');
+    } finally {
+        State.processing = false;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-receipt"></i> Generate Receipt & Save';
+        }
+    }
+}
+
+async function generateReceiptNumber() {
+    try {
+        const snap = await getDocs(query(collection(db, 'bills'), orderBy('createdAt', 'desc'), limit(1)));
+        let max = 0;
+        
+        snap.forEach(doc => {
+            const num = parseInt(doc.data().receiptNumber?.replace(/\D/g, '')) || 0;
+            if (num > max) max = num;
+        });
+        
+        return `RCP-${String(max + 1).padStart(6, '0')}`;
+    } catch {
+        return `RCP-${Date.now().toString().slice(-8)}`;
+    }
+}
+
+// ===================================
+// RECEIPT DISPLAY & PRINT
+// ===================================
+function showReceipt(bill) {
+    const modal = $('receiptModal');
+    const content = $('receiptContent');
+    if (!modal || !content) return;
+    
+    const dateStr = bill.dateTime ? new Date(bill.dateTime) : new Date();
+    
+    content.innerHTML = `
+        <div class="receipt-document">
+            <div class="receipt-header">
+                <div class="receipt-logo">
+                    <i class="fas fa-hospital"></i>
+                    <h2>RxFlow Hospital</h2>
+                </div>
+                <div class="receipt-title">
+                    <h3>PAYMENT RECEIPT</h3>
+                    <p class="receipt-number">${bill.receiptNumber}</p>
+                </div>
+            </div>
+            
+            <div class="receipt-divider"></div>
+            
+            <div class="receipt-details-grid">
+                <div class="receipt-col">
+                    <h4>Patient Details</h4>
+                    <p><strong>ID:</strong> ${bill.patientNumber}</p>
+                    <p><strong>Name:</strong> ${bill.patientName}</p>
+                    <p><strong>Age:</strong> ${bill.patientAge || '-'}</p>
+                    <p><strong>Gender:</strong> ${bill.patientGender || '-'}</p>
+                </div>
+                <div class="receipt-col">
+                    <h4>Payment Details</h4>
+                    <p><strong>Date:</strong> ${formatDate(bill.dateTime)}</p>
+                    <p><strong>Time:</strong> ${formatTime(bill.dateTime)}</p>
+                    <p><strong>Method:</strong> ${bill.paymentMethod?.toUpperCase()}</p>
+                    ${bill.paymentReference ? `<p><strong>Ref:</strong> ${bill.paymentReference}</p>` : ''}
+                </div>
+            </div>
+            
+            <div class="receipt-divider"></div>
+            
+            <table class="receipt-table">
                 <thead>
                     <tr>
-                        <th>Receipt Number</th>
-                        <th>Date</th>
-                        <th>Time</th>
-                        <th>Patient Number</th>
-                        <th>Patient Name</th>
-                        <th>Total Amount</th>
-                        <th>Payment Method</th>
-                        <th>Payment Reference</th>
-                        <th>Status</th>
-                        <th>Notes</th>
+                        <th>Description</th>
+                        <th class="text-right">Amount</th>
                     </tr>
                 </thead>
                 <tbody>
-        `;
-        
-        filteredBills.forEach(bill => {
-            const date = new Date(bill.dateTime);
-            htmlTable += `
-                <tr>
-                    <td>${bill.receiptNumber}</td>
-                    <td>${date.toLocaleDateString()}</td>
-                    <td>${date.toLocaleTimeString()}</td>
-                    <td>${bill.patientNumber}</td>
-                    <td>${bill.patientName}</td>
-                    <td>${bill.totalAmount}</td>
-                    <td>${bill.paymentMethod}</td>
-                    <td>${bill.paymentReference || '-'}</td>
-                    <td>${bill.status}</td>
-                    <td>${bill.notes || '-'}</td>
-                </tr>
-            `;
-        });
-        
-        htmlTable += '</tbody></table>';
-        
-        // Create blob and download
-        const blob = new Blob([htmlTable], { type: 'application/vnd.ms-excel' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `Bills_Report_${new Date().toISOString().split('T')[0]}.xls`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        
-        showNotification(`Exported ${filteredBills.length} bills to Excel`, 'success');
-    } catch (error) {
-        console.error('Error exporting Excel:', error);
-        showNotification('Error exporting Excel', 'error');
-    }
+                    ${bill.items.map(item => `
+                        <tr>
+                            <td>${item.description}</td>
+                            <td class="text-right">${formatMoney(item.amount)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+                <tfoot>
+                    <tr class="total-row">
+                        <td><strong>TOTAL PAID</strong></td>
+                        <td class="text-right"><strong>${formatMoney(bill.totalAmount)}</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+            
+            ${bill.notes ? `<div class="receipt-notes"><strong>Notes:</strong> ${bill.notes}</div>` : ''}
+            
+            <div class="receipt-footer">
+                <p>Thank you for choosing RxFlow Hospital</p>
+                <p class="receipt-generated">This is a computer-generated receipt</p>
+            </div>
+        </div>
+    `;
+    
+    modal.style.display = 'flex';
+}
+
+window.closeReceiptModal = () => {
+    const modal = $('receiptModal');
+    if (modal) modal.style.display = 'none';
 };
 
-/**
- * Export bills as CSV
- */
-window.exportBillsAsCSV = function() {
+window.printReceipt = () => {
+    const content = $('receiptContent');
+    if (!content) return;
+    
+    const printWin = window.open('', '_blank', 'width=400,height=600');
+    printWin.document.write(`
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Receipt</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Courier New', monospace; 
+            padding: 20px; 
+            max-width: 320px; 
+            margin: 0 auto;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .receipt-document { padding: 10px; }
+        .receipt-header { text-align: center; margin-bottom: 15px; }
+        .receipt-logo i { display: none; }
+        .receipt-logo h2 { font-size: 18px; margin-bottom: 5px; }
+        .receipt-title h3 { font-size: 14px; border: 1px dashed #000; padding: 5px; margin: 10px 0; }
+        .receipt-number { font-size: 12px; font-weight: bold; }
+        .receipt-divider { border-top: 1px dashed #000; margin: 10px 0; }
+        .receipt-details-grid { margin: 10px 0; }
+        .receipt-col { margin-bottom: 10px; }
+        .receipt-col h4 { font-size: 12px; text-decoration: underline; margin-bottom: 5px; }
+        .receipt-col p { font-size: 11px; margin: 2px 0; }
+        .receipt-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .receipt-table th, .receipt-table td { 
+            padding: 5px 2px; 
+            text-align: left; 
+            font-size: 11px;
+            border-bottom: 1px dotted #ccc;
+        }
+        .receipt-table .text-right { text-align: right; }
+        .receipt-table tfoot { border-top: 2px solid #000; }
+        .total-row td { padding-top: 10px; font-size: 13px; }
+        .receipt-notes { font-size: 10px; margin: 10px 0; padding: 5px; background: #f5f5f5; }
+        .receipt-footer { text-align: center; margin-top: 20px; font-size: 10px; }
+        .receipt-generated { font-style: italic; margin-top: 5px; color: #666; }
+        @media print {
+            body { padding: 5px; }
+        }
+    </style>
+</head>
+<body>
+    ${content.innerHTML}
+    <script>window.onload = function() { window.print(); }</script>
+</body>
+</html>
+    `);
+    printWin.document.close();
+};
+
+// ===================================
+// BILLS LISTENER - STABLE
+// ===================================
+function startBillsListener() {
+    if (State.listenersAttached.bills) {
+        console.log('Billing: Bills listener exists');
+        return;
+    }
+    
+    console.log('Billing: Starting bills listener...');
+    
+    const billsRef = collection(db, 'bills');
+    const q = query(billsRef, orderBy('createdAt', 'desc'));
+    
+    State.unsubscribeBills = onSnapshot(q, 
+        (snapshot) => {
+            // Build fresh array from snapshot
+            const billsMap = new Map();
+            
+            snapshot.docs.forEach(doc => {
+                if (!billsMap.has(doc.id)) {
+                    billsMap.set(doc.id, { id: doc.id, ...doc.data() });
+                }
+            });
+            
+            const billsArray = Array.from(billsMap.values());
+            updateBillsState(billsArray, 'realtime');
+        },
+        (error) => {
+            console.error('Billing: Listener error', error);
+        }
+    );
+    
+    State.listenersAttached.bills = true;
+}
+
+async function loadBillsOnce(limitCount = 200) {
     try {
-        // Close dropdown
-        document.getElementById('exportDropdown').style.display = 'none';
+        const snap = await getDocs(query(collection(db, 'bills'), orderBy('createdAt', 'desc'), limit(limitCount)));
+        const billsArray = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        updateBillsState(billsArray, 'initial');
+    } catch (err) {
+        console.error('Billing: Failed to load bills snapshot', err);
+    }
+}
+
+function updateBillsState(billsArray, source = 'snapshot') {
+    State.bills = billsArray;
+    State.billsPrimed = true;
+    console.log(`Billing: ${billsArray.length} bills loaded (${source})`);
+    
+    renderRecentTransactions();
+    updateStats();
+    if (State.isFiltering) {
+        filterBills();
+    } else {
+        renderBillsTable();
+    }
+}
+
+// ===================================
+// RECENT TRANSACTIONS - STABLE
+// ===================================
+function renderRecentTransactions() {
+    const tbody = $('recentBillingsTableBody');
+    if (!tbody) return;
+    
+    // Get latest 10
+    const recent = State.bills.slice(0, 10);
+    
+    if (recent.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="empty-cell">
+                    <div class="empty-state">
+                        <i class="fas fa-receipt"></i>
+                        <p>No recent transactions</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    // Build HTML once
+    const rows = recent.map(bill => {
+        const time = formatTime(bill.dateTime);
+        const method = bill.paymentMethod || '-';
+        const status = bill.status || 'paid';
+        const methodClass = toClassName(method);
+        const statusClass = toClassName(status);
         
-        if (filteredBills.length === 0) {
-            showNotification('No bills to export', 'warning');
-            return;
+        return `
+            <tr data-id="${bill.id}">
+                <td>${time}</td>
+                <td><strong>${bill.receiptNumber || '-'}</strong></td>
+                <td>${bill.patientName || '-'}</td>
+                <td>${formatMoney(bill.totalAmount)}</td>
+                <td><span class="method-badge method-${methodClass}">${method}</span></td>
+                <td><span class="status-badge status-${statusClass}">${status}</span></td>
+                <td>
+                    <button class="btn-action" onclick="viewReceipt('${bill.id}')" title="View Receipt">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn-action" onclick="printBillReceipt('${bill.id}')" title="Print Receipt">
+                        <i class="fas fa-print"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = rows.join('');
+}
+
+// ===================================
+// STATS
+// ===================================
+function updateStats() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    let todayRev = 0, todayCount = 0, monthRev = 0, pending = 0;
+    
+    State.bills.forEach(bill => {
+        const billDate = bill.dateTime ? new Date(bill.dateTime) : null;
+        const amt = bill.totalAmount || 0;
+        
+        if (billDate && billDate >= today) {
+            todayRev += amt;
+            todayCount++;
         }
         
-        // Create CSV content
-        let csv = 'Receipt Number,Date,Time,Patient Number,Patient Name,Total Amount,Payment Method,Payment Reference,Status,Notes\n';
+        if (billDate && billDate >= monthStart) {
+            monthRev += amt;
+        }
         
-        filteredBills.forEach(bill => {
-            const date = new Date(bill.dateTime);
-            csv += `"${bill.receiptNumber}","${date.toLocaleDateString()}","${date.toLocaleTimeString()}","${bill.patientNumber}","${bill.patientName}",${bill.totalAmount},"${bill.paymentMethod}","${bill.paymentReference || '-'}","${bill.status}","${bill.notes || '-'}"\n`;
-        });
-        
-        // Create blob and download
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `Bills_Report_${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        
-        showNotification(`Exported ${filteredBills.length} bills to CSV`, 'success');
-    } catch (error) {
-        console.error('Error exporting CSV:', error);
-        showNotification('Error exporting CSV', 'error');
+        if (bill.status === 'pending') {
+            pending++;
+        }
+    });
+    
+    const todayRevEl = $('todayRevenue');
+    const todayCountEl = $('todayPayments');
+    const monthRevEl = $('monthRevenue');
+    const pendingEl = $('pendingBills');
+    
+    if (todayRevEl) todayRevEl.textContent = formatMoney(todayRev);
+    if (todayCountEl) todayCountEl.textContent = todayCount;
+    if (monthRevEl) monthRevEl.textContent = formatMoney(monthRev);
+    if (pendingEl) pendingEl.textContent = pending;
+}
+
+// ===================================
+// VIEW RECEIPT / PRINT
+// ===================================
+window.viewReceipt = (id) => {
+    const bill = State.bills.find(b => b.id === id);
+    if (bill) showReceipt(bill);
+};
+
+window.printBillReceipt = (id) => {
+    const bill = State.bills.find(b => b.id === id);
+    if (bill) {
+        showReceipt(bill);
+        setTimeout(() => window.printReceipt(), 300);
     }
 };
 
-// Export functions
-window.billingModule = {
-    initBillingModule,
-    initViewBillsModule
+window.viewBillDetails = window.viewReceipt;
+window.reprintReceipt = window.printBillReceipt;
+
+// ===================================
+// VIEW ALL BILLS MODULE
+// ===================================
+export function initViewBillsModule() {
+    console.log('Billing: Init View Bills');
+    startBillsListener();
+    
+    if (!State.listenersAttached.viewBills) {
+        setupViewBillsListeners();
+        State.listenersAttached.viewBills = true;
+    }
+    
+    if (!State.billsPrimed) {
+        loadBillsOnce();
+    }
+    
+    renderBillsTable();
+}
+
+function setupViewBillsListeners() {
+    // Search
+    const searchInput = $('billSearchInput');
+    if (searchInput) {
+        let timer;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(timer);
+            timer = setTimeout(filterBills, 250);
+        });
+    }
+    
+    // Filters
+    ['filterPaymentStatus', 'filterPaymentMethod', 'filterDate'].forEach(id => {
+        const el = $(id);
+        if (el) el.addEventListener('change', filterBills);
+    });
+    
+    // Clear filters
+    const clearBtn = $('clearBillFiltersBtn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            if ($('billSearchInput')) $('billSearchInput').value = '';
+            if ($('filterPaymentStatus')) $('filterPaymentStatus').value = '';
+            if ($('filterPaymentMethod')) $('filterPaymentMethod').value = '';
+            if ($('filterDate')) $('filterDate').value = '';
+            filterBills();
+        });
+    }
+    
+    // Export dropdown
+    const exportBtn = $('exportDropdownBtn');
+    const exportMenu = $('exportDropdown');
+    if (exportBtn && exportMenu) {
+        exportBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            exportMenu.style.display = exportMenu.style.display === 'block' ? 'none' : 'block';
+        });
+        
+        document.addEventListener('click', () => {
+            exportMenu.style.display = 'none';
+        });
+    }
+}
+
+function filterBills() {
+    const search = ($('billSearchInput')?.value || '').toLowerCase();
+    const status = $('filterPaymentStatus')?.value || '';
+    const method = $('filterPaymentMethod')?.value || '';
+    const date = $('filterDate')?.value || '';
+    
+    const filtered = State.bills.filter(bill => {
+        if (search) {
+            const fields = [bill.receiptNumber, bill.patientNumber, bill.patientName]
+                .map(f => (f || '').toLowerCase());
+            if (!fields.some(f => f.includes(search))) return false;
+        }
+        
+        if (status && bill.status !== status) return false;
+        if (method && bill.paymentMethod !== method) return false;
+        
+        if (date) {
+            const billDate = bill.dateTime ? new Date(bill.dateTime).toISOString().split('T')[0] : '';
+            if (billDate !== date) return false;
+        }
+        
+        return true;
+    });
+    
+    State.isFiltering = Boolean(search || status || method || date);
+    State.filteredBills = State.isFiltering ? filtered : [];
+    State.currentPage = 1;
+    renderBillsTable();
+}
+
+function renderBillsTable() {
+    const tbody = $('billingTableBody');
+    if (!tbody) return;
+    
+    const bills = State.isFiltering ? State.filteredBills : State.bills;
+    
+    const start = (State.currentPage - 1) * State.pageSize;
+    const end = start + State.pageSize;
+    const page = bills.slice(start, end);
+    
+    if (page.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="empty-cell">
+                    <div class="empty-state">
+                        <i class="fas fa-file-invoice"></i>
+                        <p>No bills found</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        updatePagination(0);
+        return;
+    }
+    
+    tbody.innerHTML = page.map(bill => {
+        const date = formatDate(bill.dateTime);
+        const time = formatTime(bill.dateTime);
+        const itemCount = bill.items?.length || 0;
+        const method = bill.paymentMethod || '-';
+        const status = bill.status || 'paid';
+        const methodClass = toClassName(method);
+        const statusClass = toClassName(status);
+        
+        return `
+            <tr data-id="${bill.id}">
+                <td><strong>${bill.receiptNumber || '-'}</strong></td>
+                <td>${date} ${time}</td>
+                <td>${bill.patientNumber || '-'}</td>
+                <td>${bill.patientName || '-'}</td>
+                <td>${itemCount} item${itemCount !== 1 ? 's' : ''}</td>
+                <td>${formatMoney(bill.totalAmount)}</td>
+                <td><span class="method-badge method-${methodClass}">${method}</span></td>
+                <td><span class="status-badge status-${statusClass}">${status}</span></td>
+                <td>
+                    <button class="btn-action" onclick="viewReceipt('${bill.id}')" title="View Receipt">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn-action" onclick="printBillReceipt('${bill.id}')" title="Print Receipt">
+                        <i class="fas fa-print"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    updatePagination(bills.length);
+}
+
+function updatePagination(total) {
+    const startEl = $('billShowingStart');
+    const endEl = $('billShowingEnd');
+    const totalEl = $('billTotalItems');
+    const prevBtn = $('billPrevBtn');
+    const nextBtn = $('billNextBtn');
+    
+    const start = total === 0 ? 0 : (State.currentPage - 1) * State.pageSize + 1;
+    const end = Math.min(State.currentPage * State.pageSize, total);
+    
+    if (startEl) startEl.textContent = start;
+    if (endEl) endEl.textContent = end;
+    if (totalEl) totalEl.textContent = total;
+    
+    if (prevBtn) prevBtn.disabled = State.currentPage <= 1;
+    if (nextBtn) nextBtn.disabled = end >= total;
+}
+
+window.billPrevPage = () => {
+    if (State.currentPage > 1) {
+        State.currentPage--;
+        renderBillsTable();
+    }
 };
 
-console.log('Billing module loaded successfully');
+window.billNextPage = () => {
+    State.currentPage++;
+    renderBillsTable();
+};
+
+window.changeBillPageSize = (size) => {
+    State.pageSize = parseInt(size);
+    State.currentPage = 1;
+    renderBillsTable();
+};
+
+// ===================================
+// EXPORT FUNCTIONS
+// ===================================
+window.exportBillsAsPDF = () => {
+    const exportMenu = $('exportDropdown');
+    if (exportMenu) {
+        exportMenu.style.display = 'none';
+    }
+    
+    const bills = State.isFiltering ? State.filteredBills : State.bills;
+    if (!bills.length) {
+        notify('No bills to export', 'warning');
+        return;
+    }
+    
+    const printWin = window.open('', '_blank');
+    printWin.document.write(`
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bills Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 30px; }
+        h1 { color: #2563eb; margin-bottom: 10px; }
+        .meta { color: #666; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; font-size: 12px; }
+        th { background: #f3f4f6; }
+        .text-right { text-align: right; }
+    </style>
+</head>
+<body>
+    <h1>RxFlow Hospital - Receipts Report</h1>
+    <p class="meta">Generated: ${new Date().toLocaleString()} | Total: ${bills.length} receipts</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Receipt #</th>
+                <th>Date</th>
+                <th>Patient</th>
+                <th class="text-right">Amount</th>
+                <th>Method</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${bills.map(b => `
+                <tr>
+                    <td>${b.receiptNumber || '-'}</td>
+                    <td>${formatDate(b.dateTime)}</td>
+                    <td>${b.patientName || '-'}</td>
+                    <td class="text-right">${formatMoney(b.totalAmount)}</td>
+                    <td>${b.paymentMethod || '-'}</td>
+                    <td>${b.status || 'paid'}</td>
+                </tr>
+            `).join('')}
+        </tbody>
+    </table>
+    <script>window.onload = () => window.print();</script>
+</body>
+</html>
+    `);
+    printWin.document.close();
+    notify(`Exporting ${bills.length} receipts`, 'success');
+};
+
+window.exportBillsAsExcel = () => {
+    const exportMenu = $('exportDropdown');
+    if (exportMenu) {
+        exportMenu.style.display = 'none';
+    }
+    
+    const bills = State.isFiltering ? State.filteredBills : State.bills;
+    if (!bills.length) {
+        notify('No bills to export', 'warning');
+        return;
+    }
+    
+    const html = `
+        <table>
+            <tr><th>Receipt #</th><th>Date</th><th>Patient ID</th><th>Patient Name</th><th>Amount</th><th>Method</th><th>Status</th></tr>
+            ${bills.map(b => `
+                <tr>
+                    <td>${b.receiptNumber || ''}</td>
+                    <td>${formatDate(b.dateTime)}</td>
+                    <td>${b.patientNumber || ''}</td>
+                    <td>${b.patientName || ''}</td>
+                    <td>${b.totalAmount || 0}</td>
+                    <td>${b.paymentMethod || ''}</td>
+                    <td>${b.status || 'paid'}</td>
+                </tr>
+            `).join('')}
+        </table>
+    `;
+    
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Receipts_${new Date().toISOString().split('T')[0]}.xls`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    notify(`Exported ${bills.length} receipts`, 'success');
+};
+
+window.exportBillsAsCSV = () => {
+    const exportMenu = $('exportDropdown');
+    if (exportMenu) {
+        exportMenu.style.display = 'none';
+    }
+    
+    const bills = State.isFiltering ? State.filteredBills : State.bills;
+    if (!bills.length) {
+        notify('No bills to export', 'warning');
+        return;
+    }
+    
+    let csv = 'Receipt #,Date,Patient ID,Patient Name,Amount,Method,Status\n';
+    bills.forEach(b => {
+        csv += `"${b.receiptNumber || ''}","${formatDate(b.dateTime)}","${b.patientNumber || ''}","${b.patientName || ''}",${b.totalAmount || 0},"${b.paymentMethod || ''}","${b.status || 'paid'}"\n`;
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Receipts_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    notify(`Exported ${bills.length} receipts`, 'success');
+};
+
+// ===================================
+// INJECT STYLES
+// ===================================
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes toastOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+    
+    .search-msg { text-align: center; padding: 20px; color: #666; }
+    .search-msg i { margin-right: 8px; }
+    
+    .search-patient-item {
+        padding: 12px 15px;
+        border-bottom: 1px solid #eee;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .search-patient-item:hover { background: #f0f7ff; }
+    .search-patient-item:last-child { border-bottom: none; }
+    .search-patient-item .patient-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .search-patient-item .patient-info strong { color: #1a1a2e; }
+    .search-patient-item .patient-id { color: #3b82f6; font-size: 12px; }
+    .search-patient-item .patient-details { display: flex; gap: 12px; font-size: 12px; color: #666; }
+    .search-patient-item .patient-details i { margin-right: 4px; }
+    
+    .service-row {
+        display: grid;
+        grid-template-columns: 1fr 120px 40px;
+        gap: 10px;
+        align-items: end;
+        margin-bottom: 10px;
+        padding: 10px;
+        background: #f9fafb;
+        border-radius: 8px;
+    }
+    .btn-remove-svc {
+        background: #fee2e2;
+        color: #dc2626;
+        border: none;
+        border-radius: 6px;
+        padding: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .btn-remove-svc:hover { background: #dc2626; color: white; }
+    
+    .empty-cell { padding: 40px !important; }
+    .empty-state { text-align: center; color: #9ca3af; }
+    .empty-state i { font-size: 48px; margin-bottom: 10px; opacity: 0.5; }
+    .empty-state p { font-size: 14px; }
+    
+    .method-badge, .status-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .method-badge { background: #e0e7ff; color: #4338ca; }
+    .method-cash { background: #d1fae5; color: #065f46; }
+    .method-mpesa { background: #dcfce7; color: #166534; }
+    .method-card { background: #dbeafe; color: #1e40af; }
+    .method-insurance { background: #fef3c7; color: #92400e; }
+    
+    .status-badge { background: #d1fae5; color: #065f46; }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-cancelled { background: #fee2e2; color: #991b1b; }
+    
+    .btn-action {
+        background: none;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 6px 10px;
+        cursor: pointer;
+        color: #6b7280;
+        transition: all 0.2s;
+        margin-right: 4px;
+    }
+    .btn-action:hover { background: #3b82f6; color: white; border-color: #3b82f6; }
+    
+    /* Receipt Styles */
+    .receipt-document { max-width: 450px; margin: 0 auto; }
+    .receipt-header { text-align: center; margin-bottom: 20px; }
+    .receipt-logo { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 10px; }
+    .receipt-logo i { font-size: 28px; color: #3b82f6; }
+    .receipt-logo h2 { margin: 0; color: #1e40af; font-size: 22px; }
+    .receipt-title h3 { 
+        display: inline-block;
+        padding: 8px 20px;
+        background: #3b82f6;
+        color: white;
+        border-radius: 20px;
+        font-size: 14px;
+        margin: 10px 0 5px;
+    }
+    .receipt-number { font-size: 16px; font-weight: bold; color: #1e40af; }
+    .receipt-divider { height: 2px; background: linear-gradient(to right, transparent, #3b82f6, transparent); margin: 15px 0; }
+    .receipt-details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .receipt-col h4 { font-size: 12px; text-transform: uppercase; color: #6b7280; margin-bottom: 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
+    .receipt-col p { font-size: 13px; margin: 4px 0; color: #374151; }
+    .receipt-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+    .receipt-table th { background: #f3f4f6; padding: 10px; font-size: 12px; text-align: left; }
+    .receipt-table td { padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
+    .receipt-table .text-right { text-align: right; }
+    .receipt-table .total-row td { border-top: 2px solid #3b82f6; font-size: 16px; color: #1e40af; }
+    .receipt-notes { background: #fefce8; padding: 10px; border-radius: 6px; font-size: 12px; margin: 10px 0; }
+    .receipt-footer { text-align: center; margin-top: 20px; padding-top: 15px; border-top: 1px dashed #e5e7eb; }
+    .receipt-footer p { font-size: 12px; color: #6b7280; margin: 4px 0; }
+    .receipt-generated { font-style: italic; font-size: 10px !important; }
+`;
+document.head.appendChild(style);
+
+// Module loaded
+console.log('✅ Billing Module v3.0 Ready');

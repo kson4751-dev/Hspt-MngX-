@@ -4378,6 +4378,22 @@ let doctorStats = {
     totalPatients: 0
 };
 
+// Navigate to telemedicine module (appointments)
+function openDoctorAppointmentsModule() {
+    if (typeof navigateToModule === 'function') {
+        navigateToModule('telemedicine');
+    } else {
+        console.warn('navigateToModule unavailable; falling back to manual activation');
+        const moduleEl = document.getElementById('telemedicine-module');
+        if (moduleEl) {
+            document.querySelectorAll('.module').forEach(mod => mod.classList.remove('active'));
+            moduleEl.classList.add('active');
+        }
+    }
+}
+
+window.openDoctorAppointmentsModule = openDoctorAppointmentsModule;
+
 // Initialize Doctor Module
 function initializeDoctorModule() {
     // Load sample data
@@ -4658,13 +4674,24 @@ function renderDoctorRecords() {
     const recordsBody = document.getElementById('doctorRecordsBody');
     if (!recordsBody) return;
     
-    if (doctorRecords.length === 0) {
+    // Filter to show only consultations from the last 24 hours
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    
+    const todayRecords = doctorRecords.filter(record => {
+        const recordDate = record.consultationDate?.toDate 
+            ? record.consultationDate.toDate() 
+            : new Date(record.consultationDate || record.time || 0);
+        return recordDate >= twentyFourHoursAgo;
+    });
+    
+    if (todayRecords.length === 0) {
         recordsBody.innerHTML = `
             <tr class="empty-row">
                 <td colspan="8">
                     <div class="empty-state">
                         <i class="fas fa-clipboard-list"></i>
-                        <p>No consultations today</p>
+                        <p>No consultations in the last 24 hours</p>
                     </div>
                 </td>
             </tr>
@@ -4672,7 +4699,7 @@ function renderDoctorRecords() {
         return;
     }
     
-    recordsBody.innerHTML = doctorRecords.map(record => `
+    recordsBody.innerHTML = todayRecords.map(record => `
         <tr>
             <td>${record.time}</td>
             <td><strong>${record.patientId}</strong></td>
@@ -5710,25 +5737,18 @@ let labReportsUnsubscribe = null; // Store unsubscribe function
 
 // Open Lab Reports Module from Doctor
 function openLabReportsModule() {
-    // Use the navigation system properly
-    const navItems = document.querySelectorAll('.nav-item');
-    const modules = document.querySelectorAll('.module');
-    
-    // Hide all modules
-    modules.forEach(mod => mod.classList.remove('active'));
-    navItems.forEach(nav => nav.classList.remove('active'));
-    
-    // Show lab reports module
-    const labReportsModule = document.getElementById('lab-reports-module');
-    if (labReportsModule) {
-        labReportsModule.classList.add('active');
+    if (typeof navigateToModule === 'function') {
+        navigateToModule('lab-reports');
+    } else {
+        console.warn('navigateToModule not available; fallback activation');
+        const moduleEl = document.getElementById('lab-reports-module');
+        if (moduleEl) moduleEl.classList.add('active');
     }
-    
-    // Set return module
+
     labReportsReturnModule = 'doctor';
-    document.getElementById('labReportsBackText').textContent = 'Back to Doctor';
+    const backText = document.getElementById('labReportsBackText');
+    if (backText) backText.textContent = 'Back to Doctor';
     
-    // Load lab reports if not already subscribed
     if (!labReportsUnsubscribe) {
         loadDoctorLabReports();
     }
@@ -5736,25 +5756,18 @@ function openLabReportsModule() {
 
 // Open Lab Reports Module from Laboratory
 function openLabReportsModuleFromLab() {
-    // Use the navigation system properly
-    const navItems = document.querySelectorAll('.nav-item');
-    const modules = document.querySelectorAll('.module');
-    
-    // Hide all modules
-    modules.forEach(mod => mod.classList.remove('active'));
-    navItems.forEach(nav => nav.classList.remove('active'));
-    
-    // Show lab reports module
-    const labReportsModule = document.getElementById('lab-reports-module');
-    if (labReportsModule) {
-        labReportsModule.classList.add('active');
+    if (typeof navigateToModule === 'function') {
+        navigateToModule('lab-reports');
+    } else {
+        console.warn('navigateToModule not available; fallback activation');
+        const moduleEl = document.getElementById('lab-reports-module');
+        if (moduleEl) moduleEl.classList.add('active');
     }
-    
-    // Set return module
+
     labReportsReturnModule = 'laboratory';
-    document.getElementById('labReportsBackText').textContent = 'Back to Laboratory';
+    const backText = document.getElementById('labReportsBackText');
+    if (backText) backText.textContent = 'Back to Laboratory';
     
-    // Load lab reports if not already subscribed
     if (!labReportsUnsubscribe) {
         loadDoctorLabReports();
     }
@@ -5762,41 +5775,10 @@ function openLabReportsModuleFromLab() {
 
 // Close Lab Reports Module
 function closeLabReportsModule() {
-    const modules = document.querySelectorAll('.module');
-    const navItems = document.querySelectorAll('.nav-item');
-    
-    // Hide lab reports module
-    const labReportsModule = document.getElementById('lab-reports-module');
-    if (labReportsModule) {
-        labReportsModule.classList.remove('active');
-    }
-    
-    // Show and activate the correct return module
-    if (labReportsReturnModule === 'laboratory') {
-        const labModule = document.getElementById('laboratory-module');
-        const labNavItem = document.querySelector('.nav-item[data-module="laboratory"]');
-        
-        if (labModule) {
-            modules.forEach(mod => mod.classList.remove('active'));
-            labModule.classList.add('active');
-        }
-        if (labNavItem) {
-            navItems.forEach(nav => nav.classList.remove('active'));
-            labNavItem.classList.add('active');
-        }
+    if (typeof navigateToModule === 'function') {
+        navigateToModule(labReportsReturnModule || 'doctor');
     } else {
-        // Default to doctor module
-        const doctorModule = document.getElementById('doctor-module');
-        const doctorNavItem = document.querySelector('.nav-item[data-module="doctor"]');
-        
-        if (doctorModule) {
-            modules.forEach(mod => mod.classList.remove('active'));
-            doctorModule.classList.add('active');
-        }
-        if (doctorNavItem) {
-            navItems.forEach(nav => nav.classList.remove('active'));
-            doctorNavItem.classList.add('active');
-        }
+        console.warn('navigateToModule not available; unable to auto-return');
     }
 }
 
@@ -7274,29 +7256,18 @@ let imagingReportsListener = null;
 // Open Imaging Reports Module from Doctor
 function openImagingReportsModule() {
     console.log('Opening Imaging Reports Module...');
-    
-    const modules = document.querySelectorAll('.module');
-    const navItems = document.querySelectorAll('.nav-item');
-    
-    // Hide all modules
-    modules.forEach(mod => mod.classList.remove('active'));
-    navItems.forEach(nav => nav.classList.remove('active'));
-    
-    // Show imaging reports module
-    const imagingReportsModule = document.getElementById('imaging-reports-module');
-    if (imagingReportsModule) {
-        imagingReportsModule.classList.add('active');
-        console.log('✅ Module activated');
+    if (typeof navigateToModule === 'function') {
+        navigateToModule('imaging-reports');
     } else {
-        console.error('❌ imaging-reports-module not found');
+        console.warn('navigateToModule not available; fallback activation');
+        const moduleEl = document.getElementById('imaging-reports-module');
+        if (moduleEl) moduleEl.classList.add('active');
     }
     
-    // Set return module
     imagingReportsReturnModule = 'doctor';
     const backText = document.getElementById('imagingReportsBackText');
     if (backText) backText.textContent = 'Back to Doctor';
     
-    // Load imaging reports data
     loadImagingReports();
 }
 
@@ -7310,26 +7281,8 @@ function closeImagingReportsModule() {
         imagingReportsListener = null;
     }
     
-    const modules = document.querySelectorAll('.module');
-    const navItems = document.querySelectorAll('.nav-item');
-    
-    // Hide imaging reports module
-    const imagingReportsModule = document.getElementById('imaging-reports-module');
-    if (imagingReportsModule) {
-        imagingReportsModule.classList.remove('active');
-    }
-    
-    // Show and activate the doctor module
-    const doctorModule = document.getElementById('doctor-module');
-    const doctorNavItem = document.querySelector('.nav-item[data-module="doctor"]');
-    
-    if (doctorModule) {
-        modules.forEach(mod => mod.classList.remove('active'));
-        doctorModule.classList.add('active');
-    }
-    if (doctorNavItem) {
-        navItems.forEach(nav => nav.classList.remove('active'));
-        doctorNavItem.classList.add('active');
+    if (typeof navigateToModule === 'function') {
+        navigateToModule(imagingReportsReturnModule || 'doctor');
     }
 }
 
