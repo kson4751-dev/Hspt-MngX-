@@ -711,7 +711,12 @@ function setupPhotoUpload() {
         try {
             const user = getCurrentUser();
             
-            console.log('📤 Uploading profile photo...');
+            if (!user.uid) {
+                showNotification('Error', 'User not authenticated. Please log in again.', 'error');
+                return;
+            }
+            
+            console.log('📤 Uploading profile photo for user:', user.uid);
             showNotification('Uploading...', 'Please wait while your photo is being uploaded', 'info');
             
             // Show preview immediately
@@ -727,7 +732,11 @@ function setupPhotoUpload() {
             reader.readAsDataURL(file);
             
             // Upload to Firebase Storage (permanent cloud storage)
-            const storageRef = ref(storage, `profile_photos/${user.uid}/${Date.now()}_${file.name}`);
+            // Path: profile_photos/{userId}/{timestamp}_{filename} - ensures unique per user
+            const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+            const storageRef = ref(storage, `profile_photos/${user.uid}/${fileName}`);
+            
+            console.log('☁️ Uploading to path:', `profile_photos/${user.uid}/${fileName}`);
             const uploadResult = await uploadBytes(storageRef, file);
             console.log('☁️ File uploaded to Firebase Storage (permanent)');
             
@@ -737,15 +746,16 @@ function setupPhotoUpload() {
             // Update Firestore with permanent URL
             await updateDoc(doc(db, 'users', user.uid), {
                 photoURL: downloadURL,
+                photoUpdatedAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             });
-            console.log('💾 Firestore updated with permanent URL');
+            console.log('💾 Firestore updated with permanent URL for user:', user.uid);
             
             // Update top bar photo (this also caches to localStorage)
             updateTopBarPhoto(downloadURL);
             
-            showNotification('Photo Updated', 'Your profile photo has been updated successfully', 'success');
-            console.log('✅ Profile photo uploaded and saved');
+            showNotification('Photo Updated', 'Your profile photo has been updated and saved permanently', 'success');
+            console.log('✅ Profile photo uploaded and saved for user:', user.uid);
             
         } catch (error) {
             console.error('❌ Error uploading photo:', error);
@@ -839,17 +849,35 @@ if (document.readyState === 'loading') {
 async function syncProfilePhotoOnLoad() {
     try {
         const user = getCurrentUser();
-        if (!user.uid) return;
+        if (!user.uid) {
+            console.log('⚠️ No user ID, skipping profile photo sync');
+            return;
+        }
         
-        console.log('🔄 Syncing profile photo from Firestore...');
+        console.log('🔄 Syncing profile photo from Firestore for user:', user.uid);
         
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
-            const photoURL = userDoc.data().photoURL;
+            const userData = userDoc.data();
+            const photoURL = userData.photoURL;
+            
             if (photoURL && photoURL !== 'https://via.placeholder.com/150') {
                 console.log('✅ Profile photo synced from Firestore:', photoURL);
                 updateTopBarPhoto(photoURL);
+                
+                // Also update preview if on settings page
+                const previewImg = document.getElementById('profilePhotoPreview');
+                if (previewImg) {
+                    previewImg.src = photoURL;
+                }
+            } else {
+                console.log('ℹ️ No custom profile photo found for user:', user.uid);
+                // Clear any cached photo from previous user
+                const defaultPhoto = 'https://via.placeholder.com/150';
+                updateTopBarPhoto(defaultPhoto);
             }
+        } else {
+            console.log('ℹ️ User document does not exist, will be created on first save');
         }
         
         // Setup real-time listener for profile photo changes

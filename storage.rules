@@ -3,6 +3,20 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
+    // Allow authenticated users to upload and manage their OWN profile photos
+    // Each user can only read/write to their own folder: profile_photos/{userId}/
+    match /profile_photos/{userId}/{fileName} {
+      // Users can read their own photos, and all authenticated users can view any profile photo
+      allow read: if request.auth != null;
+      // Users can only write to their own profile_photos folder
+      allow write: if request.auth != null 
+                   && request.auth.uid == userId
+                   && request.resource.size < 5 * 1024 * 1024  // Max 5MB per file
+                   && request.resource.contentType.matches('image/.*');
+      // Users can only delete their own profile photos
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
     // Allow authenticated users only to access imaging results
     match /imaging_results/{requestId}/{fileName} {
       allow read: if request.auth != null;
