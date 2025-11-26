@@ -81,6 +81,8 @@ const profileNameElement = document.getElementById('profileName');
 
 // Initialize real-time emergency alarm listener for ALL logged-in users
 let emergencyAlarmListener = null;
+let activeAlarmIds = new Set(); // Track which alarms we've already shown
+let listenerStartTime = null; // Track when listener started
 
 async function initEmergencyAlarmListener() {
     try {
@@ -95,39 +97,70 @@ async function initEmergencyAlarmListener() {
             return;
         }
         
-        // Listen to active emergency alarms
+        // Record the time when listener starts - only show alarms from last 30 seconds
+        listenerStartTime = new Date(Date.now() - 30000); // 30 seconds ago
+        
+        // Listen to ALL recent emergency alarms (active or recently stabilized)
         const alarmsRef = collection(db, 'emergency_alarms');
         const q = query(
             alarmsRef,
-            where('active', '==', true),
             orderBy('timestamp', 'desc'),
-            limit(1)
+            limit(5)
         );
         
         emergencyAlarmListener = onSnapshot(q, (snapshot) => {
             snapshot.docChanges().forEach((change) => {
+                const alarm = change.doc.data();
+                const alarmId = change.doc.id;
+                
+                // Get alarm timestamp
+                const alarmTime = alarm.timestamp?.toDate ? alarm.timestamp.toDate() : new Date(alarm.timestamp);
+                
                 if (change.type === 'added') {
-                    const alarm = change.doc.data();
-                    const alarmId = change.doc.id;
+                    // Only show alarms created in the last 30 seconds (recent alarms)
+                    const isRecent = alarmTime > listenerStartTime;
                     
-                    // Check if this user hasn't acknowledged this alarm yet
-                    if (!alarm.acknowledged || !alarm.acknowledged.includes(currentUserId)) {
+                    if (alarm.active && isRecent && (!alarm.acknowledged || !alarm.acknowledged.includes(currentUserId))) {
                         console.log('🚨 NEW EMERGENCY ALARM RECEIVED:', alarm);
                         
                         // Play emergency siren sound
                         playEmergencyAlert();
                         
-                        // Show emergency alarm modal pop-up
-                        showEmergencyAlarmModal(alarm, alarmId);
+                        // Show emergency alarm modal pop-up (RED - ACTIVE)
+                        showEmergencyAlarmModal(alarm, alarmId, 'active');
+                        
+                        // Track this alarm
+                        activeAlarmIds.add(alarmId);
                         
                         // Show browser notification
                         if ('Notification' in window && Notification.permission === 'granted') {
                             new Notification('🚨 EMERGENCY ALARM', {
-                                body: alarm.message + '\n' + alarm.description,
+                                body: alarm.message + '\n' + (alarm.patientName ? `Patient: ${alarm.patientName}` : alarm.description),
                                 icon: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
                                 tag: 'emergency-alarm-' + alarmId,
                                 requireInteraction: true,
                                 vibrate: [200, 100, 200, 100, 200, 100, 200]
+                            });
+                        }
+                    }
+                } else if (change.type === 'modified') {
+                    // ALARM UPDATED - Check if it was stabilized
+                    if (alarm.stabilized && activeAlarmIds.has(alarmId)) {
+                        console.log('✅ EMERGENCY ALARM STABILIZED:', alarm);
+                        
+                        // Play stabilized sound (gentle chime)
+                        playStabilizedSound();
+                        
+                        // Update the modal to GREEN (stabilized)
+                        showEmergencyAlarmModal(alarm, alarmId, 'stabilized');
+                        
+                        // Show browser notification for stabilization
+                        if ('Notification' in window && Notification.permission === 'granted') {
+                            new Notification('✅ PATIENT STABILIZED', {
+                                body: `${alarm.patientName || 'Patient'} has been stabilized.\n${alarm.stabilizedBy || 'Medical team'} confirmed the patient is stable.`,
+                                icon: 'https://cdn-icons-png.flaticon.com/512/845/845646.png',
+                                tag: 'emergency-stabilized-' + alarmId,
+                                requireInteraction: false
                             });
                         }
                     }
@@ -143,72 +176,112 @@ async function initEmergencyAlarmListener() {
     }
 }
 
-// Show emergency alarm modal pop-up
-function showEmergencyAlarmModal(alarm, alarmId) {
-    // Remove existing modal if any
+// Play stabilized/success sound - single clean chime
+function playStabilizedSound() {
+    try {
+        const audioContext = window.emergencyAudioContext || new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(1047, audioContext.currentTime); // C6 note - higher, pleasant
+        
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.4);
+        
+        console.log('✅ Stabilized sound played');
+    } catch (error) {
+        console.error('Error playing stabilized sound:', error);
+    }
+}
+
+// Show emergency alarm notification (simple toast - auto-dismiss)
+function showEmergencyAlarmModal(alarm, alarmId, state = 'active') {
+    // Remove existing notification if any
     const existingModal = document.getElementById('emergencyAlarmModalGlobal');
     if (existingModal) {
         existingModal.remove();
     }
     
-    // Create modal
-    const modal = document.createElement('div');
-    modal.id = 'emergencyAlarmModalGlobal';
-    modal.className = 'emergency-alarm-modal-overlay';
-    modal.innerHTML = `
-        <div class="emergency-alarm-modal-content">
-            <div class="emergency-alarm-modal-header">
-                <div class="emergency-alarm-icon-large">
-                    <i class="fas fa-ambulance"></i>
-                </div>
-                <h2>🚨 EMERGENCY ALARM ACTIVATED</h2>
-            </div>
-            <div class="emergency-alarm-modal-body">
-                <div class="emergency-alarm-message">
-                    <h3>${alarm.message}</h3>
-                    <p>${alarm.description}</p>
-                </div>
-                <div class="emergency-alarm-details">
-                    <div class="alarm-detail-item">
-                        <i class="fas fa-user"></i>
-                        <span><strong>Triggered by:</strong> ${alarm.triggeredByName || 'System'}</span>
-                    </div>
-                    <div class="alarm-detail-item">
-                        <i class="fas fa-clock"></i>
-                        <span><strong>Time:</strong> ${new Date().toLocaleTimeString()}</span>
-                    </div>
-                    <div class="alarm-detail-item">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <span><strong>Severity:</strong> CRITICAL</span>
-                    </div>
-                </div>
-                <div class="emergency-alarm-instructions">
-                    <h4>⚠️ IMMEDIATE ACTIONS REQUIRED:</h4>
-                    <ul>
-                        <li>Report to your emergency station immediately</li>
-                        <li>Follow hospital emergency protocols</li>
-                        <li>Await further instructions from supervisors</li>
-                        <li>Do not ignore this alert</li>
-                    </ul>
-                </div>
-            </div>
-            <div class="emergency-alarm-modal-footer">
-                <button class="btn btn-emergency-ack" onclick="acknowledgeEmergencyAlarm('${alarmId}')">
-                    <i class="fas fa-check-circle"></i> ACKNOWLEDGE & CLOSE
-                </button>
-            </div>
-        </div>
-    `;
+    const isStabilized = state === 'stabilized';
     
-    document.body.appendChild(modal);
+    // Create simple toast notification
+    const toast = document.createElement('div');
+    toast.id = 'emergencyAlarmModalGlobal';
+    toast.className = `emergency-toast ${isStabilized ? 'stabilized' : 'active'}`;
+    toast.setAttribute('data-alarm-id', alarmId);
     
-    // Animate in
+    if (isStabilized) {
+        // GREEN - STABILIZED
+        toast.innerHTML = `
+            <div class="emergency-toast-icon stabilized">
+                <i class="fas fa-check"></i>
+            </div>
+            <div class="emergency-toast-content">
+                <div class="emergency-toast-title stabilized">PATIENT STABILIZED</div>
+                <div class="emergency-toast-message">
+                    ${alarm.patientName || 'Patient'} is now stable • By ${alarm.stabilizedBy || 'Staff'}
+                </div>
+            </div>
+            <button class="emergency-toast-close" onclick="dismissEmergencyToast()">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+    } else {
+        // RED - ACTIVE EMERGENCY
+        // Check if it's a general emergency (from login page) or user-triggered
+        const isGeneral = alarm.triggeredBy === 'general' || alarm.source === 'login-page';
+        
+        toast.innerHTML = `
+            <div class="emergency-toast-icon">
+                <i class="fas fa-bell"></i>
+            </div>
+            <div class="emergency-toast-content">
+                <div class="emergency-toast-title">EMERGENCY ALERT</div>
+                <div class="emergency-toast-message">
+                    ${isGeneral 
+                        ? `General Emergency • ${alarm.location || 'Main Entrance'}`
+                        : (alarm.patientName 
+                            ? `Priority: ${alarm.patientName} • By ${alarm.triggeredByName}`
+                            : `Code Red • By ${alarm.triggeredByName}`)}
+                </div>
+            </div>
+            <button class="emergency-toast-close" onclick="dismissEmergencyToast()">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+    }
+    
+    document.body.appendChild(toast);
+    
+    // Show with slight delay for animation
     setTimeout(() => {
-        modal.classList.add('show');
+        toast.classList.add('show');
     }, 10);
     
-    console.log('✅ Emergency alarm modal displayed');
+    // Auto-dismiss: 3 seconds for stabilized (green), 5 seconds for emergency (red)
+    const dismissTime = isStabilized ? 3000 : 5000;
+    setTimeout(() => {
+        dismissEmergencyToast();
+    }, dismissTime);
+    
+    console.log(`✅ Emergency toast displayed (${state})`);
 }
+
+// Dismiss emergency toast
+window.dismissEmergencyToast = function() {
+    const toast = document.getElementById('emergencyAlarmModalGlobal');
+    if (toast) {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }
+};
 
 // Acknowledge emergency alarm
 window.acknowledgeEmergencyAlarm = async function(alarmId) {
@@ -240,6 +313,160 @@ window.acknowledgeEmergencyAlarm = async function(alarmId) {
             modal.classList.remove('show');
             setTimeout(() => modal.remove(), 300);
         }
+    }
+};
+
+// Open stabilize patient modal
+window.openStabilizePatientModal = function(alarmId) {
+    // Create stabilize modal
+    const existingStabilizeModal = document.getElementById('stabilizePatientModal');
+    if (existingStabilizeModal) {
+        existingStabilizeModal.remove();
+    }
+    
+    const modal = document.createElement('div');
+    modal.id = 'stabilizePatientModal';
+    modal.className = 'modal show';
+    modal.innerHTML = `
+        <div class="modal-overlay" onclick="closeStabilizeModal()"></div>
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #10b981, #059669);">
+                <h2 class="modal-title" style="color: white;">
+                    <i class="fas fa-heartbeat"></i>
+                    Confirm Patient Stabilization
+                </h2>
+                <button class="modal-close" onclick="closeStabilizeModal()" style="color: white;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div style="background: rgba(16, 185, 129, 0.1); padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #10b981;">
+                    <p style="margin: 0; color: #065f46;">
+                        <i class="fas fa-info-circle"></i>
+                        Confirming stabilization will notify ALL logged-in users that the emergency has been resolved.
+                    </p>
+                </div>
+                <form id="stabilizePatientForm">
+                    <div class="form-group">
+                        <label for="stabilizationNotes">Stabilization Notes (Optional)</label>
+                        <textarea id="stabilizationNotes" class="form-input" rows="3" placeholder="Enter any notes about the patient's condition, treatment given, etc."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeStabilizeModal()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button class="btn btn-success" onclick="confirmStabilization('${alarmId}')" style="background: #10b981;">
+                    <i class="fas fa-check-circle"></i> Confirm Stabilization
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+};
+
+// Close stabilize modal
+window.closeStabilizeModal = function() {
+    const modal = document.getElementById('stabilizePatientModal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => modal.remove(), 300);
+    }
+};
+
+// Confirm patient stabilization - broadcasts to ALL users
+window.confirmStabilization = async function(alarmId) {
+    try {
+        const { db } = await import('./firebase-config.js');
+        const { doc, updateDoc, getDoc, serverTimestamp, collection, getDocs, addDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        
+        const storageType = localStorage.getItem('userId') ? localStorage : sessionStorage;
+        const currentUserId = storageType.getItem('userId');
+        const currentUserName = storageType.getItem('userName') || 'Medical Staff';
+        
+        const notes = document.getElementById('stabilizationNotes')?.value || '';
+        
+        // Get the alarm data first
+        const alarmDoc = await getDoc(doc(db, 'emergency_alarms', alarmId));
+        const alarmData = alarmDoc.exists() ? alarmDoc.data() : {};
+        
+        // Update alarm document to mark as stabilized - ALL users will see this via real-time listener
+        await updateDoc(doc(db, 'emergency_alarms', alarmId), {
+            stabilized: true,
+            active: false,
+            stabilizedBy: currentUserName,
+            stabilizedByUserId: currentUserId,
+            stabilizedAt: serverTimestamp(),
+            stabilizationNotes: notes
+        });
+        
+        console.log('✅ Patient marked as stabilized - broadcasting to all users');
+        
+        // Send notification to ALL users
+        try {
+            // Get all users to send notifications
+            const usersSnapshot = await getDocs(collection(db, 'users'));
+            const notificationPromises = [];
+            
+            usersSnapshot.forEach((userDoc) => {
+                const userId = userDoc.id;
+                notificationPromises.push(
+                    addDoc(collection(db, 'notifications'), {
+                        userId: userId,
+                        type: 'success',
+                        icon: 'fa-heartbeat',
+                        title: '✅ Emergency Resolved - Patient Stabilized',
+                        message: `${alarmData.patientName || 'Patient'} has been stabilized by ${currentUserName}. ${notes ? `Notes: ${notes}` : ''}`,
+                        read: false,
+                        timestamp: serverTimestamp(),
+                        metadata: {
+                            alarmId: alarmId,
+                            stabilizedBy: currentUserName,
+                            patientName: alarmData.patientName || 'Unknown'
+                        }
+                    })
+                );
+            });
+            
+            await Promise.all(notificationPromises);
+            console.log(`✅ Stabilization notifications sent to ${notificationPromises.length} users`);
+        } catch (notifError) {
+            console.error('Error sending stabilization notifications:', notifError);
+        }
+        
+        // Log activity
+        import('./firebase-helpers.js').then(({ logActivity }) => {
+            logActivity(
+                'Emergency Department',
+                'STABILIZED',
+                currentUserName,
+                'PATIENT STABILIZED',
+                `✅ ${alarmData.patientName || 'Patient'} marked as stabilized by ${currentUserName}. ${notes ? `Notes: ${notes}` : ''}`
+            );
+        }).catch(error => {
+            console.error('Error logging stabilization activity:', error);
+        });
+        
+        // Close stabilize modal
+        closeStabilizeModal();
+        
+        // Close the emergency alarm modal (it will reopen with green state via listener)
+        const alarmModal = document.getElementById('emergencyAlarmModalGlobal');
+        if (alarmModal) {
+            alarmModal.classList.remove('show');
+            setTimeout(() => alarmModal.remove(), 300);
+        }
+        
+        // Show confirmation
+        setTimeout(() => {
+            alert('✅ PATIENT STABILIZED\n\nAll logged-in staff have been notified that the emergency has been resolved.');
+        }, 500);
+        
+    } catch (error) {
+        console.error('❌ Error marking patient as stabilized:', error);
+        alert('Error: Could not update stabilization status. Please try again.');
     }
 };
 
@@ -11460,77 +11687,28 @@ function initializeEmergencyAlertSound() {
     }
 }
 
-// Play emergency alert sound (ambulance siren - WIU WIU WIU)
+// Play emergency alert sound - single clean beep
 function playEmergencyAlert() {
     try {
         const audioContext = window.emergencyAudioContext || new (window.AudioContext || window.webkitAudioContext)();
-        
-        // Create oscillator for siren effect
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
         
-        // Connect nodes
         oscillator.connect(gainNode);
         gainNode.connect(audioContext.destination);
         
-        // Configure siren sound - European ambulance style (WIU WIU WIU)
         oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // A5 note
         
-        const now = audioContext.currentTime;
-        const duration = 4; // 4 seconds for 3 complete wiu cycles
-        const cycleTime = 1.3; // Each "WIU" cycle duration
+        gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
         
-        // Start with low frequency
-        oscillator.frequency.setValueAtTime(400, now);
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.5);
         
-        // Create 3 "WIU" cycles (up-down sweep)
-        for (let i = 0; i < 3; i++) {
-            const cycleStart = now + (i * cycleTime);
-            const sweepUp = cycleStart + 0.15; // Quick rise
-            const hold = sweepUp + 0.3; // Hold high
-            const sweepDown = hold + 0.15; // Quick fall
-            
-            // Sweep up: 400Hz -> 1200Hz (WI-)
-            oscillator.frequency.linearRampToValueAtTime(400, cycleStart);
-            oscillator.frequency.linearRampToValueAtTime(1200, sweepUp);
-            
-            // Hold high frequency (-U-)
-            oscillator.frequency.linearRampToValueAtTime(1200, hold);
-            
-            // Sweep down: 1200Hz -> 400Hz (-U)
-            oscillator.frequency.linearRampToValueAtTime(400, sweepDown);
-        }
-        
-        // Volume envelope - fade in and out
-        gainNode.gain.setValueAtTime(0, now);
-        gainNode.gain.linearRampToValueAtTime(0.4, now + 0.1); // Fade in
-        gainNode.gain.setValueAtTime(0.4, now + duration - 0.3);
-        gainNode.gain.linearRampToValueAtTime(0, now + duration); // Fade out
-        
-        // Start and stop oscillator
-        oscillator.start(now);
-        oscillator.stop(now + duration);
-        
-        isAlertPlaying = true;
-        
-        // Reset flag after duration
-        setTimeout(() => {
-            isAlertPlaying = false;
-        }, duration * 1000);
-        
-        console.log('🚨 Emergency siren playing: WIU WIU WIU');
-        
+        console.log('🚨 Emergency alert sound played');
     } catch (error) {
         console.error('Error playing emergency alert:', error);
-        // Fallback: browser notification
-        if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('🚨 EMERGENCY ALERT', {
-                body: 'Critical patient admitted to Emergency Department',
-                icon: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
-                requireInteraction: true,
-                tag: 'emergency-alert'
-            });
-        }
     }
 }
 
@@ -12469,13 +12647,14 @@ window.refreshEmergencyData = function() {
 
 // Test emergency alert
 // Sound emergency alarm to all departments - BROADCASTS TO ALL LOGGED-IN USERS
-window.soundEmergencyAlarm = async function() {
+// Can optionally include patient info for patient-specific emergencies
+window.soundEmergencyAlarm = async function(patientInfo = null) {
     console.log('🚨 EMERGENCY ALARM ACTIVATED - Broadcasting to ALL logged-in users');
     
     try {
         // Import Firebase modules
         const { db } = await import('./firebase-config.js');
-        const { collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        const { collection, addDoc, serverTimestamp, getDocs } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
         
         // Get current user info
         const storageType = localStorage.getItem('userId') ? localStorage : sessionStorage;
@@ -12486,12 +12665,26 @@ window.soundEmergencyAlarm = async function() {
         const alarmData = {
             triggeredBy: currentUserId || 'System',
             triggeredByName: currentUserName,
-            message: '🚨 CODE RED - EMERGENCY ALARM ACTIVATED',
-            description: 'All staff report to emergency stations immediately. This is a hospital-wide emergency alert.',
+            message: patientInfo?.patientName 
+                ? `🚨 EMERGENCY - ${patientInfo.patientName.toUpperCase()}` 
+                : '🚨 CODE RED - EMERGENCY ALARM ACTIVATED',
+            description: patientInfo?.chiefComplaint 
+                ? `Patient: ${patientInfo.patientName} - ${patientInfo.chiefComplaint}. All staff report immediately.`
+                : 'All staff report to emergency stations immediately. This is a hospital-wide emergency alert.',
             severity: 'critical',
             timestamp: serverTimestamp(),
             acknowledged: [],
-            active: true
+            active: true,
+            stabilized: false,
+            // Patient info (if provided)
+            patientName: patientInfo?.patientName || null,
+            patientId: patientInfo?.patientId || null,
+            patientAge: patientInfo?.age || patientInfo?.patientAge || null,
+            patientGender: patientInfo?.gender || patientInfo?.patientGender || null,
+            caseType: patientInfo?.caseType || null,
+            chiefComplaint: patientInfo?.chiefComplaint || null,
+            location: patientInfo?.location || 'Emergency Department',
+            emergencyCaseId: patientInfo?.emergencyCaseId || null
         };
         
         const alarmRef = await addDoc(collection(db, 'emergency_alarms'), alarmData);
@@ -12504,16 +12697,18 @@ window.soundEmergencyAlarm = async function() {
         showEmergencyNotificationBanner({
             id: alarmRef.id,
             severity: 'critical',
-            patientName: 'Emergency Alert',
-            caseType: 'Code Red',
-            chiefComplaint: '⚠️ EMERGENCY ALARM - All staff report to emergency stations immediately'
+            patientName: patientInfo?.patientName || 'Emergency Alert',
+            caseType: patientInfo?.caseType || 'Code Red',
+            chiefComplaint: patientInfo?.chiefComplaint || '⚠️ EMERGENCY ALARM - All staff report to emergency stations immediately'
         });
         
         // Send browser notification
         if ('Notification' in window) {
             if (Notification.permission === 'granted') {
                 new Notification('🚨 EMERGENCY ALARM ACTIVATED', {
-                    body: 'Code Red - All departments on alert. Report to emergency stations immediately.',
+                    body: patientInfo?.patientName 
+                        ? `Patient: ${patientInfo.patientName}\n${patientInfo.chiefComplaint || 'Critical condition - Immediate attention required'}`
+                        : 'Code Red - All departments on alert. Report to emergency stations immediately.',
                     icon: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
                     tag: 'emergency-alarm',
                     requireInteraction: true,
@@ -12523,7 +12718,9 @@ window.soundEmergencyAlarm = async function() {
                 Notification.requestPermission().then(permission => {
                     if (permission === 'granted') {
                         new Notification('🚨 EMERGENCY ALARM ACTIVATED', {
-                            body: 'Code Red - All departments on alert. Report to emergency stations immediately.',
+                            body: patientInfo?.patientName 
+                                ? `Patient: ${patientInfo.patientName}\n${patientInfo.chiefComplaint || 'Critical condition - Immediate attention required'}`
+                                : 'Code Red - All departments on alert. Report to emergency stations immediately.',
                             icon: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
                             tag: 'emergency-alarm',
                             requireInteraction: true,
@@ -12534,6 +12731,40 @@ window.soundEmergencyAlarm = async function() {
             }
         }
         
+        // Send notification to ALL users in the notification modal
+        try {
+            const usersSnapshot = await getDocs(collection(db, 'users'));
+            const notificationPromises = [];
+            
+            usersSnapshot.forEach((userDoc) => {
+                const userId = userDoc.id;
+                notificationPromises.push(
+                    addDoc(collection(db, 'notifications'), {
+                        userId: userId,
+                        type: 'warning',
+                        icon: 'fa-exclamation-triangle',
+                        title: '🚨 EMERGENCY ALARM ACTIVATED',
+                        message: patientInfo?.patientName 
+                            ? `Emergency for ${patientInfo.patientName} - ${patientInfo.chiefComplaint || 'Critical condition'}. Triggered by ${currentUserName}.`
+                            : `Code Red - Hospital-wide emergency alarm triggered by ${currentUserName}. Report to emergency stations immediately.`,
+                        read: false,
+                        timestamp: serverTimestamp(),
+                        metadata: {
+                            alarmId: alarmRef.id,
+                            triggeredBy: currentUserName,
+                            patientName: patientInfo?.patientName || null,
+                            type: 'emergency_alarm'
+                        }
+                    })
+                );
+            });
+            
+            await Promise.all(notificationPromises);
+            console.log(`✅ Emergency notifications sent to ${notificationPromises.length} users`);
+        } catch (notifError) {
+            console.error('Error sending emergency notifications to users:', notifError);
+        }
+        
         // Log activity for all departments
         import('./firebase-helpers.js').then(({ logActivity }) => {
             logActivity(
@@ -12541,7 +12772,9 @@ window.soundEmergencyAlarm = async function() {
                 'ALARM',
                 currentUserName,
                 'EMERGENCY ALARM ACTIVATED',
-                `🚨 Code Red alarm broadcasted to all hospital staff by ${currentUserName}`
+                patientInfo?.patientName 
+                    ? `🚨 Emergency alarm for ${patientInfo.patientName} broadcasted to all hospital staff by ${currentUserName}`
+                    : `🚨 Code Red alarm broadcasted to all hospital staff by ${currentUserName}`
             );
         }).catch(error => {
             console.error('Error logging alarm activity:', error);

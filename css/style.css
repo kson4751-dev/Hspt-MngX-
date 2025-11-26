@@ -2138,7 +2138,96 @@ body.dark-theme .module-badge {
     }
 }
 
-/* ==================== Emergency Alarm Modal (Global) ==================== */
+/* ==================== Emergency Toast Notification (Simple) ==================== */
+.emergency-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    background: #dc2626;
+    color: white;
+    border-radius: 0;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    z-index: 999999;
+    max-width: 400px;
+    transform: translateX(120%);
+    transition: transform 0.3s ease;
+}
+
+.emergency-toast.show {
+    transform: translateX(0);
+}
+
+.emergency-toast.stabilized {
+    background: #10b981;
+}
+
+.emergency-toast-icon {
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.emergency-toast-icon i {
+    font-size: 18px;
+    color: white;
+}
+
+.emergency-toast-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.emergency-toast-title {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+
+.emergency-toast-message {
+    font-size: 12px;
+    opacity: 0.9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.emergency-toast-close {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+
+.emergency-toast-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+    .emergency-toast {
+        left: 10px;
+        right: 10px;
+        max-width: none;
+    }
+}
+
+/* ==================== Emergency Alarm Modal (Global - Legacy) ==================== */
 .emergency-alarm-modal-overlay {
     position: fixed;
     top: 0;
@@ -2389,6 +2478,207 @@ body.dark-theme .module-badge {
     .btn-emergency-ack {
         padding: 14px 30px;
         font-size: 16px;
+        width: 100%;
+    }
+}
+
+/* ===== STABILIZED (GREEN) STATE FOR EMERGENCY MODAL ===== */
+.emergency-alarm-modal-overlay.stabilized {
+    background: rgba(16, 185, 129, 0.95);
+}
+
+.emergency-alarm-modal-content.stabilized {
+    animation: stabilizedModalPulse 2s ease-in-out infinite;
+    border: 4px solid #10b981;
+}
+
+/* ===== SIMPLIFIED EMERGENCY MODAL DESIGN ===== */
+.emergency-modal-simple {
+    text-align: center;
+    padding: 40px 30px;
+}
+
+.emergency-icon-circle {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 25px;
+    animation: pulseIcon 1.5s ease-in-out infinite;
+    box-shadow: 0 0 30px rgba(239, 68, 68, 0.5);
+}
+
+.emergency-icon-circle.stabilized {
+    background: linear-gradient(135deg, #10b981, #059669);
+    animation: none;
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.5);
+}
+
+.emergency-icon-circle i {
+    font-size: 45px;
+    color: white;
+}
+
+.emergency-title {
+    font-size: 28px;
+    font-weight: 800;
+    color: #ef4444;
+    margin: 0 0 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.emergency-title.stabilized {
+    color: #10b981;
+}
+
+.emergency-subtitle {
+    font-size: 20px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 20px;
+}
+
+.emergency-info-box {
+    background: rgba(239, 68, 68, 0.1);
+    border: 2px solid rgba(239, 68, 68, 0.3);
+    border-radius: 12px;
+    padding: 15px 25px;
+    margin: 0 auto 20px;
+    display: inline-block;
+}
+
+.emergency-info-box.stabilized {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.emergency-info-box span {
+    font-size: 16px;
+    color: #475569;
+}
+
+.emergency-info-box strong {
+    color: #1e293b;
+}
+
+.emergency-message {
+    font-size: 18px;
+    color: #64748b;
+    margin: 0 0 30px;
+    line-height: 1.6;
+}
+
+.emergency-message.stabilized {
+    color: #065f46;
+}
+
+.emergency-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn-emergency-simple {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    border: none;
+    padding: 15px 40px;
+    font-size: 16px;
+    font-weight: 700;
+    text-transform: uppercase;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+    letter-spacing: 1px;
+}
+
+.btn-emergency-simple:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+}
+
+.btn-emergency-simple.stabilized {
+    background: linear-gradient(135deg, #10b981, #059669);
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+.btn-emergency-simple.stabilized:hover {
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+}
+
+.btn-emergency-stabilize {
+    background: transparent;
+    color: #10b981;
+    border: 2px solid #10b981;
+    padding: 15px 30px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-emergency-stabilize:hover {
+    background: #10b981;
+    color: white;
+    transform: translateY(-2px);
+}
+
+@keyframes pulseIcon {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 30px rgba(239, 68, 68, 0.5);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 0 50px rgba(239, 68, 68, 0.7);
+    }
+}
+
+@keyframes stabilizedModalPulse {
+    0%, 100% {
+        box-shadow: 0 25px 50px rgba(16, 185, 129, 0.4), 0 0 60px rgba(16, 185, 129, 0.3);
+    }
+    50% {
+        box-shadow: 0 25px 50px rgba(16, 185, 129, 0.6), 0 0 100px rgba(16, 185, 129, 0.4);
+    }
+}
+
+/* Responsive for simplified modal */
+@media (max-width: 480px) {
+    .emergency-modal-simple {
+        padding: 30px 20px;
+    }
+    
+    .emergency-icon-circle {
+        width: 80px;
+        height: 80px;
+    }
+    
+    .emergency-icon-circle i {
+        font-size: 35px;
+    }
+    
+    .emergency-title {
+        font-size: 22px;
+    }
+    
+    .emergency-subtitle {
+        font-size: 16px;
+    }
+    
+    .emergency-buttons {
+        flex-direction: column;
+    }
+    
+    .btn-emergency-simple,
+    .btn-emergency-stabilize {
         width: 100%;
     }
 }

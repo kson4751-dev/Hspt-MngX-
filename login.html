@@ -601,17 +601,20 @@
             emergencyConfirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
 
             try {
-                // Create emergency alarm in Firebase - same collection as emergency module
+                // Create emergency alarm in Firebase - triggered as GENERAL (no user logged in)
                 const alarmData = {
-                    triggeredBy: 'guest',
-                    triggeredByName: 'Guest (Login Page)',
-                    message: '🚨 CODE RED - EMERGENCY ALARM ACTIVATED',
-                    description: 'Emergency alarm triggered from login page by a visitor/guest. All staff report to emergency stations immediately.',
+                    triggeredBy: 'general',
+                    triggeredByName: 'General Emergency',
+                    message: '🚨 GENERAL EMERGENCY ALERT',
+                    description: 'Emergency alarm triggered from main entrance. All staff give priority attention immediately.',
                     severity: 'critical',
                     timestamp: serverTimestamp(),
                     acknowledged: [],
                     active: true,
-                    source: 'login-page'
+                    stabilized: false,
+                    source: 'login-page',
+                    patientName: null,
+                    location: 'Main Entrance / Reception'
                 };
 
                 const alarmRef = await addDoc(collection(db, 'emergency_alarms'), alarmData);
@@ -638,33 +641,24 @@
             emergencySuccessModal.classList.remove('active');
         });
 
-        // Play emergency siren sound (ambulance style)
+        // Play emergency alert sound - single clean beep
         function playEmergencySiren() {
             try {
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const startTime = audioContext.currentTime;
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
                 
-                for (let i = 0; i < 6; i++) {
-                    const oscillator = audioContext.createOscillator();
-                    const gainNode = audioContext.createGain();
-                    
-                    oscillator.connect(gainNode);
-                    gainNode.connect(audioContext.destination);
-                    oscillator.type = 'sine';
-                    
-                    const startFreq = i % 2 === 0 ? 800 : 600;
-                    const endFreq = i % 2 === 0 ? 600 : 800;
-                    const segmentStart = startTime + (i * 0.5);
-                    const segmentEnd = segmentStart + 0.5;
-                    
-                    oscillator.frequency.setValueAtTime(startFreq, segmentStart);
-                    oscillator.frequency.linearRampToValueAtTime(endFreq, segmentEnd);
-                    gainNode.gain.setValueAtTime(0.3, segmentStart);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, segmentEnd);
-                    
-                    oscillator.start(segmentStart);
-                    oscillator.stop(segmentEnd);
-                }
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // A5 note
+                
+                gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
             } catch (error) {
                 console.log('Could not play emergency sound:', error);
             }
