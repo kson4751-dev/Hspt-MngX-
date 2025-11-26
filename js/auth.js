@@ -28,6 +28,11 @@ const DEPARTMENT_MODULES = {
 let currentUser = null;
 let userSession = null;
 let activityMonitor = null;
+let inactivityTimeout = null;
+let lastActivityTime = Date.now();
+
+// Inactivity timeout duration (30 minutes in milliseconds)
+const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 
 // Check if user is authenticated
 function isAuthenticated() {
@@ -320,12 +325,18 @@ function requireAuth() {
 }
 
 // Logout function with session cleanup
-async function logout() {
+async function logout(reason = 'manual') {
     // End session before logging out
     await endSession();
     
     const currentUserId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
     const currentUserName = localStorage.getItem('userName') || sessionStorage.getItem('userName');
+    
+    // Clear inactivity timers
+    if (inactivityTimeout) {
+        clearTimeout(inactivityTimeout);
+        inactivityTimeout = null;
+    }
     
     // Clear all stored user data
     localStorage.removeItem('userId');
@@ -335,6 +346,7 @@ async function logout() {
     localStorage.removeItem('userPermissions');
     localStorage.removeItem('userDepartment');
     localStorage.removeItem('sessionId');
+    localStorage.removeItem('currentUser');
     
     sessionStorage.removeItem('userId');
     sessionStorage.removeItem('userEmail');
@@ -343,12 +355,54 @@ async function logout() {
     sessionStorage.removeItem('userPermissions');
     sessionStorage.removeItem('userDepartment');
     sessionStorage.removeItem('sessionId');
+    sessionStorage.removeItem('currentUser');
     
     currentUser = null;
     userSession = null;
     
+    // Store logout reason for display on login page
+    if (reason === 'inactivity') {
+        sessionStorage.setItem('logoutReason', 'Session expired due to inactivity');
+    }
+    
     // Redirect to login
     window.location.href = 'login.html';
+}
+
+// Reset inactivity timer
+function resetInactivityTimer() {
+    lastActivityTime = Date.now();
+    
+    // Clear existing timeout
+    if (inactivityTimeout) {
+        clearTimeout(inactivityTimeout);
+    }
+    
+    // Set new timeout
+    inactivityTimeout = setTimeout(() => {
+        console.warn('⏱️ Session expired due to inactivity');
+        alert('Your session has expired due to 30 minutes of inactivity. You will be logged out.');
+        logout('inactivity');
+    }, INACTIVITY_TIMEOUT);
+}
+
+// Setup activity listeners to detect user activity
+function setupActivityListeners() {
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    
+    events.forEach(event => {
+        document.addEventListener(event, () => {
+            // Only reset if more than 1 second has passed since last activity
+            // This prevents excessive timer resets
+            if (Date.now() - lastActivityTime > 1000) {
+                resetInactivityTimer();
+            }
+        }, true);
+    });
+    
+    // Initialize the timer
+    resetInactivityTimer();
+    console.log('⏱️ Inactivity timeout set to 30 minutes');
 }
 
 // Make logout function globally accessible
@@ -448,6 +502,9 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Start user session
             startSession();
+            
+            // Setup inactivity timeout
+            setupActivityListeners();
             
             // Update profile name
             const profileNameEl = document.getElementById('profileName');

@@ -11,6 +11,20 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     
+    <!-- Auto-redirect to login if not authenticated -->
+    <script>
+        // Check authentication immediately before page loads
+        (function() {
+            const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
+            const userRole = localStorage.getItem('userRole') || sessionStorage.getItem('userRole');
+            
+            if (!userId || !userRole) {
+                // Not authenticated, redirect to login
+                window.location.replace('login.html');
+            }
+        })();
+    </script>
+    
     <style>
         /* Hide everything until authenticated */
         body {
