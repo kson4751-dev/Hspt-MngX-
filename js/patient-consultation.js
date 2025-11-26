@@ -9,12 +9,36 @@ let peerConnection = null;
 let unsubscribeChat = null;
 let isVideoEnabled = true;
 let isAudioEnabled = true;
+let isChatOpen = false;
+let callStartTime = null;
+let timerInterval = null;
+let unreadCount = 0;
 
 const configuration = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-    ]
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        // Free TURN servers for NAT traversal
+        {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        }
+    ],
+    iceCandidatePoolSize: 10
 };
 
 // Initialize on page load
@@ -32,7 +56,39 @@ document.addEventListener('DOMContentLoaded', () => {
     
     console.log('📋 Appointment ID:', appointmentId);
     loadAppointmentDetails();
+    
+    // Setup chat toggle
+    setupChatToggle();
 });
+
+// Setup chat panel toggle
+function setupChatToggle() {
+    const toggleChatBtn = document.getElementById('toggleChat');
+    const chatPanel = document.getElementById('chatPanel');
+    const closeChat = document.getElementById('closeChat');
+    
+    if (toggleChatBtn) {
+        toggleChatBtn.addEventListener('click', () => {
+            isChatOpen = !isChatOpen;
+            chatPanel.classList.toggle('open', isChatOpen);
+            toggleChatBtn.classList.toggle('active', isChatOpen);
+            
+            // Reset unread count when opening chat
+            if (isChatOpen) {
+                unreadCount = 0;
+                updateChatBadge();
+            }
+        });
+    }
+    
+    if (closeChat) {
+        closeChat.addEventListener('click', () => {
+            isChatOpen = false;
+            chatPanel.classList.remove('open');
+            toggleChatBtn.classList.remove('active');
+        });
+    }
+}
 
 // Load appointment details
 async function loadAppointmentDetails() {
@@ -64,39 +120,88 @@ function displayAppointmentDetails() {
     const detailsContainer = document.getElementById('patientDetails');
     const scheduledDate = new Date(appointmentData.scheduledDate);
     
+    const dateStr = scheduledDate.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    });
+    const timeStr = scheduledDate.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    
     detailsContainer.innerHTML = `
-        <div class="detail-row">
-            <span class="detail-label">Patient Name</span>
-            <span class="detail-value">${appointmentData.patientName}</span>
+        <div class="info-row">
+            <label>Patient</label>
+            <span>${appointmentData.patientName}</span>
         </div>
-        <div class="detail-row">
-            <span class="detail-label">Patient Number</span>
-            <span class="detail-value">${appointmentData.patientNumber}</span>
+        <div class="info-row">
+            <label>Patient No.</label>
+            <span>${appointmentData.patientNumber}</span>
         </div>
-        <div class="detail-row">
-            <span class="detail-label">Doctor</span>
-            <span class="detail-value">${appointmentData.doctorName}</span>
+        <div class="info-row">
+            <label>Doctor</label>
+            <span>${appointmentData.doctorName}</span>
         </div>
-        <div class="detail-row">
-            <span class="detail-label">Consultation Type</span>
-            <span class="detail-value">${appointmentData.consultationType}</span>
+        <div class="info-row">
+            <label>Type</label>
+            <span>${appointmentData.consultationType}</span>
         </div>
-        <div class="detail-row">
-            <span class="detail-label">Scheduled Time</span>
-            <span class="detail-value">${scheduledDate.toLocaleString()}</span>
+        <div class="info-row">
+            <label>Date</label>
+            <span>${dateStr}</span>
         </div>
-        <div class="detail-row">
-            <span class="detail-label">Status</span>
-            <span class="detail-value" style="color: ${appointmentData.status === 'Scheduled' ? '#3498db' : '#27ae60'}">${appointmentData.status}</span>
+        <div class="info-row">
+            <label>Time</label>
+            <span>${timeStr}</span>
         </div>
     `;
     
     // Show join button
-    document.getElementById('joinBtn').style.display = 'inline-flex';
+    document.getElementById('joinBtn').style.display = 'flex';
     
-    // Set doctor info in chat
-    document.getElementById('doctorName').textContent = appointmentData.doctorName;
-    document.getElementById('consultationType').textContent = appointmentData.consultationType;
+    // Set doctor info in chat header
+    const doctorNameEl = document.getElementById('doctorName');
+    const chatDoctorName = document.getElementById('chatDoctorName');
+    const consultationType = document.getElementById('consultationType');
+    
+    if (doctorNameEl) doctorNameEl.textContent = appointmentData.doctorName;
+    if (chatDoctorName) chatDoctorName.textContent = appointmentData.doctorName;
+    if (consultationType) consultationType.textContent = appointmentData.consultationType;
+}
+
+// Call timer functions
+function startCallTimer() {
+    callStartTime = new Date();
+    timerInterval = setInterval(updateCallTimer, 1000);
+}
+
+function updateCallTimer() {
+    if (!callStartTime) return;
+    
+    const now = new Date();
+    const diff = Math.floor((now - callStartTime) / 1000);
+    
+    const hours = Math.floor(diff / 3600);
+    const minutes = Math.floor((diff % 3600) / 60);
+    const seconds = diff % 60;
+    
+    const callDurationEl = document.getElementById('callDuration');
+    if (callDurationEl) {
+        if (hours > 0) {
+            callDurationEl.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        } else {
+            callDurationEl.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+    }
+}
+
+function stopCallTimer() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
 }
 
 // Setup real-time listeners
@@ -131,7 +236,12 @@ function setupRealtimeListeners() {
             if (change.type === 'added') {
                 const message = change.doc.data();
                 if (message.sender === 'doctor' && Date.now() - new Date(message.timestamp).getTime() < 5000) {
-                    showNotification('New Message from Doctor', message.text);
+                    // Increment unread if chat is closed
+                    if (!isChatOpen) {
+                        unreadCount++;
+                        updateChatBadge();
+                    }
+                    showNotification('New Message', message.text);
                     playNotificationSound();
                 }
             }
@@ -143,13 +253,28 @@ function setupRealtimeListeners() {
     console.log('✅ Real-time listeners active');
 }
 
+// Update chat badge
+function updateChatBadge() {
+    const badge = document.getElementById('chatBadge');
+    if (badge) {
+        if (unreadCount > 0) {
+            badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+            badge.classList.add('show');
+        } else {
+            badge.classList.remove('show');
+        }
+    }
+}
+
 // Join video call
 document.getElementById('joinBtn').addEventListener('click', async () => {
     console.log('📞 Joining video call...');
     
     document.getElementById('waitingRoom').style.display = 'none';
-    document.getElementById('consultationRoom').style.display = 'block';
-    document.getElementById('statusBadge').textContent = 'Connecting...';
+    document.getElementById('consultationRoom').classList.add('active');
+    
+    // Start call timer
+    startCallTimer();
     
     await initializeMedia();
     await updateAppointmentStatus('In Progress');
@@ -160,10 +285,20 @@ async function initializeMedia() {
     try {
         console.log('🎥 Requesting camera and microphone access...');
         
+        // Check if getUserMedia is supported
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Your browser does not support video calls. Please use Chrome, Firefox, or Safari.');
+        }
+        
+        // First check permissions
+        const permissions = await checkMediaPermissions();
+        console.log('Permission status:', permissions);
+        
         localStream = await navigator.mediaDevices.getUserMedia({
             video: {
                 width: { ideal: 1280 },
-                height: { ideal: 720 }
+                height: { ideal: 720 },
+                facingMode: 'user'
             },
             audio: {
                 echoCancellation: true,
@@ -175,18 +310,117 @@ async function initializeMedia() {
         console.log('✅ Media access granted');
         
         const localVideo = document.getElementById('localVideo');
-        localVideo.srcObject = localStream;
+        if (localVideo) {
+            localVideo.srcObject = localStream;
+            localVideo.muted = true; // Mute local video to prevent feedback
+            await localVideo.play().catch(e => console.log('Local video autoplay:', e));
+        }
         
-        document.getElementById('statusBadge').textContent = 'Connected';
-        document.getElementById('statusBadge').classList.add('connected');
+        const statusBadge = document.getElementById('statusBadge');
+        if (statusBadge) {
+            statusBadge.textContent = 'Connected';
+            statusBadge.classList.add('connected');
+        }
         
         // Setup WebRTC peer connection
         setupPeerConnection();
         
     } catch (error) {
         console.error('❌ Error accessing media:', error);
-        showNotification('Camera Error', 'Unable to access camera/microphone. Please check permissions.');
+        
+        let errorMessage = 'Unable to access camera/microphone.';
+        
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+            errorMessage = 'Camera/microphone permission denied. Please allow access in your browser settings and refresh the page.';
+        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+            errorMessage = 'No camera or microphone found. Please connect a device and try again.';
+        } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+            errorMessage = 'Camera/microphone is already in use by another application. Please close other apps and try again.';
+        } else if (error.name === 'OverconstrainedError') {
+            errorMessage = 'Camera settings not supported. Trying with basic settings...';
+            // Try with basic constraints
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                const localVideo = document.getElementById('localVideo');
+                if (localVideo) {
+                    localVideo.srcObject = localStream;
+                    localVideo.muted = true;
+                }
+                setupPeerConnection();
+                return;
+            } catch (e) {
+                errorMessage = 'Camera not compatible. Please try a different device.';
+            }
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+        
+        // Show error to user
+        showMediaError(errorMessage);
     }
+}
+
+// Check media permissions
+async function checkMediaPermissions() {
+    try {
+        const camera = await navigator.permissions.query({ name: 'camera' });
+        const microphone = await navigator.permissions.query({ name: 'microphone' });
+        return { camera: camera.state, microphone: microphone.state };
+    } catch (e) {
+        return { camera: 'unknown', microphone: 'unknown' };
+    }
+}
+
+// Show media error with helpful message
+function showMediaError(message) {
+    const statusBadge = document.getElementById('statusBadge');
+    if (statusBadge) {
+        statusBadge.textContent = 'Permission Error';
+        statusBadge.style.background = 'rgba(239, 68, 68, 0.3)';
+    }
+    
+    // Create error overlay
+    const consultationRoom = document.getElementById('consultationRoom');
+    const errorOverlay = document.createElement('div');
+    errorOverlay.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.9);
+        padding: 30px;
+        border-radius: 16px;
+        text-align: center;
+        max-width: 400px;
+        z-index: 1000;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    `;
+    errorOverlay.innerHTML = `
+        <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #ffc107; margin-bottom: 20px;"></i>
+        <h3 style="color: white; margin-bottom: 15px;">Camera/Microphone Access Required</h3>
+        <p style="color: rgba(255,255,255,0.7); margin-bottom: 20px; line-height: 1.6;">${message}</p>
+        <button onclick="location.reload()" style="
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        ">
+            <i class="fas fa-redo"></i> Try Again
+        </button>
+        <p style="color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 15px;">
+            <i class="fas fa-info-circle"></i> Make sure to click "Allow" when prompted for camera and microphone access.
+        </p>
+    `;
+    
+    if (consultationRoom) {
+        consultationRoom.appendChild(errorOverlay);
+    }
+    
+    showNotification('Permission Error', message);
 }
 
 // Setup WebRTC peer connection with Firebase signaling
@@ -203,15 +437,34 @@ async function setupPeerConnection() {
     
     // Handle remote stream
     peerConnection.ontrack = (event) => {
-        console.log('📥 Received remote track:', event.track.kind);
+        console.log('📥 Received remote track:', event.track.kind, event.streams);
         
-        if (!remoteStream) {
-            remoteStream = new MediaStream();
-            document.getElementById('remoteVideo').srcObject = remoteStream;
+        const remoteVideo = document.getElementById('remoteVideo');
+        
+        // Use the stream directly if available
+        if (event.streams && event.streams[0]) {
+            console.log('📺 Using stream directly');
+            remoteVideo.srcObject = event.streams[0];
+            remoteStream = event.streams[0];
+        } else {
+            // Fallback: create stream and add tracks
+            if (!remoteStream) {
+                remoteStream = new MediaStream();
+                remoteVideo.srcObject = remoteStream;
+            }
+            remoteStream.addTrack(event.track);
         }
         
-        remoteStream.addTrack(event.track);
-        document.getElementById('noVideoPlaceholder').style.display = 'none';
+        // Ensure video plays
+        remoteVideo.play().catch(e => console.log('Remote video play error:', e));
+        
+        // Hide placeholder when doctor connects
+        const placeholder = document.getElementById('videoPlaceholder');
+        if (placeholder) {
+            placeholder.style.display = 'none';
+        }
+        
+        console.log('✅ Remote stream attached, tracks:', remoteStream.getTracks().length);
     };
     
     // Handle ICE candidates - Save to Firebase
@@ -226,6 +479,18 @@ async function setupPeerConnection() {
                 });
             } catch (error) {
                 console.error('Error saving ICE candidate:', error);
+            }
+        }
+    };
+    
+    // ICE connection state - important for debugging
+    peerConnection.oniceconnectionstatechange = () => {
+        console.log('🧊 ICE connection state:', peerConnection.iceConnectionState);
+        if (peerConnection.iceConnectionState === 'connected' || peerConnection.iceConnectionState === 'completed') {
+            console.log('✅ ICE connection established!');
+            const placeholder = document.getElementById('videoPlaceholder');
+            if (placeholder) {
+                placeholder.style.display = 'none';
             }
         }
     };
@@ -435,9 +700,8 @@ function displayMessage(message) {
     });
     
     messageDiv.innerHTML = `
-        <div class="sender-name">${message.senderName || message.sender}</div>
-        <div>${message.text}</div>
-        <div class="time">${time}</div>
+        <div class="message-content" style="color: white !important;">${message.text}</div>
+        <div class="message-meta" style="color: rgba(255,255,255,0.6) !important;">${message.senderName || message.sender} • ${time}</div>
     `;
     
     messagesContainer.appendChild(messageDiv);
@@ -483,7 +747,7 @@ function playNotificationSound() {
 // Show error
 function showError(message) {
     const errorDiv = document.getElementById('errorMessage');
-    errorDiv.innerHTML = `<div class="error-message"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
+    errorDiv.innerHTML = `<div class="error-message" style="color: #ffc107;"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
     document.getElementById('patientDetails').style.display = 'none';
 }
 

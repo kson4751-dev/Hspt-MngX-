@@ -22,7 +22,27 @@ const configuration = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-    ]
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        // Free TURN servers for NAT traversal
+        {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        }
+    ],
+    iceCandidatePoolSize: 10
 };
 
 // Initialize Telemedicine Module
@@ -250,6 +270,9 @@ function renderAppointmentsTable() {
                         </button>
                         <button class="btn btn-sm" onclick="window.viewAppointmentDetails('${appointment.id}')" style="padding: 8px 12px; font-size: 12px; background: var(--primary-color); color: white; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="View Details">
                             <i class="fas fa-eye"></i> View
+                        </button>
+                        <button class="btn btn-sm" onclick="window.printAppointmentReceipt('${appointment.id}')" style="padding: 8px 12px; font-size: 12px; background: #16a085; color: white; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Print Receipt">
+                            <i class="fas fa-print"></i> Print
                         </button>
                         <button class="btn btn-sm chat-btn-${appointment.id}" onclick="window.openConsultationChat('${appointment.id}')" style="padding: 8px 12px; font-size: 12px; background: #9b59b6; color: white; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; position: relative;" title="Chat">
                             <i class="fas fa-comments"></i> Chat
@@ -586,14 +609,29 @@ async function initializeWebRTC(appointmentId) {
         
         // Handle remote stream
         peerConnection.ontrack = (event) => {
-            console.log('Received remote track:', event.track.kind);
-            if (!remoteStream) {
-                remoteStream = new MediaStream();
-                const remoteVideo = document.getElementById('remoteVideo');
-                remoteVideo.srcObject = remoteStream;
+            console.log('📥 Received remote track:', event.track.kind, event.streams);
+            
+            const remoteVideo = document.getElementById('remoteVideo');
+            
+            // Use the stream directly if available
+            if (event.streams && event.streams[0]) {
+                console.log('📺 Using stream directly');
+                remoteVideo.srcObject = event.streams[0];
+                remoteStream = event.streams[0];
+            } else {
+                // Fallback: create stream and add tracks
+                if (!remoteStream) {
+                    remoteStream = new MediaStream();
+                    remoteVideo.srcObject = remoteStream;
+                }
+                remoteStream.addTrack(event.track);
             }
-            remoteStream.addTrack(event.track);
+            
+            // Ensure video plays
+            remoteVideo.play().catch(e => console.log('Remote video play error:', e));
+            
             document.getElementById('videoCallStatus').textContent = 'Connected';
+            console.log('✅ Remote stream attached, tracks:', remoteStream.getTracks().length);
         };
         
         // ICE candidates - Store in Firebase
@@ -609,6 +647,18 @@ async function initializeWebRTC(appointmentId) {
                 } catch (error) {
                     console.error('Error saving ICE candidate:', error);
                 }
+            }
+        };
+        
+        // ICE connection state - important for debugging
+        peerConnection.oniceconnectionstatechange = () => {
+            console.log('🧊 ICE connection state:', peerConnection.iceConnectionState);
+            if (peerConnection.iceConnectionState === 'connected' || peerConnection.iceConnectionState === 'completed') {
+                console.log('✅ ICE connection established!');
+                document.getElementById('videoCallStatus').textContent = 'Connected';
+            } else if (peerConnection.iceConnectionState === 'failed') {
+                console.log('❌ ICE connection failed - may need TURN server');
+                document.getElementById('videoCallStatus').textContent = 'Connection Failed';
             }
         };
         
@@ -798,7 +848,10 @@ window.toggleAudio = function() {
 // Toggle chat
 window.toggleVideoChat = function() {
     const chatPanel = document.getElementById('videoChatPanel');
-    chatPanel.style.display = chatPanel.style.display === 'none' ? 'flex' : 'none';
+    if (chatPanel) {
+        const isVisible = chatPanel.style.display !== 'none';
+        chatPanel.style.display = isVisible ? 'none' : 'flex';
+    }
 };
 
 // Send chat message during call
@@ -1497,6 +1550,208 @@ window.shareViaEmail = function() {
     window.open(emailUrl, '_blank');
     
     console.log('📧 Opening email share');
+};
+
+// Print Appointment Receipt
+window.printAppointmentReceipt = function(appointmentId) {
+    console.log('🖨️ Printing appointment receipt for:', appointmentId);
+    
+    const appointment = appointments.find(a => a.id === appointmentId);
+    if (!appointment) {
+        alert('Appointment not found');
+        return;
+    }
+    
+    // Format date and time
+    const scheduledDate = new Date(appointment.scheduledDate);
+    const dateStr = scheduledDate.toLocaleDateString('en-US', { 
+        weekday: 'short',
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+    });
+    const timeStr = scheduledDate.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+    });
+    
+    // Get current date/time for receipt
+    const now = new Date();
+    const printDateTime = now.toLocaleString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+    });
+    
+    // Generate simple clean receipt HTML
+    const receiptHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Appointment - ${appointment.patientName}</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                    font-family: Arial, sans-serif; 
+                    padding: 20px;
+                    max-width: 350px;
+                    margin: 0 auto;
+                }
+                .header { 
+                    text-align: center; 
+                    border-bottom: 2px solid #2563eb; 
+                    padding-bottom: 15px; 
+                    margin-bottom: 15px; 
+                }
+                .header h1 { 
+                    color: #2563eb; 
+                    font-size: 20px; 
+                    margin-bottom: 3px; 
+                }
+                .header p { 
+                    color: #666; 
+                    font-size: 11px; 
+                }
+                .apt-id { 
+                    text-align: center; 
+                    background: #eff6ff; 
+                    padding: 10px; 
+                    border-radius: 6px; 
+                    margin-bottom: 15px; 
+                }
+                .apt-id span { 
+                    color: #2563eb; 
+                    font-weight: bold; 
+                    font-size: 16px; 
+                    font-family: monospace; 
+                }
+                .section { margin-bottom: 15px; }
+                .section-title { 
+                    color: #2563eb; 
+                    font-size: 11px; 
+                    font-weight: bold; 
+                    text-transform: uppercase; 
+                    margin-bottom: 8px;
+                    border-bottom: 1px solid #e5e7eb;
+                    padding-bottom: 4px;
+                }
+                .row { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    padding: 5px 0; 
+                    font-size: 13px; 
+                }
+                .row label { color: #666; }
+                .row span { font-weight: 500; color: #333; }
+                .datetime-box { 
+                    background: #2563eb; 
+                    color: white; 
+                    text-align: center; 
+                    padding: 15px; 
+                    border-radius: 8px; 
+                    margin: 15px 0; 
+                }
+                .datetime-box .date { font-size: 14px; margin-bottom: 5px; }
+                .datetime-box .time { font-size: 22px; font-weight: bold; }
+                .link-box { 
+                    background: #f8fafc; 
+                    padding: 10px; 
+                    border-radius: 6px; 
+                    font-size: 11px; 
+                    word-break: break-all; 
+                    color: #2563eb; 
+                    margin: 10px 0;
+                }
+                .link-label {
+                    font-size: 10px;
+                    color: #666;
+                    margin-bottom: 4px;
+                }
+                .footer { 
+                    text-align: center; 
+                    border-top: 1px dashed #ccc; 
+                    padding-top: 15px; 
+                    margin-top: 15px; 
+                }
+                .footer p { font-size: 10px; color: #888; margin: 3px 0; }
+                .status { 
+                    display: inline-block; 
+                    background: #2563eb; 
+                    color: white; 
+                    padding: 3px 10px; 
+                    border-radius: 12px; 
+                    font-size: 11px; 
+                }
+                @media print {
+                    body { padding: 10px; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>🏥 RxFlow Hospital</h1>
+                <p>Telemedicine Appointment</p>
+            </div>
+            
+            <div class="apt-id">
+                <span>#${(appointment.id || '').substring(0, 8).toUpperCase()}</span>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Patient</div>
+                <div class="row"><label>Name:</label><span>${appointment.patientName || 'N/A'}</span></div>
+                <div class="row"><label>Patient No:</label><span>${appointment.patientNumber || 'N/A'}</span></div>
+                <div class="row"><label>Phone:</label><span>${appointment.patientPhone || 'N/A'}</span></div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Appointment</div>
+                <div class="row"><label>Type:</label><span>${appointment.consultationType || 'General'}</span></div>
+                <div class="row"><label>Doctor:</label><span>${appointment.doctorName || 'TBA'}</span></div>
+                <div class="row"><label>Status:</label><span class="status">${appointment.status || 'Scheduled'}</span></div>
+            </div>
+            
+            <div class="datetime-box">
+                <div class="date">${dateStr}</div>
+                <div class="time">${timeStr}</div>
+            </div>
+            
+            ${appointment.consultationLink ? `
+                <div class="link-label">Video Call Link:</div>
+                <div class="link-box">${appointment.consultationLink}</div>
+            ` : ''}
+            
+            ${appointment.notes ? `
+                <div class="section">
+                    <div class="section-title">Notes</div>
+                    <p style="font-size: 12px; color: #555;">${appointment.notes}</p>
+                </div>
+            ` : ''}
+            
+            <div class="footer">
+                <p>Join 5 mins early • Stable internet required</p>
+                <p>Printed: ${printDateTime}</p>
+            </div>
+            
+            <script>window.onload = function() { window.print(); };</script>
+        </body>
+        </html>
+    `;
+    
+    // Open print window
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    
+    if (printWindow) {
+        printWindow.document.write(receiptHTML);
+        printWindow.document.close();
+        console.log('✅ Print window opened');
+    } else {
+        alert('Please allow pop-ups to print');
+    }
 };
 
 // Cleanup on page unload

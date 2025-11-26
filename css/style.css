@@ -16658,4 +16658,211 @@ body.theme-dark .notification-badge {
     border-color: var(--sidebar-bg);
 }
 
+/* ========================================
+   GLOBAL TABLE HEADER FIX - All Themes
+   Ensures table headers are always visible
+   ======================================== */
+
+/* Base table styles - Light Theme (Default) */
+table thead,
+.data-table thead,
+.activities-table thead,
+.patients-table thead,
+.expenses-table thead,
+.billing-table thead,
+.inventory-table thead,
+.recent-billings-table thead,
+.triage-records-table thead,
+.imaging-table thead {
+    background-color: #f1f5f9 !important;
+    border-bottom: 2px solid var(--border-color) !important;
+}
+
+table thead th,
+table th,
+.data-table th,
+.activities-table th,
+.patients-table th,
+.expenses-table th,
+.billing-table th,
+.inventory-table th,
+.recent-billings-table th,
+.triage-records-table th,
+.imaging-table th {
+    color: #374151 !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    padding: 14px 12px !important;
+    white-space: nowrap !important;
+    background-color: inherit !important;
+    border-bottom: 2px solid var(--border-color) !important;
+}
+
+/* Sticky header support */
+table thead,
+.data-table thead,
+.patients-table thead,
+.billing-table thead,
+.inventory-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+/* Dark Theme Table Headers */
+body.dark-theme table thead,
+body.dark-theme .data-table thead,
+body.dark-theme .activities-table thead,
+body.dark-theme .patients-table thead,
+body.dark-theme .expenses-table thead,
+body.dark-theme .billing-table thead,
+body.dark-theme .inventory-table thead,
+body.dark-theme .recent-billings-table thead,
+body.dark-theme .triage-records-table thead,
+body.dark-theme .imaging-table thead,
+body.theme-dark table thead,
+body.theme-dark .data-table thead,
+body.theme-dark .activities-table thead,
+body.theme-dark .patients-table thead,
+body.theme-dark .expenses-table thead,
+body.theme-dark .billing-table thead,
+body.theme-dark .inventory-table thead,
+body.theme-dark .recent-billings-table thead,
+body.theme-dark .triage-records-table thead,
+body.theme-dark .imaging-table thead {
+    background-color: #1e293b !important;
+    border-bottom: 2px solid #475569 !important;
+}
+
+body.dark-theme table thead th,
+body.dark-theme table th,
+body.dark-theme .data-table th,
+body.dark-theme .activities-table th,
+body.dark-theme .patients-table th,
+body.dark-theme .expenses-table th,
+body.dark-theme .billing-table th,
+body.dark-theme .inventory-table th,
+body.dark-theme .recent-billings-table th,
+body.dark-theme .triage-records-table th,
+body.dark-theme .imaging-table th,
+body.theme-dark table thead th,
+body.theme-dark table th,
+body.theme-dark .data-table th,
+body.theme-dark .activities-table th,
+body.theme-dark .patients-table th,
+body.theme-dark .expenses-table th,
+body.theme-dark .billing-table th,
+body.theme-dark .inventory-table th,
+body.theme-dark .recent-billings-table th,
+body.theme-dark .triage-records-table th,
+body.theme-dark .imaging-table th {
+    color: #e2e8f0 !important;
+    background-color: #1e293b !important;
+    border-bottom: 2px solid #475569 !important;
+}
+
+/* Blue Theme Table Headers */
+body.theme-blue table thead,
+body.theme-blue .data-table thead,
+body.theme-blue .activities-table thead,
+body.theme-blue .patients-table thead,
+body.theme-blue .expenses-table thead,
+body.theme-blue .billing-table thead,
+body.theme-blue .inventory-table thead,
+body.theme-blue .recent-billings-table thead,
+body.theme-blue .triage-records-table thead,
+body.theme-blue .imaging-table thead {
+    background-color: #e0f2fe !important;
+    border-bottom: 2px solid #7dd3fc !important;
+}
+
+body.theme-blue table thead th,
+body.theme-blue table th,
+body.theme-blue .data-table th,
+body.theme-blue .activities-table th,
+body.theme-blue .patients-table th,
+body.theme-blue .expenses-table th,
+body.theme-blue .billing-table th,
+body.theme-blue .inventory-table th,
+body.theme-blue .recent-billings-table th,
+body.theme-blue .triage-records-table th,
+body.theme-blue .imaging-table th {
+    color: #0c4a6e !important;
+    background-color: #e0f2fe !important;
+    border-bottom: 2px solid #7dd3fc !important;
+}
+
+/* Green Theme Table Headers */
+body.theme-green table thead,
+body.theme-green .data-table thead,
+body.theme-green .activities-table thead,
+body.theme-green .patients-table thead,
+body.theme-green .expenses-table thead,
+body.theme-green .billing-table thead,
+body.theme-green .inventory-table thead,
+body.theme-green .recent-billings-table thead,
+body.theme-green .triage-records-table thead,
+body.theme-green .imaging-table thead {
+    background-color: #dcfce7 !important;
+    border-bottom: 2px solid #86efac !important;
+}
+
+body.theme-green table thead th,
+body.theme-green table th,
+body.theme-green .data-table th,
+body.theme-green .activities-table th,
+body.theme-green .patients-table th,
+body.theme-green .expenses-table th,
+body.theme-green .billing-table th,
+body.theme-green .inventory-table th,
+body.theme-green .recent-billings-table th,
+body.theme-green .triage-records-table th,
+body.theme-green .imaging-table th {
+    color: #064e3b !important;
+    background-color: #dcfce7 !important;
+    border-bottom: 2px solid #86efac !important;
+}
+
+/* Ensure triage table thead with primary color stays consistent */
+.triage-records-table thead {
+    background-color: var(--primary-color) !important;
+}
+
+.triage-records-table th {
+    color: white !important;
+    background-color: var(--primary-color) !important;
+}
+
+/* Table row hover states for all themes */
+table tbody tr:hover,
+.data-table tbody tr:hover,
+.activities-table tbody tr:hover,
+.patients-table tbody tr:hover,
+.expenses-table tbody tr:hover,
+.billing-table tbody tr:hover,
+.inventory-table tbody tr:hover {
+    background-color: rgba(37, 99, 235, 0.05);
+}
+
+body.dark-theme table tbody tr:hover,
+body.dark-theme .data-table tbody tr:hover,
+body.dark-theme .activities-table tbody tr:hover,
+body.dark-theme .patients-table tbody tr:hover,
+body.dark-theme .expenses-table tbody tr:hover,
+body.dark-theme .billing-table tbody tr:hover,
+body.dark-theme .inventory-table tbody tr:hover,
+body.theme-dark table tbody tr:hover,
+body.theme-dark .data-table tbody tr:hover,
+body.theme-dark .activities-table tbody tr:hover,
+body.theme-dark .patients-table tbody tr:hover,
+body.theme-dark .expenses-table tbody tr:hover,
+body.theme-dark .billing-table tbody tr:hover,
+body.theme-dark .inventory-table tbody tr:hover {
+    background-color: rgba(59, 130, 246, 0.1);
+}
+
+/* END GLOBAL TABLE HEADER FIX */
+
 

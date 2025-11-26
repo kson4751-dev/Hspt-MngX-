@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Patient Video Consultation - RxFlow</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -13,91 +14,190 @@
         }
 
         :root {
-            --primary-color: #3498db;
-            --success-color: #27ae60;
-            --danger-color: #e74c3c;
-            --text-primary: #2c3e50;
-            --text-secondary: #7f8c8d;
-            --bg-light: #f8f9fa;
-            --border-color: #e0e0e0;
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #3498db;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0f172a;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ==================== WAITING ROOM ==================== */
+        .waiting-container {
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 50%, #1e1b4b 100%);
             padding: 20px;
-            margin: 0;
         }
 
-        .container {
+        .waiting-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 50px 40px;
+            max-width: 480px;
             width: 100%;
-            max-width: 1200px;
-            background: white;
-            border-radius: 0;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-            overflow: hidden;
+            text-align: center;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
         }
 
-        .header {
-            background: white;
-            color: var(--text-primary);
-            padding: 24px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid var(--bg-light);
-        }
-
-        .header h1 {
-            font-size: 22px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            color: var(--primary-color);
-        }
-
-        .header h1 i {
-            font-size: 24px;
-        }
-
-        .status-badge {
-            padding: 8px 18px;
-            background: var(--bg-light);
-            border-radius: 0;
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-secondary);
-        }
-
-        .status-badge.connected {
-            background: #d4edda;
-            color: var(--success-color);
-        }
-
-        .main-content {
-            display: flex;
-            height: calc(100vh - 200px);
-            max-height: 700px;
-        }
-
-        .video-section {
-            flex: 1;
-            background: #000;
-            position: relative;
+        .waiting-icon {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
+            margin: 0 auto 30px;
+            box-shadow: 0 10px 40px rgba(59, 130, 246, 0.4);
         }
 
-        .remote-video-container {
+        .waiting-icon i {
+            font-size: 42px;
+            color: white;
+        }
+
+        .waiting-card h1 {
+            color: white;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .waiting-card > p {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 15px;
+            margin-bottom: 30px;
+        }
+
+        .patient-info-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-row label {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .info-row span {
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .join-btn {
             width: 100%;
-            height: 100%;
-            position: relative;
+            padding: 18px 32px;
+            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
+        }
+
+        .join-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(59, 130, 246, 0.4);
+        }
+
+        .join-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading-spinner {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 45px;
+            height: 45px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-box {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 20px;
+            color: #fca5a5;
+            font-size: 14px;
+        }
+
+        /* ==================== VIDEO CONSULTATION ROOM ==================== */
+        .consultation-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #0f172a;
+            display: none;
+        }
+
+        .consultation-container.active {
+            display: block;
+        }
+
+        /* Remote Video (Doctor) - Full Screen Background */
+        .remote-video-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
         }
 
         #remoteVideo {
@@ -106,59 +206,197 @@
             object-fit: cover;
         }
 
-        .no-video-placeholder {
+        .video-placeholder {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
-            color: white;
+            color: rgba(255, 255, 255, 0.4);
         }
 
-        .no-video-placeholder i {
-            font-size: 80px;
+        .video-placeholder i {
+            font-size: 100px;
             margin-bottom: 20px;
             opacity: 0.3;
         }
 
-        .no-video-placeholder p {
-            font-size: 16px;
-            opacity: 0.5;
+        .video-placeholder p {
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .video-placeholder .pulse-ring {
+            width: 150px;
+            height: 150px;
+            border: 3px solid rgba(59, 130, 246, 0.3);
+            border-radius: 50%;
+            margin: 0 auto 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.7; }
+        }
+
+        /* Local Video (Patient) - Floating Window */
+        .local-video-wrapper {
+            position: absolute;
+            bottom: 120px;
+            right: 30px;
+            width: 280px;
+            height: 200px;
+            border-radius: 20px;
+            overflow: hidden;
+            background: #1e293b;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            z-index: 100;
+            transition: all 0.3s ease;
+        }
+
+        .local-video-wrapper:hover {
+            transform: scale(1.02);
+            border-color: var(--primary);
+        }
+
+        .local-video-wrapper.minimized {
+            width: 160px;
+            height: 120px;
+            bottom: 110px;
         }
 
         #localVideo {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 200px;
-            height: 150px;
-            border-radius: 0;
-            border: 3px solid var(--primary-color);
+            width: 100%;
+            height: 100%;
             object-fit: cover;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         }
 
-        .controls {
+        .local-video-label {
             position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
+            bottom: 10px;
+            left: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            padding: 6px 12px;
+            border-radius: 8px;
+            color: white;
+            font-size: 12px;
+            font-weight: 500;
             display: flex;
-            gap: 12px;
-            background: white;
-            padding: 12px 20px;
-            border-radius: 0;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            align-items: center;
+            gap: 6px;
+        }
+
+        .local-video-label i {
+            font-size: 10px;
+            color: var(--success);
+        }
+
+        /* Top Bar */
+        .top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.7) 0%, transparent 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 30px;
+            z-index: 50;
+        }
+
+        .call-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .call-logo {
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .call-logo i {
+            color: white;
+            font-size: 20px;
+        }
+
+        .call-details h2 {
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .call-details p {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .call-timer {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            border-radius: 30px;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .call-timer .dot {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: blink 1.5s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Bottom Controls */
+        .bottom-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 100px;
+            background: linear-gradient(0deg, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            z-index: 50;
         }
 
         .control-btn {
-            width: 52px;
-            height: 52px;
-            border-radius: 0;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
             border: none;
-            background: var(--bg-light);
-            color: var(--text-primary);
-            font-size: 18px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            color: white;
+            font-size: 20px;
             cursor: pointer;
             transition: all 0.3s ease;
             display: flex;
@@ -167,374 +405,420 @@
         }
 
         .control-btn:hover {
-            background: var(--primary-color);
-            color: white;
+            background: rgba(255, 255, 255, 0.2);
             transform: scale(1.1);
         }
 
         .control-btn.active {
-            background: var(--primary-color);
+            background: var(--primary);
+        }
+
+        .control-btn.muted {
+            background: rgba(239, 68, 68, 0.3);
+        }
+
+        .control-btn.muted i {
+            color: #fca5a5;
+        }
+
+        .control-btn.end-call {
+            width: 70px;
+            height: 70px;
+            background: var(--danger);
+            font-size: 24px;
+        }
+
+        .control-btn.end-call:hover {
+            background: #dc2626;
+            transform: scale(1.1);
+        }
+
+        .control-btn.chat-btn {
+            position: relative;
+        }
+
+        .chat-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            width: 22px;
+            height: 22px;
+            background: var(--danger);
+            border-radius: 50%;
             color: white;
+            font-size: 11px;
+            font-weight: 700;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #0f172a;
         }
 
-        .control-btn.danger {
-            background: #ffe6e6;
-            color: var(--danger-color);
+        .chat-badge.show {
+            display: flex;
         }
 
-        .control-btn.danger:hover {
-            background: var(--danger-color);
-            color: white;
-        }
-
-        .chat-section {
-            width: 350px;
-            background: white;
+        /* ==================== CHAT PANEL (Glass Design) ==================== */
+        .chat-panel {
+            position: absolute;
+            top: 80px;
+            right: 30px;
+            bottom: 110px;
+            width: 380px;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
             display: flex;
             flex-direction: column;
-            border-left: 2px solid var(--bg-light);
+            overflow: hidden;
+            z-index: 200;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+            transform: translateX(450px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .chat-panel.open {
+            transform: translateX(0);
+            opacity: 1;
         }
 
         .chat-header {
-            padding: 20px;
-            background: var(--bg-light);
-            border-bottom: 2px solid var(--border-color);
+            padding: 20px 24px;
+            background: rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        .chat-header h3 {
-            font-size: 17px;
-            color: var(--text-primary);
+        .chat-header-left {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
+        }
+
+        .chat-header-left .avatar {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+        }
+
+        .chat-header-left h3 {
+            color: white;
+            font-size: 15px;
             font-weight: 600;
-            margin-bottom: 12px;
         }
 
-        .chat-header h3 i {
-            color: var(--primary-color);
+        .chat-header-left p {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
         }
 
-        .doctor-info {
-            margin-top: 0;
-            padding: 14px;
-            background: white;
-            border-radius: 0;
-            border: 1px solid var(--border-color);
+        .chat-close-btn {
+            width: 36px;
+            height: 36px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
         }
 
-        .doctor-info p {
-            font-size: 13px;
-            color: var(--text-secondary);
-            margin-bottom: 4px;
+        .chat-close-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
         }
 
-        .doctor-info strong {
-            color: var(--text-primary);
-        }
-
-        .messages {
+        .chat-messages {
             flex: 1;
             padding: 20px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            background: white;
+            gap: 16px;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
         }
 
         .message {
-            max-width: 80%;
-            padding: 10px 14px;
-            border-radius: 0;
-            font-size: 14px;
-            line-height: 1.5;
-            animation: slideIn 0.3s ease;
+            max-width: 85%;
+            animation: messageSlide 0.3s ease;
         }
 
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        @keyframes messageSlide {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .message.doctor {
             align-self: flex-start;
-            background: var(--bg-light);
-            border: 1px solid var(--border-color);
-            color: var(--text-primary);
         }
 
         .message.patient {
             align-self: flex-end;
-            background: var(--primary-color);
+        }
+
+        .message-content {
+            padding: 14px 18px;
+            border-radius: 18px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .message.doctor .message-content {
+            background: rgba(255, 255, 255, 0.08);
             color: white;
+            border-bottom-left-radius: 6px;
         }
 
-        .message .sender-name {
+        .message.patient .message-content {
+            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+            color: white;
+            border-bottom-right-radius: 6px;
+        }
+
+        .message-meta {
             font-size: 11px;
-            font-weight: 600;
-            margin-bottom: 4px;
-            opacity: 0.8;
+            color: rgba(255, 255, 255, 0.4);
+            margin-top: 6px;
+            padding: 0 4px;
         }
 
-        .message .time {
-            font-size: 10px;
-            margin-top: 4px;
-            opacity: 0.6;
+        .message.patient .message-meta {
+            text-align: right;
         }
 
-        .chat-input {
+        .chat-input-area {
             padding: 16px 20px;
-            background: white;
-            border-top: 2px solid var(--bg-light);
+            background: rgba(255, 255, 255, 0.03);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
         }
 
-        .chat-input-container {
+        .chat-input-wrapper {
             display: flex;
-            gap: 10px;
+            gap: 12px;
+            align-items: center;
         }
 
-        .chat-input input {
+        .chat-input-wrapper input {
             flex: 1;
-            padding: 12px 16px;
-            border: 2px solid var(--border-color);
-            border-radius: 0;
+            padding: 14px 18px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            color: white;
             font-size: 14px;
             outline: none;
             transition: all 0.3s ease;
-            background: white;
         }
 
-        .chat-input input:focus {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(52,152,219,0.1);
+        .chat-input-wrapper input::placeholder {
+            color: rgba(255, 255, 255, 0.4);
         }
 
-        .chat-input button {
-            width: 44px;
-            height: 44px;
-            border-radius: 0;
+        .chat-input-wrapper input:focus {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: var(--primary);
+        }
+
+        .chat-send-btn {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
             border: none;
-            background: var(--primary-color);
+            border-radius: 14px;
             color: white;
             font-size: 16px;
             cursor: pointer;
             transition: all 0.3s ease;
         }
 
-        .chat-input button:hover {
-            background: #2980b9;
+        .chat-send-btn:hover {
             transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(59, 130, 246, 0.4);
         }
 
-        .waiting-room {
-            padding: 60px 40px;
-            text-align: center;
-            background: white;
-        }
-
-        .waiting-room i {
-            font-size: 64px;
-            color: var(--primary-color);
-            margin-bottom: 20px;
-        }
-
-        .waiting-room h2 {
-            font-size: 26px;
-            color: var(--text-primary);
-            margin-bottom: 10px;
-            font-weight: 600;
-        }
-
-        .waiting-room p {
-            font-size: 15px;
-            color: var(--text-secondary);
-            margin-bottom: 30px;
-        }
-
-        .patient-details {
-            background: var(--bg-light);
-            padding: 24px;
-            border-radius: 0;
-            margin: 24px auto;
-            max-width: 450px;
-            text-align: left;
-            border: 1px solid var(--border-color);
-        }
-
-        .detail-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .detail-row:last-child {
-            border-bottom: none;
-        }
-
-        .detail-label {
-            color: var(--text-secondary);
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        .detail-value {
-            color: var(--text-primary);
-            font-weight: 600;
-            font-size: 14px;
-        }
-
-        .join-btn {
-            padding: 16px 48px;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 0;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            box-shadow: 0 4px 12px rgba(52,152,219,0.3);
-        }
-
-        .join-btn:hover {
-            background: #2980b9;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(52,152,219,0.4);
-        }
-
-        .notification {
+        /* ==================== NOTIFICATIONS ==================== */
+        .notification-toast {
             position: fixed;
             top: 20px;
             right: 20px;
-            background: white;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
             padding: 16px 20px;
-            border-radius: 0;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-            display: none;
+            display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 14px;
             z-index: 1000;
-            animation: slideInRight 0.3s ease;
+            transform: translateX(400px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
         }
 
-        @keyframes slideInRight {
-            from {
-                opacity: 0;
-                transform: translateX(100px);
+        .notification-toast.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        .notification-toast .icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+        }
+
+        .notification-toast .content h4 {
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .notification-toast .content p {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 13px;
+            margin-top: 2px;
+        }
+
+        /* ==================== RESPONSIVE ==================== */
+        @media (max-width: 768px) {
+            .waiting-card {
+                padding: 40px 24px;
+                border-radius: 20px;
             }
-            to {
-                opacity: 1;
+
+            .waiting-icon {
+                width: 80px;
+                height: 80px;
+            }
+
+            .waiting-icon i {
+                font-size: 34px;
+            }
+
+            .waiting-card h1 {
+                font-size: 24px;
+            }
+
+            .local-video-wrapper {
+                width: 140px;
+                height: 105px;
+                bottom: 120px;
+                right: 15px;
+                border-radius: 14px;
+            }
+
+            .top-bar {
+                padding: 0 15px;
+                height: 60px;
+            }
+
+            .call-logo {
+                width: 38px;
+                height: 38px;
+            }
+
+            .call-details h2 {
+                font-size: 14px;
+            }
+
+            .call-timer {
+                padding: 8px 14px;
+                font-size: 12px;
+            }
+
+            .bottom-controls {
+                gap: 12px;
+            }
+
+            .control-btn {
+                width: 52px;
+                height: 52px;
+                font-size: 18px;
+            }
+
+            .control-btn.end-call {
+                width: 60px;
+                height: 60px;
+            }
+
+            .chat-panel {
+                top: 0;
+                right: 0;
+                bottom: 0;
+                width: 100%;
+                border-radius: 0;
+                transform: translateX(100%);
+            }
+
+            .chat-panel.open {
                 transform: translateX(0);
             }
         }
 
-        .notification.show {
-            display: flex;
-        }
-
-        .notification i {
-            font-size: 24px;
-            color: var(--primary-color);
-        }
-
-        .notification-content {
-            flex: 1;
-        }
-
-        .notification-title {
-            font-weight: 600;
-            color: var(--text-primary);
-            font-size: 14px;
-        }
-
-        .notification-message {
-            font-size: 13px;
-            color: var(--text-secondary);
-            margin-top: 2px;
-        }
-
-        /* Responsive */
-        /* Responsive Breakpoints */
-        @media (max-width: 1024px) {
-            .container {
-                max-width: 100%;
-                margin: 0;
+        @media (max-width: 480px) {
+            .waiting-container {
+                padding: 15px;
             }
 
-            .header {
-                padding: 20px 24px;
+            .waiting-card {
+                padding: 30px 20px;
             }
 
-            .header h1 {
+            .waiting-card h1 {
                 font-size: 20px;
             }
-        }
 
-        @media (max-width: 768px) {
-            body {
-                padding: 0;
+            .patient-info-card {
+                padding: 18px;
             }
 
-            .container {
-                border-radius: 0;
-                box-shadow: none;
+            .info-row {
+                padding: 12px 0;
             }
 
-            .header {
-                padding: 16px 20px;
+            .join-btn {
+                padding: 16px 24px;
+                font-size: 15px;
             }
 
-            .header h1 {
-                font-size: 18px;
-            }
-
-            .status-badge {
-                padding: 6px 14px;
-                font-size: 12px;
-            }
-
-            .main-content {
-                flex-direction: column;
-                height: auto;
-                max-height: none;
-            }
-
-            .video-section {
-                height: 60vh;
-                min-height: 400px;
-            }
-
-            .chat-section {
-                width: 100%;
-                height: 40vh;
-                min-height: 300px;
-                border-left: none;
-                border-top: 1px solid var(--border-color);
-            }
-
-            #localVideo {
-                width: 120px;
-                height: 90px;
-                bottom: 80px;
+            .local-video-wrapper {
+                width: 110px;
+                height: 85px;
+                bottom: 115px;
                 right: 10px;
-                border: 2px solid var(--primary-color);
             }
 
-            .controls {
-                bottom: 15px;
-                padding: 10px 16px;
-                gap: 10px;
+            .local-video-label {
+                display: none;
             }
 
             .control-btn {
@@ -543,325 +827,26 @@
                 font-size: 16px;
             }
 
-            .waiting-room {
-                padding: 40px 24px;
-            }
-
-            .waiting-room h2 {
-                font-size: 22px;
-            }
-
-            .waiting-room .icon {
-                font-size: 56px;
-            }
-
-            .patient-details {
-                padding: 20px;
-                margin: 20px auto;
-            }
-
-            .join-btn {
-                padding: 14px 36px;
-                font-size: 15px;
-            }
-
-            .chat-header h3 {
-                font-size: 15px;
-            }
-
-            .doctor-info {
-                padding: 12px;
-            }
-
-            .messages {
-                padding: 16px;
-            }
-
-            .message {
-                max-width: 85%;
-                font-size: 13px;
-            }
-
-            .chat-input {
-                padding: 14px 16px;
-            }
-
-            .chat-input input {
-                padding: 10px 14px;
-                font-size: 14px;
-            }
-
-            .chat-input button {
-                width: 40px;
-                height: 40px;
-                font-size: 14px;
-            }
-
-            .notification {
-                top: 10px;
-                right: 10px;
-                left: 10px;
-                padding: 12px 16px;
-                font-size: 13px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .header h1 {
-                font-size: 16px;
-                gap: 8px;
-            }
-
-            .header h1 i {
-                font-size: 18px;
-            }
-
-            .status-badge {
-                padding: 5px 12px;
-                font-size: 11px;
-            }
-
-            .video-section {
-                height: 50vh;
-                min-height: 300px;
-            }
-
-            .chat-section {
-                height: 50vh;
-            }
-
-            #localVideo {
-                width: 100px;
-                height: 75px;
-                bottom: 70px;
-                right: 8px;
-                border: 2px solid var(--primary-color);
-            }
-
-            .controls {
-                bottom: 10px;
-                padding: 8px 12px;
-                gap: 8px;
-                flex-wrap: wrap;
-                justify-content: center;
-            }
-
-            .control-btn {
-                width: 44px;
-                height: 44px;
-                font-size: 14px;
-            }
-
-            .control-btn.danger {
-                flex-basis: 100%;
-                width: calc(100% - 16px);
-                margin-top: 4px;
-            }
-
-            .waiting-room {
-                padding: 30px 20px;
-            }
-
-            .waiting-room h2 {
+            .control-btn.end-call {
+                width: 54px;
+                height: 54px;
                 font-size: 20px;
             }
-
-            .waiting-room p {
-                font-size: 14px;
-            }
-
-            .waiting-room .icon {
-                font-size: 48px;
-                margin-bottom: 16px;
-            }
-
-            .patient-details {
-                padding: 16px;
-                margin: 16px auto;
-            }
-
-            .detail-row {
-                padding: 10px 0;
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 4px;
-            }
-
-            .detail-row .label {
-                font-size: 11px;
-            }
-
-            .detail-row .value {
-                font-size: 13px;
-            }
-
-            .join-btn {
-                padding: 12px 32px;
-                font-size: 14px;
-                width: 100%;
-            }
-
-            .chat-header {
-                padding: 12px 16px;
-            }
-
-            .chat-header h3 {
-                font-size: 14px;
-            }
-
-            .doctor-info {
-                padding: 10px;
-                font-size: 12px;
-            }
-
-            .messages {
-                padding: 12px;
-                gap: 10px;
-            }
-
-            .message {
-                max-width: 90%;
-                padding: 8px 12px;
-                font-size: 13px;
-            }
-
-            .message-time {
-                font-size: 10px;
-            }
-
-            .chat-input {
-                padding: 12px;
-            }
-
-            .chat-input input {
-                padding: 10px 12px;
-                font-size: 16px; /* Prevents zoom on iOS */
-            }
-
-            .chat-input button {
-                width: 38px;
-                height: 38px;
-                font-size: 13px;
-            }
-
-            .notification {
-                padding: 10px 14px;
-                font-size: 12px;
-            }
-
-            .error-message {
-                padding: 14px;
-                font-size: 13px;
-                margin: 16px 0;
-            }
-        }
-
-        /* Landscape Mobile */
-        @media (max-width: 768px) and (orientation: landscape) {
-            .main-content {
-                flex-direction: row;
-            }
-
-            .video-section {
-                width: 65%;
-                height: calc(100vh - 80px);
-            }
-
-            .chat-section {
-                width: 35%;
-                height: calc(100vh - 80px);
-                border-left: 1px solid var(--border-color);
-                border-top: none;
-            }
-
-            .controls {
-                bottom: 10px;
-            }
-
-            #localVideo {
-                bottom: 60px;
-            }
-        }
-
-        /* Very Small Screens */
-        @media (max-width: 360px) {
-            .header {
-                padding: 12px 16px;
-            }
-
-            .header h1 {
-                font-size: 15px;
-            }
-
-            .patient-details {
-                padding: 14px;
-            }
-
-            .join-btn {
-                padding: 10px 24px;
-                font-size: 13px;
-            }
-
-            .control-btn {
-                width: 40px;
-                height: 40px;
-                font-size: 12px;
-            }
-
-            #localVideo {
-                width: 90px;
-                height: 68px;
-            }
-        }
-
-        .error-message {
-            background: #ffe6e6;
-            color: #e74c3c;
-            padding: 16px;
-            border-radius: 0;
-            margin: 20px 0;
-            text-align: center;
-            font-size: 14px;
-        }
-
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 40px;
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid rgba(52,152,219,0.2);
-            border-top-color: var(--primary-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>
+    <!-- Waiting Room -->
+    <div class="waiting-container" id="waitingRoom">
+        <div class="waiting-card">
+            <div class="waiting-icon">
                 <i class="fas fa-video"></i>
-                <span>Video Consultation</span>
-            </h1>
-            <div class="status-badge" id="statusBadge">Connecting...</div>
-        </div>
+            </div>
+            <h1>Video Consultation</h1>
+            <p>Review your appointment details and join when ready</p>
 
-        <div id="waitingRoom" class="waiting-room">
-            <i class="fas fa-user-md"></i>
-            <h2>Welcome to Your Consultation</h2>
-            <p>Please review your appointment details below</p>
-
-            <div class="patient-details" id="patientDetails">
-                <div class="loading">
+            <div class="patient-info-card" id="patientDetails">
+                <div class="loading-spinner">
                     <div class="spinner"></div>
                 </div>
             </div>
@@ -870,64 +855,103 @@
                 <i class="fas fa-video"></i>
                 Join Video Call
             </button>
+            
             <div id="errorMessage"></div>
         </div>
+    </div>
 
-        <div id="consultationRoom" style="display: none;">
-            <div class="main-content">
-                <div class="video-section">
-                    <div class="remote-video-container">
-                        <video id="remoteVideo" autoplay playsinline></video>
-                        <div class="no-video-placeholder" id="noVideoPlaceholder">
-                            <i class="fas fa-user-md"></i>
-                            <p>Waiting for doctor to join...</p>
-                        </div>
+    <!-- Video Consultation Room -->
+    <div class="consultation-container" id="consultationRoom">
+        <!-- Remote Video (Doctor) - Full Screen -->
+        <div class="remote-video-wrapper">
+            <video id="remoteVideo" autoplay playsinline></video>
+            <div class="video-placeholder" id="videoPlaceholder">
+                <div class="pulse-ring">
+                    <i class="fas fa-user-md"></i>
+                </div>
+                <p>Waiting for doctor to connect...</p>
+            </div>
+        </div>
+
+        <!-- Local Video (Patient) - Floating -->
+        <div class="local-video-wrapper" id="localVideoWrapper">
+            <video id="localVideo" autoplay playsinline muted></video>
+            <div class="local-video-label">
+                <i class="fas fa-circle"></i>
+                You
+            </div>
+        </div>
+
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="call-info">
+                <div class="call-logo">
+                    <i class="fas fa-heartbeat"></i>
+                </div>
+                <div class="call-details">
+                    <h2 id="doctorName">Dr. Name</h2>
+                    <p><i class="fas fa-stethoscope"></i> <span id="consultationType">Consultation</span></p>
+                </div>
+            </div>
+            <div class="call-timer" id="callTimer">
+                <span class="dot"></span>
+                <span id="timerDisplay">00:00</span>
+            </div>
+        </div>
+
+        <!-- Bottom Controls -->
+        <div class="bottom-controls">
+            <button class="control-btn active" id="toggleVideo" title="Toggle Camera">
+                <i class="fas fa-video"></i>
+            </button>
+            <button class="control-btn active" id="toggleAudio" title="Toggle Microphone">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button class="control-btn end-call" id="leaveCall" title="End Call">
+                <i class="fas fa-phone-slash"></i>
+            </button>
+            <button class="control-btn chat-btn" id="toggleChat" title="Open Chat">
+                <i class="fas fa-comments"></i>
+                <span class="chat-badge" id="chatBadge">0</span>
+            </button>
+        </div>
+
+        <!-- Chat Panel (Glass Design) -->
+        <div class="chat-panel" id="chatPanel">
+            <div class="chat-header">
+                <div class="chat-header-left">
+                    <div class="avatar">
+                        <i class="fas fa-user-md"></i>
                     </div>
-                    <video id="localVideo" autoplay playsinline muted></video>
-
-                    <div class="controls">
-                        <button class="control-btn active" id="toggleVideo" title="Toggle Video">
-                            <i class="fas fa-video"></i>
-                        </button>
-                        <button class="control-btn active" id="toggleAudio" title="Toggle Audio">
-                            <i class="fas fa-microphone"></i>
-                        </button>
-                        <button class="control-btn" id="toggleChat" title="Toggle Chat">
-                            <i class="fas fa-comments"></i>
-                        </button>
-                        <button class="control-btn danger" id="leaveCall" title="Leave Call">
-                            <i class="fas fa-phone-slash"></i>
-                        </button>
+                    <div>
+                        <h3 id="chatDoctorName">Doctor</h3>
+                        <p>Online</p>
                     </div>
                 </div>
-
-                <div class="chat-section" id="chatSection">
-                    <div class="chat-header">
-                        <h3><i class="fas fa-comments"></i> Chat</h3>
-                        <div class="doctor-info" id="doctorInfo">
-                            <p><strong id="doctorName">Dr. Name</strong></p>
-                            <p id="consultationType">Consultation Type</p>
-                        </div>
-                    </div>
-                    <div class="messages" id="messages"></div>
-                    <div class="chat-input">
-                        <div class="chat-input-container">
-                            <input type="text" id="messageInput" placeholder="Type your message..." onkeypress="if(event.key==='Enter') sendMessage()">
-                            <button onclick="sendMessage()">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
-                        </div>
-                    </div>
+                <button class="chat-close-btn" id="closeChat">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="chat-messages" id="messages"></div>
+            <div class="chat-input-area">
+                <div class="chat-input-wrapper">
+                    <input type="text" id="messageInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendMessage()">
+                    <button class="chat-send-btn" onclick="sendMessage()">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="notification" id="notification">
-        <i class="fas fa-bell"></i>
-        <div class="notification-content">
-            <div class="notification-title" id="notificationTitle">Notification</div>
-            <div class="notification-message" id="notificationMessage">You have a new message</div>
+    <!-- Notification Toast -->
+    <div class="notification-toast" id="notification">
+        <div class="icon">
+            <i class="fas fa-bell"></i>
+        </div>
+        <div class="content">
+            <h4 id="notificationTitle">Notification</h4>
+            <p id="notificationMessage">Message</p>
         </div>
     </div>
 
