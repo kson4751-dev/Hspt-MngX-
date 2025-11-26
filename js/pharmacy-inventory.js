@@ -7,7 +7,11 @@
  * Handles drug inventory with Firestore real-time database integration
  */
 
-import { db, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, onSnapshot, orderBy, serverTimestamp, addDoc } from './firebase-config.js';
+import { db, realtimeDb, dbRef, set, get, onValue, remove, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, onSnapshot, orderBy, serverTimestamp, addDoc, auth } from './firebase-config.js';
+
+// Prescription draft storage key for current session
+let currentPrescriptionDraftId = null;
+let prescriptionDraftListener = null;
 
 // Drug Categories Configuration
 const DRUG_CATEGORIES = {
@@ -50,6 +54,196 @@ const STOCK_STATUS = {
     'expiring-soon': { label: 'Expiring Soon', color: '#f97316' },
     'expired': { label: 'Expired', color: '#991b1b' }
 };
+
+// ===================================
+// PRESCRIPTION DRAFT FUNCTIONS (Firebase Realtime DB)
+// ===================================
+
+/**
+ * Generate unique draft ID for current session
+ */
+function generateDraftId() {
+    const user = auth.currentUser;
+    const userId = user ? user.uid : 'anonymous';
+    return `draft_${userId}_${Date.now()}`;
+}
+
+/**
+ * Save medication to prescription draft in Realtime DB
+ */
+async function saveMedicationToDraft(medication, index) {
+    if (!currentPrescriptionDraftId) {
+        currentPrescriptionDraftId = generateDraftId();
+    }
+    
+    try {
+        const medicationRef = dbRef(realtimeDb, `prescription_drafts/${currentPrescriptionDraftId}/medications/${index}`);
+        await set(medicationRef, {
+            ...medication,
+            updatedAt: Date.now()
+        });
+        console.log('Medication saved to draft:', index, medication.drugName);
+    } catch (error) {
+        console.error('Error saving medication to draft:', error);
+    }
+}
+
+/**
+ * Remove medication from draft
+ */
+async function removeMedicationFromDraft(index) {
+    if (!currentPrescriptionDraftId) return;
+    
+    try {
+        const medicationRef = dbRef(realtimeDb, `prescription_drafts/${currentPrescriptionDraftId}/medications/${index}`);
+        await remove(medicationRef);
+        console.log('Medication removed from draft:', index);
+    } catch (error) {
+        console.error('Error removing medication from draft:', error);
+    }
+}
+
+/**
+ * Save patient info to draft
+ */
+async function savePatientInfoToDraft(patientInfo) {
+    if (!currentPrescriptionDraftId) {
+        currentPrescriptionDraftId = generateDraftId();
+    }
+    
+    try {
+        const patientRef = dbRef(realtimeDb, `prescription_drafts/${currentPrescriptionDraftId}/patientInfo`);
+        await set(patientRef, {
+            ...patientInfo,
+            updatedAt: Date.now()
+        });
+    } catch (error) {
+        console.error('Error saving patient info to draft:', error);
+    }
+}
+
+/**
+ * Load prescription draft from Realtime DB
+ */
+async function loadPrescriptionDraft() {
+    if (!currentPrescriptionDraftId) return null;
+    
+    try {
+        const draftRef = dbRef(realtimeDb, `prescription_drafts/${currentPrescriptionDraftId}`);
+        const snapshot = await get(draftRef);
+        
+        if (snapshot.exists()) {
+            return snapshot.val();
+        }
+        return null;
+    } catch (error) {
+        console.error('Error loading prescription draft:', error);
+        return null;
+    }
+}
+
+/**
+ * Clear prescription draft from Realtime DB
+ */
+async function clearPrescriptionDraft() {
+    if (!currentPrescriptionDraftId) return;
+    
+    try {
+        const draftRef = dbRef(realtimeDb, `prescription_drafts/${currentPrescriptionDraftId}`);
+        await remove(draftRef);
+        console.log('Prescription draft cleared');
+    } catch (error) {
+        console.error('Error clearing prescription draft:', error);
+    }
+    
+    currentPrescriptionDraftId = null;
+}
+
+/**
+ * Setup real-time listener for prescription draft
+ */
+function setupDraftListener() {
+    if (!currentPrescriptionDraftId) return;
+    
+    // Clear previous listener
+    if (prescriptionDraftListener) {
+        prescriptionDraftListener();
+    }
+    
+    const draftRef = dbRef(realtimeDb, `prescription_drafts/${currentPrescriptionDraftId}/medications`);
+    prescriptionDraftListener = onValue(draftRef, (snapshot) => {
+        if (snapshot.exists()) {
+            const medications = snapshot.val();
+            updatePreviewFromDraft(medications);
+        }
+    });
+}
+
+/**
+ * Update preview table from draft data
+ */
+function updatePreviewFromDraft(medications) {
+    const previewSection = document.getElementById('prescriptionPreviewSection');
+    const previewBody = document.getElementById('previewMedicationsBody');
+    const previewMedCount = document.getElementById('previewMedCount');
+    
+    if (!previewBody) return;
+    
+    // Convert object to array and filter valid medications
+    const medsArray = Object.values(medications).filter(med => med && med.drugName);
+    
+    // Update count
+    previewMedCount.textContent = `${medsArray.length} item${medsArray.length !== 1 ? 's' : ''}`;
+    
+    // Show preview section if we have medications
+    if (medsArray.length > 0) {
+        previewSection.style.display = 'block';
+    }
+    
+    // Show scroll info if many medications
+    const scrollInfo = document.getElementById('previewScrollInfo');
+    if (scrollInfo) {
+        scrollInfo.style.display = medsArray.length > 4 ? 'block' : 'none';
+    }
+    
+    // Build preview table
+    if (medsArray.length === 0) {
+        previewBody.innerHTML = `
+            <tr>
+                <td colspan="7" style="padding: 20px; text-align: center; color: var(--text-secondary);">
+                    <i class="fas fa-pills" style="font-size: 24px; opacity: 0.3; margin-bottom: 8px;"></i>
+                    <p style="margin: 0;">No medications added yet</p>
+                </td>
+            </tr>
+        `;
+    } else {
+        const frequencyLabels = {
+            'once-daily': 'Once Daily',
+            'twice-daily': 'Twice Daily',
+            'three-times': '3x Daily',
+            'four-times': '4x Daily',
+            'every-6-hours': 'Every 6hrs',
+            'every-8-hours': 'Every 8hrs',
+            'as-needed': 'PRN'
+        };
+        
+        previewBody.innerHTML = medsArray.map((med, idx) => `
+            <tr>
+                <td style="padding: 8px; font-weight: 600;">${idx + 1}</td>
+                <td style="padding: 8px;">
+                    <strong>${med.drugName}</strong>
+                    ${med.strength ? `<br><small style="color: var(--text-secondary);">${med.strength}</small>` : ''}
+                    ${med.isManual ? '<span style="background: #f59e0b; color: white; font-size: 9px; padding: 1px 4px; margin-left: 4px;">MANUAL</span>' : ''}
+                </td>
+                <td style="padding: 8px;">${med.dosage || '-'}</td>
+                <td style="padding: 8px;">${frequencyLabels[med.frequency] || med.frequency || '-'}</td>
+                <td style="padding: 8px;">${med.duration || '-'}</td>
+                <td style="padding: 8px; text-align: center; font-weight: 600;">${med.quantity || '-'}</td>
+                <td style="padding: 8px; font-size: 11px; color: var(--text-secondary);">${med.instructions || '-'}</td>
+            </tr>
+        `).join('');
+    }
+}
 
 // Pagination and filtering state
 let currentPage = 1;
@@ -211,6 +405,15 @@ function initEventListeners() {
     }
     if (newPrescriptionForm) {
         newPrescriptionForm.addEventListener('submit', handlePrescriptionSubmit);
+        
+        // Auto-update preview on input changes (using event delegation)
+        newPrescriptionForm.addEventListener('input', debounce(() => {
+            refreshPrescriptionPreview();
+        }, 500));
+        
+        newPrescriptionForm.addEventListener('change', () => {
+            refreshPrescriptionPreview();
+        });
     }
     if (addMedicationBtn) {
         addMedicationBtn.addEventListener('click', addMedicationRow);
@@ -221,6 +424,21 @@ function initEventListeners() {
     if (prescDate) {
         prescDate.valueAsDate = new Date();
     }
+}
+
+/**
+ * Debounce function for input events
+ */
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
 }
 
 /**
@@ -237,6 +455,22 @@ function openPrescriptionModal() {
         if (prescDate) {
             prescDate.valueAsDate = new Date();
         }
+        
+        // Initialize new prescription draft
+        currentPrescriptionDraftId = generateDraftId();
+        setupDraftListener();
+        
+        // Setup listeners for the first medication item
+        const firstMedItem = document.querySelector('.medication-item');
+        if (firstMedItem) {
+            setupMedicationItemListeners(firstMedItem);
+        }
+        
+        // Hide preview section initially
+        const previewSection = document.getElementById('prescriptionPreviewSection');
+        if (previewSection) {
+            previewSection.style.display = 'none';
+        }
     }
 }
 
@@ -249,6 +483,15 @@ function closePrescriptionModalFunc() {
         modal.classList.remove('active');
         document.getElementById('newPrescriptionForm')?.reset();
         
+        // Clear prescription draft from Firebase
+        clearPrescriptionDraft();
+        
+        // Clear draft listener
+        if (prescriptionDraftListener) {
+            prescriptionDraftListener();
+            prescriptionDraftListener = null;
+        }
+        
         // Remove extra medication rows
         const medicationsList = document.getElementById('medicationsList');
         const items = medicationsList.querySelectorAll('.medication-item');
@@ -257,16 +500,48 @@ function closePrescriptionModalFunc() {
                 item.remove();
             }
         });
+        
+        // Reset the first medication item's manual entry checkbox
+        const firstManualCheckbox = medicationsList.querySelector('.manual-entry-checkbox');
+        if (firstManualCheckbox) {
+            firstManualCheckbox.checked = false;
+            toggleManualEntry(firstManualCheckbox);
+        }
+        
+        // Hide preview section and reset preview table
+        const previewSection = document.getElementById('prescriptionPreviewSection');
+        if (previewSection) {
+            previewSection.style.display = 'none';
+        }
+        
+        const previewBody = document.getElementById('previewMedicationsBody');
+        if (previewBody) {
+            previewBody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="padding: 20px; text-align: center; color: var(--text-secondary);">
+                        <i class="fas fa-pills" style="font-size: 24px; opacity: 0.3; margin-bottom: 8px;"></i>
+                        <p style="margin: 0;">No medications added yet</p>
+                    </td>
+                </tr>
+            `;
+        }
+        
+        const previewMedCount = document.getElementById('previewMedCount');
+        if (previewMedCount) {
+            previewMedCount.textContent = '0 items';
+        }
     }
 }
 
 /**
  * Populate drug select dropdowns with available drugs
  */
-function populateDrugSelects() {
-    const selects = document.querySelectorAll('.medication-select');
+function populateDrugSelects(targetSelect = null) {
+    const selects = targetSelect ? [targetSelect] : document.querySelectorAll('.medication-select');
     
     selects.forEach(select => {
+        const previousValue = select.value;
+        
         // Clear existing options except first
         select.innerHTML = '<option value="">-- Select Drug --</option>';
         
@@ -281,7 +556,42 @@ function populateDrugSelects() {
                 option.dataset.strength = drug.strength || '';
                 select.appendChild(option);
             });
+        
+        // Restore previous selection if still available
+        if (previousValue) {
+            const optionExists = Array.from(select.options).some(option => option.value === previousValue);
+            if (optionExists) {
+                select.value = previousValue;
+            }
+        }
     });
+}
+
+/**
+ * Toggle manual drug entry
+ */
+function toggleManualEntry(checkbox) {
+    const medicationItem = checkbox.closest('.medication-item');
+    const selectInput = medicationItem.querySelector('.select-drug-input');
+    const manualInput = medicationItem.querySelector('.manual-drug-input');
+    const selectElement = medicationItem.querySelector('.medication-select');
+    const manualNameInput = medicationItem.querySelector('.medication-manual-name');
+    
+    if (checkbox.checked) {
+        // Show manual input, hide select
+        selectInput.classList.add('hidden');
+        manualInput.classList.add('active');
+        selectElement.removeAttribute('required');
+        manualNameInput.setAttribute('required', 'required');
+        selectElement.value = '';
+    } else {
+        // Show select, hide manual input
+        selectInput.classList.remove('hidden');
+        manualInput.classList.remove('active');
+        selectElement.setAttribute('required', 'required');
+        manualNameInput.removeAttribute('required');
+        manualNameInput.value = '';
+    }
 }
 
 /**
@@ -298,20 +608,40 @@ function addMedicationRow() {
         <button type="button" class="remove-medication" onclick="window.pharmacyInventory.removeMedicationRow(this)">
             <i class="fas fa-times"></i>
         </button>
+        
+        <!-- Manual Entry Toggle -->
+        <div class="drug-entry-toggle">
+            <label>
+                <input type="checkbox" class="manual-entry-checkbox" onchange="toggleManualEntry(this)">
+                <i class="fas fa-edit"></i> Manual entry (drug not in pharmacy)
+            </label>
+        </div>
+        
         <div class="form-row">
             <div class="form-group">
                 <label>Drug Name <span class="required">*</span></label>
-                <select class="form-input medication-select" required>
-                    <option value="">-- Select Drug --</option>
-                </select>
+                <!-- Select from inventory -->
+                <div class="select-drug-input">
+                    <select class="form-input medication-select" required>
+                        <option value="">-- Select Drug --</option>
+                    </select>
+                </div>
+                <!-- Manual input (hidden by default) -->
+                <div class="manual-drug-input">
+                    <input type="text" class="form-input medication-manual-name" placeholder="Enter drug name manually">
+                </div>
             </div>
             <div class="form-group">
-                <label>Dosage <span class="required">*</span></label>
-                <input type="text" class="form-input medication-dosage" placeholder="e.g., 2 tablets" required>
+                <label>Strength</label>
+                <input type="text" class="form-input medication-strength" placeholder="e.g., 500mg, 10ml">
             </div>
         </div>
 
         <div class="form-row three-cols">
+            <div class="form-group">
+                <label>Dosage <span class="required">*</span></label>
+                <input type="text" class="form-input medication-dosage" placeholder="e.g., 2 tablets" required>
+            </div>
             <div class="form-group">
                 <label>Frequency <span class="required">*</span></label>
                 <select class="form-input medication-frequency" required>
@@ -329,36 +659,267 @@ function addMedicationRow() {
                 <label>Duration <span class="required">*</span></label>
                 <input type="text" class="form-input medication-duration" placeholder="e.g., 7 days" required>
             </div>
-            <div class="form-group">
-                <label>Quantity <span class="required">*</span></label>
-                <input type="number" class="form-input medication-quantity" placeholder="Total quantity" min="1" required>
-            </div>
         </div>
 
         <div class="form-row">
-            <div class="form-group full-width">
+            <div class="form-group">
+                <label>Quantity <span class="required">*</span></label>
+                <input type="number" class="form-input medication-quantity" placeholder="Total qty" min="1" required>
+            </div>
+            <div class="form-group">
                 <label>Instructions</label>
-                <input type="text" class="form-input medication-instructions" placeholder="Special instructions (e.g., Take with food)">
+                <input type="text" class="form-input medication-instructions" placeholder="e.g., Take with food">
             </div>
         </div>
     `;
     
     medicationsList.appendChild(newItem);
-    populateDrugSelects();
+    const newSelect = newItem.querySelector('.medication-select');
+    populateDrugSelects(newSelect);
+    
+    // Add event listeners to save to Firebase on change
+    setupMedicationItemListeners(newItem);
+}
+
+/**
+ * Setup event listeners for a medication item to save to Firebase
+ */
+function setupMedicationItemListeners(item) {
+    const saveHandler = debounce(() => {
+        saveMedicationItemToDraft(item);
+        // Also update the preview directly
+        refreshPrescriptionPreview();
+    }, 300);
+    
+    // Listen to all inputs and selects in this item
+    item.querySelectorAll('input, select').forEach(input => {
+        input.addEventListener('change', saveHandler);
+        input.addEventListener('input', saveHandler);
+    });
+}
+
+/**
+ * Save a single medication item to draft
+ */
+function saveMedicationItemToDraft(item) {
+    const index = parseInt(item.getAttribute('data-index')) || 1;
+    const isManualEntry = item.querySelector('.manual-entry-checkbox')?.checked || false;
+    const drugSelect = item.querySelector('.medication-select');
+    const manualNameInput = item.querySelector('.medication-manual-name');
+    const strengthInput = item.querySelector('.medication-strength');
+    
+    let drugName = '';
+    let strength = '';
+    
+    if (isManualEntry && manualNameInput && manualNameInput.value) {
+        drugName = manualNameInput.value;
+        strength = strengthInput?.value || '';
+    } else if (drugSelect && drugSelect.value) {
+        const selectedOption = drugSelect.options[drugSelect.selectedIndex];
+        drugName = selectedOption.dataset.drugName || selectedOption.textContent.split(' - ')[0];
+        strength = selectedOption.dataset.strength || strengthInput?.value || '';
+    }
+    
+    // Only save if we have a drug name
+    if (drugName) {
+        const medication = {
+            index: index,
+            drugName: drugName,
+            strength: strength,
+            isManual: isManualEntry,
+            dosage: item.querySelector('.medication-dosage')?.value || '',
+            frequency: item.querySelector('.medication-frequency')?.value || '',
+            duration: item.querySelector('.medication-duration')?.value || '',
+            quantity: item.querySelector('.medication-quantity')?.value || '',
+            instructions: item.querySelector('.medication-instructions')?.value || ''
+        };
+        
+        saveMedicationToDraft(medication, index);
+    }
 }
 
 /**
  * Remove medication row
  */
-function removeMedicationRow(button) {
+async function removeMedicationRow(button) {
     const medicationItem = button.closest('.medication-item');
+    const index = parseInt(medicationItem.getAttribute('data-index')) || 1;
+    
+    // Remove from Firebase first
+    await removeMedicationFromDraft(index);
+    
     medicationItem.remove();
     
-    // Renumber remaining items
+    // Renumber remaining items and re-save to Firebase
     const items = document.querySelectorAll('.medication-item');
-    items.forEach((item, index) => {
-        item.setAttribute('data-index', index + 1);
+    
+    // Clear all medications from draft and re-save with new indices
+    if (currentPrescriptionDraftId) {
+        const medsRef = dbRef(realtimeDb, `prescription_drafts/${currentPrescriptionDraftId}/medications`);
+        await remove(medsRef);
+    }
+    
+    items.forEach((item, idx) => {
+        item.setAttribute('data-index', idx + 1);
+        // Re-save each medication with new index
+        saveMedicationItemToDraft(item);
     });
+    
+    // Update preview after removing
+    refreshPrescriptionPreview();
+}
+
+/**
+ * Refresh prescription preview - collects all medications from form and updates preview
+ */
+function refreshPrescriptionPreview() {
+    const previewSection = document.getElementById('prescriptionPreviewSection');
+    const previewBody = document.getElementById('previewMedicationsBody');
+    const previewMedCount = document.getElementById('previewMedCount');
+    
+    if (!previewBody || !previewSection || !previewMedCount) return;
+    
+    // Get patient info
+    const patientName = document.getElementById('prescPatientName')?.value || '-';
+    const patientId = document.getElementById('prescPatientId')?.value || '-';
+    const patientAge = document.getElementById('prescPatientAge')?.value || '';
+    const patientGender = document.getElementById('prescPatientGender')?.value || '';
+    const doctorName = document.getElementById('prescDoctorName')?.value || '-';
+    const prescDate = document.getElementById('prescDate')?.value || '-';
+    
+    // Update patient info in preview
+    const previewPatientName = document.getElementById('previewPatientName');
+    const previewPatientId = document.getElementById('previewPatientId');
+    const previewPatientAgeGender = document.getElementById('previewPatientAgeGender');
+    const previewDoctorName = document.getElementById('previewDoctorName');
+    const previewDate = document.getElementById('previewDate');
+    
+    if (previewPatientName) previewPatientName.textContent = patientName;
+    if (previewPatientId) previewPatientId.textContent = patientId;
+    if (previewPatientAgeGender) {
+        previewPatientAgeGender.textContent = 
+            `${patientAge}${patientAge && patientGender ? ' / ' : ''}${patientGender ? patientGender.charAt(0).toUpperCase() + patientGender.slice(1) : ''}` || '-';
+    }
+    if (previewDoctorName) previewDoctorName.textContent = doctorName;
+    if (previewDate) previewDate.textContent = prescDate ? new Date(prescDate).toLocaleDateString() : '-';
+    
+    // Save patient info to Firebase draft
+    savePatientInfoToDraft({
+        patientName,
+        patientId,
+        patientAge,
+        patientGender,
+        doctorName,
+        prescDate
+    });
+    
+    // Collect medications from form
+    const medicationItems = document.querySelectorAll('.medication-item');
+    const medications = [];
+    
+    medicationItems.forEach((item, index) => {
+        const isManualEntry = item.querySelector('.manual-entry-checkbox')?.checked || false;
+        const drugSelect = item.querySelector('.medication-select');
+        const manualNameInput = item.querySelector('.medication-manual-name');
+        const strengthInput = item.querySelector('.medication-strength');
+        
+        let drugName = '';
+        let strength = '';
+        
+        if (isManualEntry && manualNameInput && manualNameInput.value) {
+            drugName = manualNameInput.value;
+            strength = strengthInput?.value || '';
+        } else if (drugSelect && drugSelect.value) {
+            const selectedOption = drugSelect.options[drugSelect.selectedIndex];
+            drugName = selectedOption.dataset.drugName || selectedOption.textContent.split(' - ')[0];
+            strength = selectedOption.dataset.strength || strengthInput?.value || '';
+        }
+        
+        if (drugName) {
+            medications.push({
+                index: index + 1,
+                drugName: drugName,
+                strength: strength,
+                isManual: isManualEntry,
+                dosage: item.querySelector('.medication-dosage')?.value || '',
+                frequency: item.querySelector('.medication-frequency')?.value || '',
+                duration: item.querySelector('.medication-duration')?.value || '',
+                quantity: item.querySelector('.medication-quantity')?.value || '',
+                instructions: item.querySelector('.medication-instructions')?.value || ''
+            });
+        }
+    });
+    
+    // Update count
+    previewMedCount.textContent = `${medications.length} item${medications.length !== 1 ? 's' : ''}`;
+    
+    // Show/hide preview section
+    if (medications.length > 0 || patientName !== '-') {
+        previewSection.style.display = 'block';
+    }
+    
+    // Show scroll info if many medications
+    const scrollInfo = document.getElementById('previewScrollInfo');
+    if (scrollInfo) {
+        scrollInfo.style.display = medications.length > 4 ? 'block' : 'none';
+    }
+    
+    // Build preview table
+    if (medications.length === 0) {
+        previewBody.innerHTML = `
+            <tr>
+                <td colspan="7" style="padding: 20px; text-align: center; color: var(--text-secondary);">
+                    <i class="fas fa-pills" style="font-size: 24px; opacity: 0.3; margin-bottom: 8px;"></i>
+                    <p style="margin: 0;">No medications added yet</p>
+                </td>
+            </tr>
+        `;
+    } else {
+        const frequencyLabels = {
+            'once-daily': 'Once Daily',
+            'twice-daily': 'Twice Daily',
+            'three-times': '3x Daily',
+            'four-times': '4x Daily',
+            'every-6-hours': 'Every 6hrs',
+            'every-8-hours': 'Every 8hrs',
+            'as-needed': 'PRN'
+        };
+        
+        previewBody.innerHTML = medications.map(med => `
+            <tr>
+                <td style="padding: 8px; font-weight: 600;">${med.index}</td>
+                <td style="padding: 8px;">
+                    <strong>${med.drugName}</strong>
+                    ${med.strength ? `<br><small style="color: var(--text-secondary);">${med.strength}</small>` : ''}
+                    ${med.isManual ? '<span style="background: #f59e0b; color: white; font-size: 9px; padding: 1px 4px; margin-left: 4px;">MANUAL</span>' : ''}
+                </td>
+                <td style="padding: 8px;">${med.dosage || '-'}</td>
+                <td style="padding: 8px;">${frequencyLabels[med.frequency] || med.frequency || '-'}</td>
+                <td style="padding: 8px;">${med.duration || '-'}</td>
+                <td style="padding: 8px; text-align: center; font-weight: 600;">${med.quantity || '-'}</td>
+                <td style="padding: 8px; font-size: 11px; color: var(--text-secondary);">${med.instructions || '-'}</td>
+            </tr>
+        `).join('');
+    }
+    
+    // Update diagnosis preview
+    updatePreviewDiagnosis();
+}
+
+/**
+ * Update diagnosis in preview
+ */
+function updatePreviewDiagnosis() {
+    const diagnosisText = document.getElementById('prescNotes')?.value || '';
+    const diagnosisPreview = document.getElementById('previewDiagnosis');
+    const diagnosisTextEl = document.getElementById('previewDiagnosisText');
+    
+    if (diagnosisText.trim()) {
+        diagnosisPreview.style.display = 'block';
+        diagnosisTextEl.textContent = diagnosisText;
+    } else {
+        diagnosisPreview.style.display = 'none';
+    }
 }
 
 /**
@@ -385,20 +946,49 @@ async function handlePrescriptionSubmit(event) {
     const medicationItems = document.querySelectorAll('.medication-item');
     
     medicationItems.forEach(item => {
+        const isManualEntry = item.querySelector('.manual-entry-checkbox')?.checked || false;
         const drugSelect = item.querySelector('.medication-select');
-        const selectedOption = drugSelect.options[drugSelect.selectedIndex];
+        const manualNameInput = item.querySelector('.medication-manual-name');
+        const strengthInput = item.querySelector('.medication-strength');
+        
+        let drugId = '';
+        let drugName = '';
+        let strength = '';
+        
+        if (isManualEntry && manualNameInput) {
+            // Manual entry - drug not in pharmacy
+            drugId = 'MANUAL';
+            drugName = manualNameInput.value;
+            strength = strengthInput ? strengthInput.value : '';
+        } else if (drugSelect && drugSelect.value) {
+            // Selected from inventory
+            const selectedOption = drugSelect.options[drugSelect.selectedIndex];
+            drugId = drugSelect.value;
+            drugName = selectedOption.dataset.drugName || selectedOption.textContent;
+            strength = selectedOption.dataset.strength || (strengthInput ? strengthInput.value : '');
+        }
+        
+        if (!drugName) {
+            return;
+        }
         
         medications.push({
-            drugId: drugSelect.value,
-            drugName: selectedOption.dataset.drugName,
-            strength: selectedOption.dataset.strength,
+            drugId: drugId,
+            drugName: drugName,
+            strength: strength,
+            isManualEntry: isManualEntry,
             dosage: item.querySelector('.medication-dosage').value,
             frequency: item.querySelector('.medication-frequency').value,
             duration: item.querySelector('.medication-duration').value,
-            quantity: parseInt(item.querySelector('.medication-quantity').value),
+            quantity: parseInt(item.querySelector('.medication-quantity').value) || 0,
             instructions: item.querySelector('.medication-instructions').value
         });
     });
+    
+    if (medications.length === 0) {
+        showNotification('Please add at least one valid medication before saving.', 'error');
+        return;
+    }
     
     // Collect notes
     const notes = document.getElementById('prescNotes').value;
@@ -422,12 +1012,16 @@ async function handlePrescriptionSubmit(event) {
         
         // Update drug stock quantities
         for (const med of medications) {
+            if (!med.drugId || med.drugId === 'MANUAL') {
+                continue;
+            }
+            
             const drugRef = doc(db, 'pharmacy_inventory', med.drugId);
             const drugDoc = await getDoc(drugRef);
             
             if (drugDoc.exists()) {
                 const currentStock = drugDoc.data().stockQuantity;
-                const newStock = currentStock - med.quantity;
+                const newStock = Math.max(0, currentStock - med.quantity);
                 
                 await updateDoc(drugRef, {
                     stockQuantity: newStock,
@@ -461,6 +1055,20 @@ function generatePrescriptionNumber() {
     return `${prefix}${year}${month}${day}-${random}`;
 }
 
+function formatFrequencyLabel(frequency) {
+    const map = {
+        'once-daily': 'Once Daily',
+        'twice-daily': 'Twice Daily',
+        'three-times': 'Three Times Daily',
+        'four-times': 'Four Times Daily',
+        'every-6-hours': 'Every 6 Hours',
+        'every-8-hours': 'Every 8 Hours',
+        'as-needed': 'As Needed'
+    };
+    if (!frequency) return 'As Directed';
+    return map[frequency] || frequency.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
 /**
  * Print prescription as receipt
  */
@@ -476,24 +1084,24 @@ function printPrescription(prescription) {
             </div>
             <div class="med-details">
                 <div class="detail-row">
-                    <span class="label">Dosage:</span>
-                    <span class="value">${med.dosage}</span>
+                    <span class="label">Dosage</span>
+                    <span class="value">${med.dosage || '-'}</span>
                 </div>
                 <div class="detail-row">
-                    <span class="label">Frequency:</span>
-                    <span class="value">${med.frequency.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                    <span class="label">Frequency</span>
+                    <span class="value">${formatFrequencyLabel(med.frequency)}</span>
                 </div>
                 <div class="detail-row">
-                    <span class="label">Duration:</span>
-                    <span class="value">${med.duration}</span>
+                    <span class="label">Duration</span>
+                    <span class="value">${med.duration || '-'}</span>
                 </div>
                 <div class="detail-row">
-                    <span class="label">Quantity:</span>
-                    <span class="value">${med.quantity}</span>
+                    <span class="label">Quantity</span>
+                    <span class="value">${med.quantity || '-'}</span>
                 </div>
                 ${med.instructions ? `
                 <div class="instructions">
-                    <span class="label">Instructions:</span>
+                    <span class="label">Instructions</span>
                     <span class="value">${med.instructions}</span>
                 </div>
                 ` : ''}
@@ -528,18 +1136,19 @@ function printPrescription(prescription) {
                 body {
                     font-family: 'Courier New', monospace;
                     font-size: 12px;
-                    line-height: 1.4;
-                    padding: 10mm;
-                    max-width: 80mm;
+                    line-height: 1.35;
+                    padding: 8mm;
+                    max-width: 78mm;
                     margin: 0 auto;
-                    background: white;
+                    background: #fff;
+                    color: #111;
                 }
                 
                 .receipt-header {
                     text-align: center;
                     border-bottom: 2px dashed #000;
                     padding-bottom: 10px;
-                    margin-bottom: 15px;
+                    margin-bottom: 14px;
                 }
                 
                 .receipt-header h1 {
@@ -562,8 +1171,8 @@ function printPrescription(prescription) {
                 }
                 
                 .section {
-                    margin-bottom: 15px;
-                    padding-bottom: 10px;
+                    margin-bottom: 14px;
+                    padding-bottom: 8px;
                     border-bottom: 1px dashed #999;
                 }
                 
@@ -573,11 +1182,12 @@ function printPrescription(prescription) {
                 
                 .section-title {
                     font-weight: bold;
-                    font-size: 13px;
-                    margin-bottom: 8px;
+                    font-size: 12px;
+                    margin-bottom: 6px;
                     text-transform: uppercase;
+                    letter-spacing: 0.5px;
                     border-bottom: 1px solid #000;
-                    padding-bottom: 3px;
+                    padding-bottom: 2px;
                 }
                 
                 .info-row {
@@ -598,18 +1208,16 @@ function printPrescription(prescription) {
                 }
                 
                 .medication-item {
-                    margin-bottom: 12px;
-                    padding: 8px;
-                    background: #f9f9f9;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
+                    margin-bottom: 10px;
+                    padding: 6px 0;
+                    border-bottom: 1px dotted #ccc;
                 }
                 
                 .med-header {
-                    font-size: 13px;
-                    margin-bottom: 6px;
-                    padding-bottom: 5px;
-                    border-bottom: 1px solid #ccc;
+                    font-size: 12px;
+                    margin-bottom: 4px;
+                    padding-bottom: 4px;
+                    border-bottom: 1px dotted #999;
                 }
                 
                 .med-header strong {
@@ -646,8 +1254,8 @@ function printPrescription(prescription) {
                 }
                 
                 .instructions {
-                    margin-top: 5px;
-                    padding-top: 5px;
+                    margin-top: 4px;
+                    padding-top: 4px;
                     border-top: 1px dotted #ccc;
                 }
                 
@@ -665,9 +1273,7 @@ function printPrescription(prescription) {
                 .notes-section {
                     margin-top: 10px;
                     padding: 8px;
-                    background: #fffacd;
-                    border: 1px solid #f0e68c;
-                    border-radius: 4px;
+                    border: 1px dashed #999;
                 }
                 
                 .notes-section .label {
@@ -740,8 +1346,8 @@ function printPrescription(prescription) {
         </head>
         <body>
             <div class="receipt-header">
-                <h1>⚕ RxFlow Hospital</h1>
-                <div class="subtitle">PRESCRIPTION RECEIPT</div>
+                <h1>RxFlow Hospital</h1>
+                <div class="subtitle">Prescription Receipt</div>
                 <div class="rx-number">Rx No: ${prescription.prescriptionNumber}</div>
             </div>
             
@@ -814,7 +1420,7 @@ function printPrescription(prescription) {
             
             <div class="no-print">
                 <button class="print-btn" onclick="window.print()">
-                    🖨 Print Receipt
+                    Print Receipt
                 </button>
             </div>
         </body>
@@ -822,11 +1428,11 @@ function printPrescription(prescription) {
     `);
     
     printWindow.document.close();
-    
-    // Auto print after a short delay
-    setTimeout(() => {
+    printWindow.focus();
+    printWindow.onload = () => {
         printWindow.print();
-    }, 500);
+        setTimeout(() => printWindow.close(), 500);
+    };
 }
 
 /**
@@ -1602,8 +2208,16 @@ window.pharmacyInventory = {
     editDrug,
     deleteDrug,
     closeEditModal,
-    removeMedicationRow
+    removeMedicationRow,
+    refreshPrescriptionPreview,
+    toggleManualEntry,
+    updatePreviewDiagnosis
 };
+
+// Make refreshPrescriptionPreview globally accessible for inline onclick handlers
+window.refreshPrescriptionPreview = refreshPrescriptionPreview;
+window.toggleManualEntry = toggleManualEntry;
+window.updatePreviewDiagnosis = updatePreviewDiagnosis;
 
 // Auto-initialize when pharmacy inventory module is active
 document.addEventListener('DOMContentLoaded', () => {
