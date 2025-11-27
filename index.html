@@ -3030,9 +3030,66 @@
                                 <textarea class="form-control" id="dischargeDiagnosis" rows="2" placeholder="Final diagnosis..."></textarea>
                             </div>
 
-                            <div class="form-group">
-                                <label for="dischargeMedications">Discharge Medications</label>
-                                <textarea class="form-control" id="dischargeMedications" rows="3" placeholder="Medications to continue at home..."></textarea>
+                            <!-- Discharge Medications Management -->
+                            <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                                <h4 style="color: #15803d; margin-bottom: 15px;">
+                                    <i class="fas fa-pills"></i> Discharge Medications
+                                </h4>
+                                
+                                <!-- Search & Add Medication -->
+                                <div style="background: white; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                                    <h5 style="margin-bottom: 10px;">Add Medication</h5>
+                                    
+                                    <!-- Search from Pharmacy Inventory -->
+                                    <div style="margin-bottom: 15px;">
+                                        <label style="font-weight: 600; margin-bottom: 5px; display: block;">Search Pharmacy Inventory</label>
+                                        <div style="position: relative;">
+                                            <input type="text" class="form-control" id="medicationSearch" placeholder="Type medication name to search..." oninput="searchPharmacyMedications(this.value)" autocomplete="off">
+                                            <div id="medicationSearchResults" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-radius: 4px; max-height: 200px; overflow-y: auto; display: none; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="text-align: center; margin: 10px 0; color: #999; font-size: 14px;">OR</div>
+                                    
+                                    <!-- Manual Entry -->
+                                    <div>
+                                        <label style="font-weight: 600; margin-bottom: 5px; display: block;">Add Manually</label>
+                                        <div style="display: grid; grid-template-columns: 2fr 1fr 1.5fr 1fr auto; gap: 10px;">
+                                            <input type="text" class="form-control" id="manualMedicationName" placeholder="Medication name">
+                                            <input type="text" class="form-control" id="manualMedicationDosage" placeholder="Dosage (e.g., 500mg)">
+                                            <input type="text" class="form-control" id="manualMedicationFrequency" placeholder="Frequency (e.g., 2x daily)">
+                                            <input type="number" class="form-control" id="manualMedicationDuration" placeholder="Days" min="1" value="7">
+                                            <button class="btn btn-success" onclick="addManualDischargeMedication()">
+                                                <i class="fas fa-plus"></i> Add
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Medications Preview List -->
+                                <div id="dischargeMedicationsList" style="max-height: 300px; overflow-y: auto;">
+                                    <div style="text-align: center; padding: 30px; color: #999;">
+                                        <i class="fas fa-prescription" style="font-size: 40px; opacity: 0.3;"></i>
+                                        <p style="margin-top: 10px;">No medications added yet</p>
+                                    </div>
+                                </div>
+
+                                <div style="margin-top: 15px; padding-top: 15px; border-top: 2px dashed #cbd5e1;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                                        <div>
+                                            <span style="font-weight: 600; color: #15803d;">Total Medications:</span>
+                                            <span id="dischargeMedicationsCount" style="font-size: 18px; font-weight: 700; color: #15803d; margin-left: 10px;">0</span>
+                                        </div>
+                                        <div style="display: flex; gap: 10px;">
+                                            <button class="btn btn-primary" onclick="printDischargePrescription()">
+                                                <i class="fas fa-print"></i> Print Prescription
+                                            </button>
+                                            <button class="btn btn-info" onclick="sendMedicationsToPharmacy()">
+                                                <i class="fas fa-paper-plane"></i> Send to Pharmacy
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="form-group">
@@ -3051,12 +3108,55 @@
                                 </select>
                             </div>
 
+                            <!-- Billing Cart Section -->
+                            <div style="background: #f0f9ff; border: 2px solid #3b82f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                                <h4 style="color: #1e40af; margin-bottom: 15px;">
+                                    <i class="fas fa-shopping-cart"></i> Billing Cart - Services & Items
+                                </h4>
+                                
+                                <!-- Add Service/Item -->
+                                <div style="background: white; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                                    <h5 style="margin-bottom: 10px;">Add Service/Item</h5>
+                                    <div style="display: grid; grid-template-columns: 2fr 1fr auto; gap: 10px;">
+                                        <input type="text" class="form-control" id="billingItemName" placeholder="Service/Item name (e.g., X-Ray, IV Drip, Paracetamol)">
+                                        <input type="number" class="form-control" id="billingItemQuantity" placeholder="Quantity" value="1" min="1">
+                                        <button class="btn btn-primary" onclick="addBillingItem()">
+                                            <i class="fas fa-plus"></i> Add
+                                        </button>
+                                    </div>
+                                    <p style="font-size: 12px; color: #666; margin-top: 8px;">
+                                        <i class="fas fa-info-circle"></i> Add all services, procedures, medications, and tests provided during admission. Prices will be added by billing staff.
+                                    </p>
+                                </div>
+
+                                <!-- Billing Items List -->
+                                <div id="billingCartItems" style="max-height: 250px; overflow-y: auto;">
+                                    <div style="text-align: center; padding: 30px; color: #999;">
+                                        <i class="fas fa-cart-plus" style="font-size: 40px; opacity: 0.3;"></i>
+                                        <p style="margin-top: 10px;">No items added yet</p>
+                                    </div>
+                                </div>
+
+                                <div style="margin-top: 15px; padding-top: 15px; border-top: 2px dashed #cbd5e1;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-weight: 600; color: #1e40af;">Total Items:</span>
+                                        <span id="billingCartCount" style="font-size: 18px; font-weight: 700; color: #1e40af;">0</span>
+                                    </div>
+                                    <p style="font-size: 12px; color: #666; margin-top: 5px;">
+                                        Prices to be added by billing department
+                                    </p>
+                                </div>
+                            </div>
+
                             <div style="display: flex; gap: 10px; margin-top: 20px;">
                                 <button class="btn btn-success" onclick="saveDischargeSummary()">
                                     <i class="fas fa-save"></i> Save Summary
                                 </button>
                                 <button class="btn btn-primary" onclick="printDischargeSummary()">
                                     <i class="fas fa-print"></i> Print Discharge Summary
+                                </button>
+                                <button class="btn btn-info" onclick="sendBillingCartToBilling()">
+                                    <i class="fas fa-file-invoice-dollar"></i> Send to Billing
                                 </button>
                                 <button class="btn btn-danger" onclick="dischargePatient()">
                                     <i class="fas fa-sign-out-alt"></i> Discharge Patient

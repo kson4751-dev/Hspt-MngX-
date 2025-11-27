@@ -444,7 +444,7 @@ function createRequestCard(request) {
                 
                 <div class="request-amount-section">
                     <div class="request-amount-label">Amount to Bill</div>
-                    ${(request.department === 'Laboratory' || request.department === 'Imaging') && (request.amount === 0 || !request.amount) ? `
+                    ${(request.department === 'Laboratory' || request.department === 'Imaging' || request.department === 'Ward') && (request.amount === 0 || !request.amount) ? `
                         <div class="request-amount-editable">
                             <input type="number" 
                                    id="amount-${request.id}" 

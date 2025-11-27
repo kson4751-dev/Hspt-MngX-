@@ -731,6 +731,12 @@ window.managePatient = async function(patientId) {
     // Load discharge summary if exists
     loadDischargeSummary(patient);
     
+    // Load billing cart
+    loadBillingCart(patient);
+    
+    // Load discharge medications
+    loadDischargeMedications(patient);
+    
     // Show modal
     document.getElementById('managePatientModal').classList.add('active');
     
@@ -1391,6 +1397,700 @@ export function cleanupWardNursingModule() {
     if (patientsUnsubscribe) {
         patientsUnsubscribe();
         patientsUnsubscribe = null;
+    }
+}
+
+// ==================== BILLING CART ====================
+
+// Billing cart state
+let billingCart = [];
+
+// Add item to billing cart
+window.addBillingItem = function() {
+    const itemName = document.getElementById('billingItemName')?.value.trim();
+    const quantity = parseInt(document.getElementById('billingItemQuantity')?.value) || 1;
+    
+    if (!itemName) {
+        alert('Please enter item/service name');
+        return;
+    }
+    
+    // Add to cart
+    const item = {
+        id: Date.now().toString(),
+        name: itemName,
+        quantity: quantity,
+        addedAt: new Date().toISOString()
+    };
+    
+    billingCart.push(item);
+    
+    // Clear inputs
+    document.getElementById('billingItemName').value = '';
+    document.getElementById('billingItemQuantity').value = '1';
+    
+    // Render cart
+    renderBillingCart();
+    
+    showNotification(`Added: ${itemName} (x${quantity})`, 'success');
+};
+
+// Remove item from cart
+window.removeBillingItem = function(itemId) {
+    billingCart = billingCart.filter(item => item.id !== itemId);
+    renderBillingCart();
+    showNotification('Item removed from cart', 'info');
+};
+
+// Render billing cart
+function renderBillingCart() {
+    const container = document.getElementById('billingCartItems');
+    const countEl = document.getElementById('billingCartCount');
+    
+    if (!container) return;
+    
+    if (billingCart.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 30px; color: #999;">
+                <i class="fas fa-cart-plus" style="font-size: 40px; opacity: 0.3;"></i>
+                <p style="margin-top: 10px;">No items added yet</p>
+            </div>
+        `;
+        if (countEl) countEl.textContent = '0';
+        return;
+    }
+    
+    container.innerHTML = billingCart.map(item => `
+        <div style="background: white; padding: 12px; border-radius: 6px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #3b82f6;">
+            <div style="flex: 1;">
+                <div style="font-weight: 600; color: #333;">${item.name}</div>
+                <div style="font-size: 12px; color: #666;">Quantity: ${item.quantity}</div>
+            </div>
+            <button onclick="removeBillingItem('${item.id}')" style="background: #ef4444; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer;" title="Remove">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    `).join('');
+    
+    if (countEl) countEl.textContent = billingCart.length;
+}
+
+// Send billing cart to billing module
+window.sendBillingCartToBilling = async function() {
+    if (billingCart.length === 0) {
+        alert('Billing cart is empty. Please add services/items first.');
+        return;
+    }
+    
+    const patient = currentManagedPatient;
+    if (!patient) {
+        alert('Patient data not found');
+        return;
+    }
+    
+    // Check if billing request function is available
+    if (typeof window.createBillingRequest !== 'function') {
+        alert('Billing request module not loaded. Please refresh the page.');
+        console.error('window.createBillingRequest is not available');
+        return;
+    }
+    
+    // Build service description
+    const servicesList = billingCart.map(item => 
+        `${item.name} (x${item.quantity})`
+    ).join(', ');
+    
+    const totalItems = billingCart.reduce((sum, item) => sum + item.quantity, 0);
+    
+    if (!confirm(`Send billing cart to billing module?\n\nPatient: ${patient.patientName}\nTotal Items: ${totalItems}\n\nServices:\n${servicesList}\n\nPrices will be added by billing staff.`)) {
+        return;
+    }
+    
+    try {
+        // Create billing request
+        const result = await window.createBillingRequest({
+            patientNumber: patient.patientId,
+            patientName: patient.patientName,
+            patientId: patient.id,
+            department: 'Ward',
+            serviceType: `Ward Services & Medications (${totalItems} items)`,
+            amount: 0, // No amount - to be filled by biller
+            notes: `Discharge billing - Items: ${servicesList}. Prices to be added by billing staff.`,
+            requestedBy: localStorage.getItem('userName') || 'Ward Staff',
+            items: billingCart // Attach full cart details
+        });
+        
+        console.log('✅ Billing cart sent:', result);
+        
+        // Show success notification
+        if (typeof window.showNotification === 'function') {
+            window.showNotification(
+                `Billing cart sent successfully!\nRequest ID: ${result.requestId}`,
+                'success'
+            );
+        } else {
+            alert(`✅ Billing cart sent successfully!\n\nRequest ID: ${result.requestId}\n\nBilling staff will add prices and process payment.`);
+        }
+        
+        // Clear the cart
+        billingCart = [];
+        renderBillingCart();
+        
+    } catch (error) {
+        console.error('❌ Failed to send billing cart:', error);
+        
+        if (typeof window.showNotification === 'function') {
+            window.showNotification('Failed to send to billing. Please try again.', 'error');
+        } else {
+            alert('❌ Failed to send to billing. Please try again.');
+        }
+    }
+};
+
+// Load billing cart when managing patient
+function loadBillingCart(patient) {
+    // Reset cart for new patient
+    billingCart = [];
+    renderBillingCart();
+}
+
+// ==================== DISCHARGE MEDICATIONS ====================
+
+// Discharge medications state
+let dischargeMedications = [];
+let pharmacyInventory = [];
+let pharmacyInventoryLoaded = false;
+let pharmacyInventoryUnsubscribe = null;
+
+// Load pharmacy inventory from Firestore in real-time
+async function loadPharmacyInventory() {
+    if (pharmacyInventoryLoaded) return;
+    
+    try {
+        const { db } = await import('./firebase-config.js');
+        const { collection, query, onSnapshot, orderBy } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        
+        const inventoryRef = collection(db, 'pharmacy_inventory');
+        const q = query(inventoryRef, orderBy('createdAt', 'desc'));
+        
+        // Subscribe to real-time updates
+        pharmacyInventoryUnsubscribe = onSnapshot(q, (snapshot) => {
+            pharmacyInventory = [];
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                if (data.stockQuantity > 0) { // Only available items
+                    pharmacyInventory.push({
+                        id: doc.id,
+                        name: data.drugName || data.name,
+                        quantity: data.stockQuantity || data.quantity,
+                        unit: data.unit || 'units',
+                        sellingPrice: data.sellingPrice,
+                        ...data
+                    });
+                }
+            });
+            pharmacyInventoryLoaded = true;
+            console.log('✅ Pharmacy inventory loaded (real-time):', pharmacyInventory.length, 'items');
+        }, (error) => {
+            console.error('❌ Failed to load pharmacy inventory:', error);
+        });
+    } catch (error) {
+        console.error('❌ Failed to setup pharmacy inventory listener:', error);
+    }
+}
+
+// Search pharmacy medications
+window.searchPharmacyMedications = function(searchTerm) {
+    const resultsDiv = document.getElementById('medicationSearchResults');
+    
+    if (!resultsDiv) return;
+    
+    if (!searchTerm || searchTerm.length < 2) {
+        resultsDiv.style.display = 'none';
+        return;
+    }
+    
+    // Load inventory if not loaded
+    if (!pharmacyInventoryLoaded) {
+        loadPharmacyInventory();
+    }
+    
+    const searchLower = searchTerm.toLowerCase();
+    const matches = pharmacyInventory.filter(item => 
+        item.name && item.name.toLowerCase().includes(searchLower)
+    ).slice(0, 10); // Limit to 10 results
+    
+    if (matches.length === 0) {
+        resultsDiv.innerHTML = `
+            <div style="padding: 10px; color: #666; text-align: center;">
+                No medications found. Try manual entry.
+            </div>
+        `;
+        resultsDiv.style.display = 'block';
+        return;
+    }
+    
+    resultsDiv.innerHTML = matches.map(item => `
+        <div onclick="selectPharmacyMedication('${item.id}', '${item.name.replace(/'/g, "\\'")}')"
+             style="padding: 10px; cursor: pointer; border-bottom: 1px solid #f0f0f0; hover: background: #f9fafb;"
+             onmouseover="this.style.background='#f9fafb'"
+             onmouseout="this.style.background='white'">
+            <div style="font-weight: 600;">${item.name}</div>
+            <div style="font-size: 12px; color: #666;">Stock: ${item.quantity} ${item.unit || 'units'}</div>
+        </div>
+    `).join('');
+    
+    resultsDiv.style.display = 'block';
+};
+
+// Select medication from pharmacy inventory
+window.selectPharmacyMedication = function(medicationId, medicationName) {
+    // Hide search results
+    const resultsDiv = document.getElementById('medicationSearchResults');
+    if (resultsDiv) resultsDiv.style.display = 'none';
+    
+    // Clear search input
+    const searchInput = document.getElementById('medicationSearch');
+    if (searchInput) searchInput.value = '';
+    
+    // Open a prompt for dosage, frequency, and duration
+    const dosage = prompt(`Add dosage for ${medicationName}\n(e.g., 500mg, 10ml, 1 tablet)`);
+    if (!dosage) return;
+    
+    const frequency = prompt(`Add frequency\n(e.g., 3x daily, Every 8 hours, Once daily)`);
+    if (!frequency) return;
+    
+    const duration = prompt('Duration in days:', '7');
+    if (!duration) return;
+    
+    // Add to discharge medications
+    addDischargeMedicationToList({
+        id: Date.now().toString(),
+        name: medicationName,
+        dosage: dosage,
+        frequency: frequency,
+        duration: parseInt(duration) || 7,
+        source: 'pharmacy',
+        pharmacyItemId: medicationId,
+        addedAt: new Date().toISOString()
+    });
+};
+
+// Add manual discharge medication
+window.addManualDischargeMedication = function() {
+    const name = document.getElementById('manualMedicationName')?.value.trim();
+    const dosage = document.getElementById('manualMedicationDosage')?.value.trim();
+    const frequency = document.getElementById('manualMedicationFrequency')?.value.trim();
+    const duration = parseInt(document.getElementById('manualMedicationDuration')?.value) || 7;
+    
+    if (!name || !dosage || !frequency) {
+        alert('Please fill in medication name, dosage, and frequency');
+        return;
+    }
+    
+    // Add to list
+    addDischargeMedicationToList({
+        id: Date.now().toString(),
+        name: name,
+        dosage: dosage,
+        frequency: frequency,
+        duration: duration,
+        source: 'manual',
+        addedAt: new Date().toISOString()
+    });
+    
+    // Clear inputs
+    document.getElementById('manualMedicationName').value = '';
+    document.getElementById('manualMedicationDosage').value = '';
+    document.getElementById('manualMedicationFrequency').value = '';
+    document.getElementById('manualMedicationDuration').value = '7';
+};
+
+// Add medication to discharge list
+function addDischargeMedicationToList(medication) {
+    dischargeMedications.push(medication);
+    renderDischargeMedications();
+    showNotification(`Added: ${medication.name}`, 'success');
+}
+
+// Remove discharge medication
+window.removeDischargeMedication = function(medicationId) {
+    dischargeMedications = dischargeMedications.filter(med => med.id !== medicationId);
+    renderDischargeMedications();
+    showNotification('Medication removed', 'info');
+};
+
+// Render discharge medications list
+function renderDischargeMedications() {
+    const container = document.getElementById('dischargeMedicationsList');
+    const countEl = document.getElementById('dischargeMedicationsCount');
+    
+    if (!container) return;
+    
+    if (dischargeMedications.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 30px; color: #999;">
+                <i class="fas fa-prescription" style="font-size: 40px; opacity: 0.3;"></i>
+                <p style="margin-top: 10px;">No medications added yet</p>
+            </div>
+        `;
+        if (countEl) countEl.textContent = '0';
+        return;
+    }
+    
+    container.innerHTML = dischargeMedications.map((med, index) => `
+        <div style="background: white; padding: 15px; border-radius: 6px; margin-bottom: 10px; border-left: 4px solid #22c55e;">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div style="flex: 1;">
+                    <div style="font-weight: 700; font-size: 16px; color: #15803d; margin-bottom: 5px;">
+                        ${index + 1}. ${med.name}
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; font-size: 13px; color: #666; margin-top: 8px;">
+                        <div>
+                            <i class="fas fa-pills" style="color: #22c55e; margin-right: 5px;"></i>
+                            <strong>Dosage:</strong> ${med.dosage}
+                        </div>
+                        <div>
+                            <i class="fas fa-clock" style="color: #22c55e; margin-right: 5px;"></i>
+                            <strong>Frequency:</strong> ${med.frequency}
+                        </div>
+                        <div>
+                            <i class="fas fa-calendar" style="color: #22c55e; margin-right: 5px;"></i>
+                            <strong>Duration:</strong> ${med.duration} days
+                        </div>
+                    </div>
+                    <div style="margin-top: 5px; font-size: 11px; color: #999;">
+                        <i class="fas fa-${med.source === 'pharmacy' ? 'building' : 'edit'}" style="margin-right: 3px;"></i>
+                        ${med.source === 'pharmacy' ? 'From Pharmacy Inventory' : 'Manual Entry'}
+                    </div>
+                </div>
+                <button onclick="removeDischargeMedication('${med.id}')" 
+                        style="background: #ef4444; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; margin-left: 10px;"
+                        title="Remove">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+    
+    if (countEl) countEl.textContent = dischargeMedications.length;
+}
+
+// Print discharge prescription
+window.printDischargePrescription = function() {
+    if (dischargeMedications.length === 0) {
+        alert('No medications to print. Please add medications first.');
+        return;
+    }
+    
+    const patient = currentManagedPatient;
+    if (!patient) {
+        alert('Patient data not found');
+        return;
+    }
+    
+    const currentDate = new Date().toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+    });
+    
+    const currentTime = new Date().toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    
+    const doctorName = localStorage.getItem('userName') || 'Doctor';
+    
+    // Create compact prescription receipt HTML
+    const prescriptionHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Prescription Receipt - ${patient.patientName}</title>
+            <style>
+                @page { 
+                    margin: 10mm;
+                    size: 80mm auto;
+                }
+                body {
+                    font-family: 'Courier New', monospace;
+                    font-size: 12px;
+                    line-height: 1.4;
+                    color: #000;
+                    max-width: 300px;
+                    margin: 0 auto;
+                    padding: 10px;
+                }
+                .receipt-header {
+                    text-align: center;
+                    border-bottom: 2px dashed #000;
+                    padding-bottom: 8px;
+                    margin-bottom: 10px;
+                }
+                .receipt-header h2 {
+                    margin: 0;
+                    font-size: 16px;
+                    font-weight: bold;
+                }
+                .receipt-header p {
+                    margin: 2px 0;
+                    font-size: 11px;
+                }
+                .rx-symbol {
+                    font-size: 24px;
+                    font-weight: bold;
+                    text-align: center;
+                    margin: 8px 0;
+                }
+                .section {
+                    margin: 10px 0;
+                    font-size: 11px;
+                }
+                .section-title {
+                    font-weight: bold;
+                    border-bottom: 1px solid #000;
+                    margin-bottom: 5px;
+                    padding-bottom: 2px;
+                }
+                .row {
+                    display: flex;
+                    justify-content: space-between;
+                    margin: 3px 0;
+                }
+                .medication {
+                    border: 1px solid #000;
+                    padding: 8px;
+                    margin: 8px 0;
+                    background: #f9f9f9;
+                }
+                .medication .med-name {
+                    font-weight: bold;
+                    font-size: 13px;
+                    margin-bottom: 4px;
+                }
+                .medication .med-detail {
+                    margin: 2px 0;
+                    font-size: 11px;
+                }
+                .instructions {
+                    border-top: 2px dashed #000;
+                    border-bottom: 2px dashed #000;
+                    padding: 8px 0;
+                    margin: 10px 0;
+                    font-size: 10px;
+                }
+                .instructions ul {
+                    margin: 5px 0;
+                    padding-left: 15px;
+                }
+                .instructions li {
+                    margin: 2px 0;
+                }
+                .footer {
+                    margin-top: 15px;
+                    text-align: center;
+                    font-size: 10px;
+                }
+                .signature-section {
+                    margin-top: 15px;
+                    padding-top: 10px;
+                    border-top: 1px dashed #000;
+                }
+                .signature-line {
+                    border-top: 1px solid #000;
+                    width: 120px;
+                    margin: 20px auto 5px auto;
+                }
+                @media print {
+                    body { padding: 0; }
+                    .no-print { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <!-- Receipt Header -->
+            <div class="receipt-header">
+                <h2>PRESCRIPTION RECEIPT</h2>
+                <p>Hospital Management System</p>
+                <p>${currentDate} ${currentTime}</p>
+            </div>
+            
+            <!-- Patient Info -->
+            <div class="section">
+                <div class="section-title">PATIENT INFORMATION</div>
+                <div class="row">
+                    <span>Name:</span>
+                    <span>${patient.patientName}</span>
+                </div>
+                <div class="row">
+                    <span>ID:</span>
+                    <span>${patient.patientId}</span>
+                </div>
+                <div class="row">
+                    <span>Age/Gender:</span>
+                    <span>${patient.age || 'N/A'} / ${patient.gender || 'N/A'}</span>
+                </div>
+                <div class="row">
+                    <span>Bed:</span>
+                    <span>${patient.bedNumber || 'N/A'}</span>
+                </div>
+            </div>
+            
+            <!-- Rx Symbol -->
+            <div class="rx-symbol">℞</div>
+            
+            <!-- Medications -->
+            <div class="section">
+                <div class="section-title">MEDICATIONS (${dischargeMedications.length})</div>
+                ${dischargeMedications.map((med, index) => `
+                    <div class="medication">
+                        <div class="med-name">${index + 1}. ${med.name}</div>
+                        <div class="med-detail">• Dosage: ${med.dosage}</div>
+                        <div class="med-detail">• Frequency: ${med.frequency}</div>
+                        <div class="med-detail">• Duration: ${med.duration} days</div>
+                    </div>
+                `).join('')}
+            </div>
+            
+            <!-- Instructions -->
+            <div class="instructions">
+                <strong>INSTRUCTIONS:</strong>
+                <ul>
+                    <li>Take as prescribed</li>
+                    <li>Complete full course</li>
+                    <li>Store in cool, dry place</li>
+                    <li>Keep away from children</li>
+                </ul>
+            </div>
+            
+            <!-- Signature Section -->
+            <div class="signature-section">
+                <div class="row">
+                    <span>Prescribed By:</span>
+                    <span>${doctorName}</span>
+                </div>
+                <div class="signature-line"></div>
+                <div style="text-align: center; font-size: 10px;">Doctor's Signature</div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="footer">
+                <p>Valid for 30 days from issue date</p>
+                <p style="margin-top: 5px;">------- END OF PRESCRIPTION -------</p>
+                <p style="margin-top: 5px; font-size: 9px;">© ${new Date().getFullYear()} HMS</p>
+            </div>
+            
+            <!-- Print Button -->
+            <div class="no-print" style="text-align: center; margin-top: 20px;">
+                <button onclick="window.print()" style="background: #22c55e; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                    Print Receipt
+                </button>
+                <button onclick="window.close()" style="background: #6b7280; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; margin-left: 10px;">
+                    Close
+                </button>
+            </div>
+        </body>
+        </html>
+    `;
+    
+    // Open in new window and print
+    const printWindow = window.open('', '_blank', 'width=350,height=600');
+    if (printWindow) {
+        printWindow.document.write(prescriptionHTML);
+        printWindow.document.close();
+        printWindow.focus();
+    } else {
+        alert('Please allow pop-ups to print the prescription');
+    }
+};
+
+// Send medications to pharmacy
+window.sendMedicationsToPharmacy = async function() {
+    if (dischargeMedications.length === 0) {
+        alert('No medications to send. Please add medications first.');
+        return;
+    }
+    
+    const patient = currentManagedPatient;
+    if (!patient) {
+        alert('Patient data not found');
+        return;
+    }
+    
+    const medicationsList = dischargeMedications.map((med, index) => 
+        `${index + 1}. ${med.name} - ${med.dosage}, ${med.frequency}, ${med.duration} days`
+    ).join('\n');
+    
+    if (!confirm(`Send discharge medications to pharmacy?\n\nPatient: ${patient.patientName}\nTotal Medications: ${dischargeMedications.length}\n\n${medicationsList}`)) {
+        return;
+    }
+    
+    try {
+        const { db } = await import('./firebase-config.js');
+        const { collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        
+        // Generate prescription number
+        const prescriptionNumber = 'RX-' + Date.now().toString(36).toUpperCase();
+        
+        const prescriptionData = {
+            prescriptionNumber: prescriptionNumber,
+            patientId: patient.patientId,
+            patientName: patient.patientName,
+            patientAge: patient.age || 'N/A',
+            patientGender: patient.gender || 'N/A',
+            patientContact: patient.contact || 'N/A',
+            patientDocId: patient.id,
+            medications: dischargeMedications.map(med => ({
+                drugName: med.name,
+                dosage: med.dosage,
+                frequency: med.frequency,
+                duration: med.duration,
+                instructions: `${med.frequency} for ${med.duration} days`,
+                source: med.source,
+                pharmacyItemId: med.pharmacyItemId || null
+            })),
+            prescribedBy: localStorage.getItem('userName') || 'Ward Doctor',
+            prescribedByRole: 'Ward Doctor',
+            department: 'Ward - Discharge',
+            diagnosis: 'Discharge Prescription',
+            notes: `Discharge medications - ${dischargeMedications.length} items`,
+            status: 'pending',
+            prescribedAt: new Date().toISOString(),
+            createdAt: serverTimestamp()
+        };
+        
+        const prescriptionsRef = collection(db, 'prescriptions');
+        const newPrescription = await addDoc(prescriptionsRef, prescriptionData);
+        
+        console.log('✅ Medications sent to pharmacy queue:', newPrescription.id);
+        console.log('📋 Prescription Number:', prescriptionNumber);
+        
+        showNotification(
+            `Medications sent to pharmacy queue successfully!\n\nPrescription #: ${prescriptionNumber}\n\nThe prescription will appear in the pharmacy POS queue in real-time.`,
+            'success'
+        );
+        
+        // Optionally clear medications after sending
+        // dischargeMedications = [];
+        // renderDischargeMedications();
+        
+    } catch (error) {
+        console.error('❌ Failed to send to pharmacy:', error);
+        alert('Failed to send medications to pharmacy. Please try again.\n\nError: ' + error.message);
+    }
+};
+
+// Load discharge medications when managing patient
+function loadDischargeMedications(patient) {
+    // Reset medications for new patient
+    dischargeMedications = [];
+    renderDischargeMedications();
+    
+    // Load pharmacy inventory if not loaded
+    if (!pharmacyInventoryLoaded) {
+        loadPharmacyInventory();
     }
 }
 
