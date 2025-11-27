@@ -11,7 +11,8 @@ import {
     where,
     orderBy as firestoreOrderBy,
     doc,
-    getDoc
+    getDoc,
+    updateDoc
 } from './firebase-config.js';
 
 // State
@@ -160,6 +161,9 @@ async function loadSalesData() {
         
         console.log(`✓ Loaded ${allSales.length} sales`);
         
+        // Check billing status for sales
+        await checkBillingStatus();
+        
         // Apply initial filter (today by default)
         applyFilters();
         
@@ -174,6 +178,62 @@ async function loadSalesData() {
                 </td>
             </tr>
         `;
+    }
+}
+
+/**
+ * Check billing status for sales that were sent to billing
+ */
+async function checkBillingStatus() {
+    try {
+        // Get sales that were sent to billing but not marked as billed
+        const sentSales = allSales.filter(s => s.billingStatus === 'sent' && !s.billed);
+        
+        if (sentSales.length === 0) return;
+        
+        console.log(`Checking billing status for ${sentSales.length} sales...`);
+        
+        // Check billing collection for these sales
+        const billingRef = collection(db, 'billing');
+        const billingSnapshot = await getDocs(billingRef);
+        
+        const billedSaleIds = new Set();
+        billingSnapshot.forEach(doc => {
+            const billData = doc.data();
+            // Check if this bill is for a pharmacy sale
+            if (billData.department === 'Pharmacy' || billData.notes?.includes('Sale #')) {
+                // Extract sale ID from patient ID or notes
+                const saleId = billData.patientId;
+                if (saleId) {
+                    billedSaleIds.add(saleId);
+                }
+            }
+        });
+        
+        // Update sales that have been billed
+        for (const sale of sentSales) {
+            if (billedSaleIds.has(sale.id)) {
+                try {
+                    const saleRef = doc(db, 'pharmacy_sales', sale.id);
+                    await updateDoc(saleRef, {
+                        billingStatus: 'billed',
+                        billed: true,
+                        billedAt: new Date().toISOString()
+                    });
+                    
+                    // Update local state
+                    sale.billingStatus = 'billed';
+                    sale.billed = true;
+                    
+                    console.log(`✓ Marked sale ${sale.saleNumber} as billed`);
+                } catch (err) {
+                    console.warn(`Failed to update billing status for sale ${sale.id}:`, err);
+                }
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error checking billing status:', error);
     }
 }
 
@@ -364,9 +424,7 @@ function displaySales() {
                         <button class="btn-action print" onclick="window.printSale('${sale.id}')">
                             <i class="fas fa-print"></i> Print
                         </button>
-                        <button class="btn-action billing" onclick="window.sendToBilling('${sale.id}')">
-                            <i class="fas fa-file-invoice"></i> Billing
-                        </button>
+                        ${getBillingButton(sale)}
                     </div>
                 </td>
             </tr>
@@ -375,6 +433,29 @@ function displaySales() {
     
     // Update pagination info
     updatePaginationInfo(startIndex + 1, endIndex, filteredSales.length);
+}
+
+/**
+ * Get billing button based on sale billing status
+ */
+function getBillingButton(sale) {
+    // Check billing status
+    if (sale.billingStatus === 'billed' || sale.billed === true) {
+        return `<button class="btn-action success" disabled>
+            <i class="fas fa-check-circle"></i> Billed
+        </button>`;
+    }
+    
+    if (sale.billingStatus === 'sent') {
+        return `<button class="btn-action warning" disabled>
+            <i class="fas fa-paper-plane"></i> Sent to Billing
+        </button>`;
+    }
+    
+    // Default: can send to billing
+    return `<button class="btn-action billing" onclick="window.sendToBilling('${sale.id}')">
+        <i class="fas fa-file-invoice"></i> Billing
+    </button>`;
 }
 
 /**
@@ -696,6 +777,23 @@ window.sendToBilling = async function(saleId) {
         
         console.log('✅ Billing request created:', result);
         
+        // Update sale document with billing status
+        try {
+            const saleRef = doc(db, 'pharmacy_sales', saleId);
+            await updateDoc(saleRef, {
+                billingStatus: 'sent',
+                billingRequestId: result.requestId,
+                sentToBillingAt: new Date().toISOString(),
+                sentToBillingBy: sale.soldBy || 'Pharmacist'
+            });
+            
+            // Update local state
+            sale.billingStatus = 'sent';
+            sale.billingRequestId = result.requestId;
+        } catch (err) {
+            console.warn('Failed to update sale billing status:', err);
+        }
+        
         // Show success notification
         if (typeof window.showNotification === 'function') {
             window.showNotification(
@@ -706,18 +804,14 @@ window.sendToBilling = async function(saleId) {
             alert(`✅ Sale sent to billing successfully!\n\nRequest ID: ${result.requestId}\n\nBilling staff will be notified immediately.`);
         }
         
-        // Restore button
-        button.disabled = false;
-        button.innerHTML = '<i class="fas fa-check"></i> Sent';
+        // Update button state permanently
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-paper-plane"></i> Sent to Billing';
         button.classList.remove('billing');
         button.classList.add('success');
         
-        // Reset button after 3 seconds
-        setTimeout(() => {
-            button.innerHTML = originalText;
-            button.classList.remove('success');
-            button.classList.add('billing');
-        }, 3000);
+        // Reload to update display
+        displaySales();
         
     } catch (error) {
         console.error('❌ Failed to send to billing:', error);
