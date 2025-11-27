@@ -1188,97 +1188,583 @@ window.printDischargeSummary = function() {
         return;
     }
     
+    // Get discharge summary data
     const summary = {
         dischargeDate: document.getElementById('dischargeDate').value,
         admissionReason: document.getElementById('admissionReason').value,
         hospitalCourse: document.getElementById('hospitalCourse').value,
         dischargeDiagnosis: document.getElementById('dischargeDiagnosis').value,
-        dischargeMedications: document.getElementById('dischargeMedications').value,
         followUpInstructions: document.getElementById('followUpInstructions').value,
         dischargeCondition: document.getElementById('dischargeCondition').value
     };
     
-    const printWindow = window.open('', '', 'height=800,width=900');
+    // Get current date and time
+    const currentDate = new Date().toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+    });
+    
+    const currentTime = new Date().toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    
+    // Get discharge medications list
+    const medicationsList = dischargeMedications.length > 0 
+        ? dischargeMedications.map((med, index) => `
+            <div class="medication-item">
+                <div class="med-number">${index + 1}</div>
+                <div class="med-details">
+                    <div class="med-name">${med.name}</div>
+                    <div class="med-info">
+                        <span><strong>Dosage:</strong> ${med.dosage}</span>
+                        <span><strong>Frequency:</strong> ${med.frequency}</span>
+                        <span><strong>Duration:</strong> ${med.duration} days</span>
+                    </div>
+                </div>
+            </div>
+        `).join('')
+        : '<p class="no-data">No discharge medications prescribed</p>';
+    
+    // Get billing cart items
+    const billingItems = billingCart.length > 0
+        ? billingCart.map((item, index) => `
+            <tr>
+                <td>${index + 1}</td>
+                <td>${item.name}</td>
+                <td>${item.quantity}</td>
+                <td>-</td>
+            </tr>
+        `).join('')
+        : '<tr><td colspan="4" class="no-data">No billing items added</td></tr>';
+    
+    const printWindow = window.open('', '', 'height=900,width=1000');
     printWindow.document.write(`
+        <!DOCTYPE html>
         <html>
         <head>
-            <title>Discharge Summary - ${patient.patientId}</title>
+            <meta charset="UTF-8">
+            <title>Discharge Summary - ${patient.patientName}</title>
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
             <style>
-                body { font-family: Arial, sans-serif; padding: 40px; line-height: 1.6; }
-                .header { text-align: center; border-bottom: 3px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
-                .hospital-name { font-size: 24px; font-weight: bold; color: #2563eb; margin-bottom: 5px; }
-                .document-title { font-size: 20px; font-weight: bold; margin-top: 10px; }
-                .section { margin-bottom: 25px; }
-                .section-title { font-weight: bold; font-size: 16px; color: #2563eb; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 10px; }
-                .info-row { display: flex; margin-bottom: 8px; }
-                .info-label { font-weight: bold; min-width: 180px; color: #555; }
-                .info-value { flex: 1; color: #333; }
-                .content-block { background: #f9fafb; padding: 15px; border-radius: 5px; margin: 10px 0; white-space: pre-wrap; }
-                .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #e5e7eb; }
-                .signature-line { margin-top: 40px; border-top: 1px solid #333; width: 300px; padding-top: 5px; }
-                @media print { body { padding: 20px; } }
+                * {
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }
+                
+                body {
+                    font-family: 'Montserrat', sans-serif;
+                    line-height: 1.6;
+                    color: #1f2937;
+                    padding: 40px;
+                    background: #ffffff;
+                }
+                
+                .document-container {
+                    max-width: 900px;
+                    margin: 0 auto;
+                    background: white;
+                }
+                
+                /* Header Section */
+                .header {
+                    background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+                    color: white;
+                    padding: 30px;
+                    border-radius: 12px 12px 0 0;
+                    margin-bottom: 30px;
+                }
+                
+                .hospital-name {
+                    font-size: 28px;
+                    font-weight: 700;
+                    margin-bottom: 8px;
+                    letter-spacing: -0.5px;
+                }
+                
+                .document-title {
+                    font-size: 20px;
+                    font-weight: 500;
+                    opacity: 0.95;
+                    margin-bottom: 15px;
+                }
+                
+                .header-meta {
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 13px;
+                    opacity: 0.9;
+                    padding-top: 15px;
+                    border-top: 1px solid rgba(255,255,255,0.3);
+                }
+                
+                /* Patient Info Card */
+                .patient-card {
+                    background: #f8fafc;
+                    border: 2px solid #e2e8f0;
+                    border-radius: 10px;
+                    padding: 25px;
+                    margin-bottom: 30px;
+                }
+                
+                .patient-card-title {
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: #2563eb;
+                    margin-bottom: 15px;
+                    display: flex;
+                    align-items: center;
+                }
+                
+                .patient-card-title::before {
+                    content: "▸";
+                    margin-right: 8px;
+                    font-size: 20px;
+                }
+                
+                .patient-info-grid {
+                    display: grid;
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 12px;
+                }
+                
+                .info-item {
+                    display: flex;
+                    padding: 10px;
+                    background: white;
+                    border-radius: 6px;
+                }
+                
+                .info-label {
+                    font-weight: 600;
+                    color: #64748b;
+                    min-width: 140px;
+                    font-size: 13px;
+                }
+                
+                .info-value {
+                    color: #1f2937;
+                    font-weight: 500;
+                    font-size: 13px;
+                }
+                
+                /* Admission Details */
+                .admission-details {
+                    display: grid;
+                    grid-template-columns: repeat(3, 1fr);
+                    gap: 15px;
+                    margin-bottom: 30px;
+                }
+                
+                .detail-box {
+                    background: white;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 8px;
+                    padding: 15px;
+                    text-align: center;
+                }
+                
+                .detail-label {
+                    font-size: 12px;
+                    color: #64748b;
+                    font-weight: 500;
+                    margin-bottom: 5px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                
+                .detail-value {
+                    font-size: 16px;
+                    color: #1f2937;
+                    font-weight: 600;
+                }
+                
+                /* Section Styles */
+                .section {
+                    margin-bottom: 25px;
+                    page-break-inside: avoid;
+                }
+                
+                .section-title {
+                    font-size: 15px;
+                    font-weight: 700;
+                    color: #1e40af;
+                    margin-bottom: 12px;
+                    padding-bottom: 8px;
+                    border-bottom: 2px solid #dbeafe;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                
+                .section-content {
+                    background: #f8fafc;
+                    padding: 18px;
+                    border-radius: 8px;
+                    border-left: 4px solid #3b82f6;
+                    font-size: 14px;
+                    line-height: 1.8;
+                    white-space: pre-wrap;
+                    color: #334155;
+                }
+                
+                .no-data {
+                    color: #94a3b8;
+                    font-style: italic;
+                    text-align: center;
+                    padding: 20px;
+                }
+                
+                /* Medications List */
+                .medications-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                }
+                
+                .medication-item {
+                    display: flex;
+                    background: white;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 8px;
+                    padding: 15px;
+                    align-items: start;
+                    gap: 15px;
+                }
+                
+                .med-number {
+                    background: #2563eb;
+                    color: white;
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: 700;
+                    font-size: 14px;
+                    flex-shrink: 0;
+                }
+                
+                .med-details {
+                    flex: 1;
+                }
+                
+                .med-name {
+                    font-weight: 600;
+                    font-size: 15px;
+                    color: #1f2937;
+                    margin-bottom: 6px;
+                }
+                
+                .med-info {
+                    display: flex;
+                    gap: 15px;
+                    font-size: 13px;
+                    color: #64748b;
+                }
+                
+                .med-info span {
+                    white-space: nowrap;
+                }
+                
+                /* Billing Table */
+                .billing-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    background: white;
+                    border-radius: 8px;
+                    overflow: hidden;
+                }
+                
+                .billing-table thead {
+                    background: #f1f5f9;
+                }
+                
+                .billing-table th {
+                    padding: 12px;
+                    text-align: left;
+                    font-weight: 600;
+                    font-size: 13px;
+                    color: #475569;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                
+                .billing-table td {
+                    padding: 12px;
+                    border-top: 1px solid #e2e8f0;
+                    font-size: 13px;
+                    color: #334155;
+                }
+                
+                .billing-table tbody tr:hover {
+                    background: #f8fafc;
+                }
+                
+                /* Discharge Condition Badge */
+                .condition-badge {
+                    display: inline-block;
+                    padding: 8px 16px;
+                    border-radius: 20px;
+                    font-weight: 600;
+                    font-size: 14px;
+                    text-transform: capitalize;
+                }
+                
+                .condition-improved {
+                    background: #d1fae5;
+                    color: #065f46;
+                }
+                
+                .condition-stable {
+                    background: #dbeafe;
+                    color: #1e40af;
+                }
+                
+                .condition-unchanged {
+                    background: #fef3c7;
+                    color: #92400e;
+                }
+                
+                .condition-worsened {
+                    background: #fee2e2;
+                    color: #991b1b;
+                }
+                
+                /* Footer */
+                .footer {
+                    margin-top: 50px;
+                    padding-top: 30px;
+                    border-top: 2px solid #e2e8f0;
+                }
+                
+                .signature-section {
+                    display: flex;
+                    justify-content: space-between;
+                    margin-top: 40px;
+                }
+                
+                .signature-box {
+                    text-align: center;
+                }
+                
+                .signature-line {
+                    width: 250px;
+                    border-top: 2px solid #1f2937;
+                    margin-bottom: 8px;
+                }
+                
+                .signature-label {
+                    font-size: 12px;
+                    color: #64748b;
+                    font-weight: 500;
+                }
+                
+                .signature-name {
+                    font-size: 14px;
+                    color: #1f2937;
+                    font-weight: 600;
+                    margin-top: 4px;
+                }
+                
+                .footer-note {
+                    text-align: center;
+                    margin-top: 30px;
+                    padding: 15px;
+                    background: #f8fafc;
+                    border-radius: 8px;
+                    font-size: 11px;
+                    color: #64748b;
+                }
+                
+                /* Print Styles */
+                @media print {
+                    body {
+                        padding: 20px;
+                    }
+                    
+                    .no-print {
+                        display: none;
+                    }
+                    
+                    .section {
+                        page-break-inside: avoid;
+                    }
+                }
+                
+                /* Print Button */
+                .print-button {
+                    position: fixed;
+                    bottom: 30px;
+                    right: 30px;
+                    background: #2563eb;
+                    color: white;
+                    border: none;
+                    padding: 15px 30px;
+                    border-radius: 8px;
+                    font-family: 'Montserrat', sans-serif;
+                    font-size: 14px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    transition: all 0.3s;
+                }
+                
+                .print-button:hover {
+                    background: #1e40af;
+                    box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+                }
             </style>
         </head>
         <body>
-            <div class="header">
-                <div class="hospital-name">Hospital Management System</div>
-                <div class="document-title">DISCHARGE SUMMARY</div>
-                <p style="margin-top: 10px; color: #666;">Printed on: ${new Date().toLocaleString()}</p>
-            </div>
-            
-            <div class="section">
-                <div class="section-title">Patient Information</div>
-                <div class="info-row"><div class="info-label">Patient ID:</div><div class="info-value">${patient.patientId}</div></div>
-                <div class="info-row"><div class="info-label">Patient Name:</div><div class="info-value">${patient.patientName}</div></div>
-                <div class="info-row"><div class="info-label">Age:</div><div class="info-value">${patient.age} years</div></div>
-                <div class="info-row"><div class="info-label">Gender:</div><div class="info-value">${patient.gender}</div></div>
-                <div class="info-row"><div class="info-label">Bed Number:</div><div class="info-value">${patient.bedNumber}</div></div>
-            </div>
-            
-            <div class="section">
-                <div class="section-title">Admission & Discharge Details</div>
-                <div class="info-row"><div class="info-label">Admission Date:</div><div class="info-value">${patient.admissionDate || 'N/A'}</div></div>
-                <div class="info-row"><div class="info-label">Discharge Date:</div><div class="info-value">${summary.dischargeDate ? new Date(summary.dischargeDate).toLocaleString() : 'N/A'}</div></div>
-                <div class="info-row"><div class="info-label">Discharge Condition:</div><div class="info-value"><strong>${summary.dischargeCondition}</strong></div></div>
-            </div>
-            
-            <div class="section">
-                <div class="section-title">Reason for Admission</div>
-                <div class="content-block">${summary.admissionReason || 'Not specified'}</div>
-            </div>
-            
-            <div class="section">
-                <div class="section-title">Hospital Course</div>
-                <div class="content-block">${summary.hospitalCourse || 'Not specified'}</div>
-            </div>
-            
-            <div class="section">
-                <div class="section-title">Discharge Diagnosis</div>
-                <div class="content-block">${summary.dischargeDiagnosis || 'Not specified'}</div>
-            </div>
-            
-            <div class="section">
-                <div class="section-title">Discharge Medications</div>
-                <div class="content-block">${summary.dischargeMedications || 'None'}</div>
-            </div>
-            
-            <div class="section">
-                <div class="section-title">Follow-up Instructions</div>
-                <div class="content-block">${summary.followUpInstructions || 'Not specified'}</div>
-            </div>
-            
-            <div class="footer">
-                <div class="signature-line">
-                    <div>Attending Physician Signature</div>
+            <div class="document-container">
+                <!-- Header -->
+                <div class="header">
+                    <div class="hospital-name">🏥 Hospital Management System</div>
+                    <div class="document-title">DISCHARGE SUMMARY</div>
+                    <div class="header-meta">
+                        <span>Document ID: DS-${patient.patientId}-${Date.now().toString(36).toUpperCase()}</span>
+                        <span>Generated: ${currentDate} at ${currentTime}</span>
+                    </div>
                 </div>
-                <p style="margin-top: 30px; color: #666; font-size: 12px;">This is a computer-generated document.</p>
+                
+                <!-- Patient Information Card -->
+                <div class="patient-card">
+                    <div class="patient-card-title">Patient Information</div>
+                    <div class="patient-info-grid">
+                        <div class="info-item">
+                            <div class="info-label">Patient ID:</div>
+                            <div class="info-value">${patient.patientId}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Full Name:</div>
+                            <div class="info-value">${patient.patientName}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Age:</div>
+                            <div class="info-value">${patient.age || 'N/A'} years</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Gender:</div>
+                            <div class="info-value">${patient.gender || 'N/A'}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Ward/Bed:</div>
+                            <div class="info-value">${patient.bedNumber || 'N/A'}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Contact:</div>
+                            <div class="info-value">${patient.contact || 'N/A'}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Admission & Discharge Details -->
+                <div class="admission-details">
+                    <div class="detail-box">
+                        <div class="detail-label">Admission Date</div>
+                        <div class="detail-value">${patient.admissionDate ? new Date(patient.admissionDate).toLocaleDateString('en-GB') : 'N/A'}</div>
+                    </div>
+                    <div class="detail-box">
+                        <div class="detail-label">Discharge Date</div>
+                        <div class="detail-value">${summary.dischargeDate ? new Date(summary.dischargeDate).toLocaleDateString('en-GB') : 'N/A'}</div>
+                    </div>
+                    <div class="detail-box">
+                        <div class="detail-label">Discharge Condition</div>
+                        <div class="detail-value">
+                            <span class="condition-badge condition-${summary.dischargeCondition || 'stable'}">
+                                ${summary.dischargeCondition || 'N/A'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Reason for Admission -->
+                <div class="section">
+                    <div class="section-title">Reason for Admission</div>
+                    <div class="section-content">${summary.admissionReason || 'Not specified'}</div>
+                </div>
+                
+                <!-- Hospital Course -->
+                <div class="section">
+                    <div class="section-title">Hospital Course</div>
+                    <div class="section-content">${summary.hospitalCourse || 'Not specified'}</div>
+                </div>
+                
+                <!-- Discharge Diagnosis -->
+                <div class="section">
+                    <div class="section-title">Discharge Diagnosis</div>
+                    <div class="section-content">${summary.dischargeDiagnosis || 'Not specified'}</div>
+                </div>
+                
+                <!-- Discharge Medications -->
+                <div class="section">
+                    <div class="section-title">Discharge Medications (${dischargeMedications.length})</div>
+                    <div class="medications-list">
+                        ${medicationsList}
+                    </div>
+                </div>
+                
+                <!-- Follow-up Instructions -->
+                <div class="section">
+                    <div class="section-title">Follow-up Instructions</div>
+                    <div class="section-content">${summary.followUpInstructions || 'Not specified'}</div>
+                </div>
+                
+                <!-- Billing Items -->
+                <div class="section">
+                    <div class="section-title">Services & Items Provided (${billingCart.length})</div>
+                    <table class="billing-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">#</th>
+                                <th>Service/Item</th>
+                                <th style="width: 100px;">Quantity</th>
+                                <th style="width: 120px;">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${billingItems}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Footer with Signatures -->
+                <div class="footer">
+                    <div class="signature-section">
+                        <div class="signature-box">
+                            <div class="signature-line"></div>
+                            <div class="signature-label">Attending Physician</div>
+                            <div class="signature-name">${localStorage.getItem('userName') || 'Dr. _______________'}</div>
+                        </div>
+                        <div class="signature-box">
+                            <div class="signature-line"></div>
+                            <div class="signature-label">Ward Nurse</div>
+                            <div class="signature-name">_______________</div>
+                        </div>
+                    </div>
+                    
+                    <div class="footer-note">
+                        <p><strong>Important:</strong> This is an official medical document. Please keep it for your records and future medical consultations.</p>
+                        <p style="margin-top: 8px;">© ${new Date().getFullYear()} Hospital Management System • All Rights Reserved</p>
+                    </div>
+                </div>
             </div>
+            
+            <!-- Print Button -->
+            <button class="print-button no-print" onclick="window.print()">
+                🖨️ Print Document
+            </button>
         </body>
         </html>
     `);
+    
     printWindow.document.close();
     printWindow.focus();
-    setTimeout(() => printWindow.print(), 250);
 };
 
 window.dischargePatient = async function() {
