@@ -34,6 +34,24 @@
             display: block !important;
         }
 
+        /* User Card Styles */
+        .user-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+        }
+        .user-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
+            border-color: #d1d5db !important;
+        }
+
+        /* Delete User Modal Animation */
+        #deleteUserModal.show {
+            opacity: 1 !important;
+        }
+        #deleteUserModal.show .modal-content {
+            transform: scale(1) !important;
+        }
+
         /* Analytics & Charts Styles */
         .analytics-tab-content {
             display: none;
@@ -6835,33 +6853,23 @@
                 <!-- User Management Tab -->
                 <div class="admin-tab-content active" id="users-tab">
                     <div class="content-section">
-                        <div class="section-header">
-                            <h2>User Management</h2>
-                            <button class="btn btn-primary" id="createUserBtn">
-                                <i class="fas fa-user-plus"></i> Create New User
+                        <div class="section-header" style="margin-bottom: 24px;">
+                            <div>
+                                <h2 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 600;">User Management</h2>
+                                <p style="margin: 0; color: #6b7280; font-size: 14px;">Manage user accounts, roles, and permissions</p>
+                            </div>
+                            <button class="btn btn-primary" id="createUserBtn" style="border-radius: 6px; padding: 10px 20px;">
+                                <i class="fas fa-user-plus"></i> Create User
                             </button>
                         </div>
 
-                        <!-- Users List -->
-                        <div class="users-table-container">
-                            <table class="data-table" id="usersTable">
-                                <thead>
-                                    <tr>
-                                        <th>Name</th>
-                                        <th>Email</th>
-                                        <th>Role</th>
-                                        <th>Module Access</th>
-                                        <th>Status</th>
-                                        <th>Created</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="usersTableBody">
-                                    <tr>
-                                        <td colspan="7" class="text-center">Loading users...</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        <!-- Users Grid -->
+                        <div id="usersGridContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px;">
+                            <!-- Loading State -->
+                            <div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: #6b7280;">
+                                <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 16px;"></i>
+                                <p style="font-size: 15px;">Loading users...</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -7202,9 +7210,25 @@
                                 </div>
                                 
                                 <div class="form-group">
+                                    <label for="userGeneratedId">User ID</label>
+                                    <input type="text" class="form-control" id="userGeneratedId" readonly 
+                                           placeholder="Auto-generated on save" 
+                                           style="background: #f3f4f6; cursor: not-allowed; font-family: monospace; font-weight: 600; color: #6b7280;">
+                                    <small class="form-text" style="color: #6b7280;">System will generate ID based on name and role</small>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
                                     <label for="userEmail">Email Address *</label>
                                     <input type="email" class="form-control" id="userEmail" required 
                                            placeholder="user@rxflow.com">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="userPhone">Phone Number</label>
+                                    <input type="tel" class="form-control" id="userPhone" 
+                                           placeholder="+1234567890">
                                 </div>
                             </div>
 
@@ -7216,14 +7240,6 @@
                                     <small class="form-text">Leave blank when editing to keep current password</small>
                                 </div>
                                 
-                                <div class="form-group">
-                                    <label for="userPhone">Phone Number</label>
-                                    <input type="tel" class="form-control" id="userPhone" 
-                                           placeholder="+1234567890">
-                                </div>
-                            </div>
-
-                            <div class="form-row">
                                 <div class="form-group">
                                     <label for="userRole">Primary Role *</label>
                                     <select class="form-control" id="userRole" required>
@@ -7238,19 +7254,21 @@
                                         <option value="inventory_manager">Inventory Manager</option>
                                     </select>
                                 </div>
-                                
+                            </div>
+
+                            <div class="form-row">
                                 <div class="form-group">
                                     <label for="userDepartment">Department</label>
                                     <input type="text" class="form-control" id="userDepartment" 
                                            placeholder="e.g., Emergency, Pharmacy">
                                 </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label>
-                                    <input type="checkbox" id="userActive" checked> 
-                                    <span>Active User</span>
-                                </label>
+                                
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="userActive" checked> 
+                                        <span>Active User</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
 
@@ -7422,6 +7440,102 @@
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete User Confirmation Modal -->
+        <div class="modal" id="deleteUserModal" style="display: none; opacity: 0; transition: opacity 0.3s ease;">
+            <div class="modal-overlay" onclick="closeDeleteUserModal()"></div>
+            <div class="modal-content" style="max-width: 480px; border-radius: 0; border: 2px solid #dc2626; transform: scale(0.9); transition: transform 0.3s ease;">
+                <div class="modal-header" style="background: #dc2626; color: white; padding: 20px; border-radius: 0;">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <i class="fas fa-exclamation-triangle" style="font-size: 22px;"></i>
+                            <div>
+                                <h2 class="modal-title" style="margin: 0; font-size: 18px; font-weight: 600;">Delete User Account</h2>
+                                <p style="margin: 4px 0 0 0; opacity: 0.9; font-size: 12px;">This action cannot be undone</p>
+                            </div>
+                        </div>
+                        <button class="modal-close" onclick="closeDeleteUserModal()" style="color: white; background: transparent; border: none; cursor: pointer; font-size: 20px; padding: 0;">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="modal-body" style="padding: 24px;">
+                    <!-- User Info Card -->
+                    <div style="background: #fee; border-left: 4px solid #dc2626; padding: 16px; margin-bottom: 20px;">
+                        <div style="display: grid; gap: 10px;">
+                            <div>
+                                <div style="color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Name</div>
+                                <div id="deleteUserName" style="color: #1a1a1a; font-weight: 600; font-size: 15px;">-</div>
+                            </div>
+                            <div>
+                                <div style="color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Email</div>
+                                <div id="deleteUserEmail" style="color: #1a1a1a; font-size: 14px;">-</div>
+                            </div>
+                            <div style="display: flex; gap: 20px;">
+                                <div style="flex: 1;">
+                                    <div style="color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Role</div>
+                                    <div id="deleteUserRole" style="color: #1a1a1a; font-size: 14px;">-</div>
+                                </div>
+                                <div style="flex: 1;">
+                                    <div style="color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">User ID</div>
+                                    <div id="deleteUserUid" style="color: #666; font-family: monospace; font-size: 10px; word-break: break-all;">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Warning Section -->
+                    <div style="background: #fffaeb; border-left: 4px solid #f59e0b; padding: 16px; margin-bottom: 20px;">
+                        <div style="color: #92400e; font-size: 12px; font-weight: 600; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">⚠ Will be permanently deleted:</div>
+                        <ul style="margin: 0; padding-left: 20px; color: #78350f; font-size: 13px; line-height: 1.8;">
+                            <li>User account and profile data</li>
+                            <li>All active sessions</li>
+                            <li>Activity logs and audit trail</li>
+                            <li>Role and permission settings</li>
+                            <li>Related user references</li>
+                        </ul>
+                    </div>
+
+                    <!-- Confirmation Input -->
+                    <div style="margin-bottom: 24px;">
+                        <label for="deleteUserConfirmInput" style="display: block; color: #1a1a1a; font-size: 13px; font-weight: 500; margin-bottom: 8px;">
+                            Type <code style="background: #f3f4f6; padding: 2px 8px; color: #dc2626; font-weight: 700; font-size: 12px;">DELETE</code> to confirm
+                        </label>
+                        <input 
+                            type="text" 
+                            id="deleteUserConfirmInput" 
+                            class="form-control" 
+                            placeholder="Type DELETE" 
+                            style="border: 2px solid #d1d5db; border-radius: 0; padding: 11px; font-size: 14px; width: 100%; box-sizing: border-box; text-transform: uppercase;"
+                            autocomplete="off"
+                        >
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div style="display: flex; gap: 10px;">
+                        <button 
+                            type="button" 
+                            onclick="closeDeleteUserModal()" 
+                            class="btn btn-secondary" 
+                            style="flex: 1; padding: 11px 20px; font-size: 14px; font-weight: 500; border-radius: 0; background: #6b7280; border: none; color: white;"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            type="button" 
+                            id="confirmDeleteUserBtn" 
+                            onclick="confirmDeleteUser()" 
+                            class="btn btn-danger" 
+                            style="flex: 1; padding: 11px 20px; font-size: 14px; font-weight: 500; border-radius: 0; background: #dc2626; border: none;" 
+                            disabled
+                        >
+                            Delete Permanently
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

@@ -52,6 +52,8 @@ function setupUserModal() {
     const createUserBtn = document.getElementById('createUserBtn');
     const userForm = document.getElementById('userForm');
     const userRole = document.getElementById('userRole');
+    const userDisplayName = document.getElementById('userDisplayName');
+    const userGeneratedId = document.getElementById('userGeneratedId');
 
     if (createUserBtn) {
         createUserBtn.addEventListener('click', openCreateUserModal);
@@ -65,6 +67,22 @@ function setupUserModal() {
     if (userRole) {
         userRole.addEventListener('change', (e) => {
             autoSelectPermissions(e.target.value);
+            // Update User ID preview when role changes
+            if (userDisplayName && userDisplayName.value && userGeneratedId) {
+                userGeneratedId.value = generateUserId(userDisplayName.value, e.target.value);
+            }
+        });
+    }
+    
+    // Update User ID preview when name changes
+    if (userDisplayName && userGeneratedId) {
+        userDisplayName.addEventListener('input', (e) => {
+            const role = userRole ? userRole.value : '';
+            if (e.target.value && role) {
+                userGeneratedId.value = generateUserId(e.target.value, role);
+            } else {
+                userGeneratedId.value = '';
+            }
         });
     }
 }
@@ -83,6 +101,13 @@ function openCreateUserModal() {
     document.getElementById('editUserId').value = '';
     document.getElementById('userPassword').required = true;
     document.getElementById('userActive').checked = true;
+    
+    // Clear User ID field (will auto-generate on save)
+    const userIdField = document.getElementById('userGeneratedId');
+    if (userIdField) {
+        userIdField.value = '';
+        userIdField.placeholder = 'Auto-generated on save';
+    }
     
     clearAllPermissions();
     modal.style.display = 'flex';
@@ -185,6 +210,9 @@ async function handleUserFormSubmit(e) {
                 throw new Error('Password must be at least 6 characters');
             }
 
+            // Generate User ID
+            const userId = generateUserId(displayName, role);
+
             const newUserId = await createNewUser({
                 displayName,
                 email,
@@ -193,13 +221,14 @@ async function handleUserFormSubmit(e) {
                 role,
                 department,
                 active,
-                permissions: selectedPermissions
+                permissions: selectedPermissions,
+                userId
             });
 
             // Log activity
-            await logActivity('user', 'New user created', auth.currentUser?.uid, `Created user: ${displayName} (${email}) with role: ${role}`);
+            await logActivity('user', 'New user created', auth.currentUser?.uid, `Created user: ${displayName} (${email}) with ID: ${userId} and role: ${role}`);
 
-            showNotification('User created successfully', 'success');
+            showNotification(`User created successfully with ID: ${userId}`, 'success');
         }
 
         closeUserModal();
@@ -241,10 +270,11 @@ async function createNewUser(userData) {
 
         const uid = userCredential.user.uid;
 
-        // Create user document in Firestore
+        // Create user document in Firestore with generated User ID
         await setDoc(doc(db, 'users', uid), {
             email: userData.email,
             displayName: userData.displayName,
+            userId: userData.userId,
             phone: userData.phone || '',
             role: userData.role,
             department: userData.department || '',
@@ -274,11 +304,11 @@ async function updateUser(uid, userData) {
 
 // Load all users with real-time updates
 async function loadUsers() {
-    const tbody = document.getElementById('usersTableBody');
+    const container = document.getElementById('usersGridContainer');
     
-    if (!tbody) return;
+    if (!container) return;
 
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center">Loading users...</td></tr>';
+    container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: #6b7280;"><i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 16px;"></i><p style="font-size: 15px;">Loading users...</p></div>';
 
     try {
         // Unsubscribe from previous listener
@@ -286,75 +316,182 @@ async function loadUsers() {
             usersUnsubscribe();
         }
 
-        const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+        // Limit initial load to 100 users for faster performance
+        const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(100));
         
         // Set up real-time listener
         usersUnsubscribe = onSnapshot(usersQuery, (snapshot) => {
             if (snapshot.empty) {
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center">No users found</td></tr>';
+                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: #6b7280;"><i class="fas fa-users" style="font-size: 48px; opacity: 0.3; margin-bottom: 16px;"></i><p style="font-size: 15px; font-weight: 500;">No users found</p><small>Create a new user to get started</small></div>';
                 return;
             }
 
-            tbody.innerHTML = '';
-
+            // Use DocumentFragment for batch DOM update
+            const fragment = document.createDocumentFragment();
+            const tempDiv = document.createElement('div');
+            
             snapshot.forEach(doc => {
                 const user = doc.data();
-                const row = createUserRow(doc.id, user);
-                tbody.innerHTML += row;
+                const cardHTML = createUserCard(doc.id, user);
+                tempDiv.innerHTML = cardHTML;
+                const card = tempDiv.firstElementChild;
+                fragment.appendChild(card);
             });
+            
+            container.innerHTML = '';
+            container.appendChild(fragment);
         }, (error) => {
             console.error('Error loading users:', error);
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-error">Error loading users</td></tr>';
+            container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: #ef4444;"><i class="fas fa-exclamation-circle" style="font-size: 32px; margin-bottom: 16px;"></i><p style="font-size: 15px;">Error loading users</p></div>';
         });
 
     } catch (error) {
         console.error('Error setting up users listener:', error);
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-error">Error loading users</td></tr>';
+        container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: #ef4444;"><i class="fas fa-exclamation-circle" style="font-size: 32px; margin-bottom: 16px;"></i><p style="font-size: 15px;">Error loading users</p></div>';
     }
 }
 
-// Create user table row
-function createUserRow(uid, user) {
-    const statusBadge = user.active 
-        ? '<span class="badge badge-success">Active</span>' 
-        : '<span class="badge badge-danger">Inactive</span>';
+// Create user card
+function createUserCard(uid, user) {
+    const statusColor = user.active ? '#10b981' : '#ef4444';
+    const statusText = user.active ? 'Active' : 'Inactive';
+    const statusIcon = user.active ? 'fa-check-circle' : 'fa-times-circle';
     
     const roleDisplay = getRoleDisplayName(user.role);
     const moduleCount = user.permissions ? user.permissions.length : 0;
-    const moduleText = `${moduleCount} module${moduleCount !== 1 ? 's' : ''}`;
     
     const createdDate = user.createdAt 
-        ? new Date(user.createdAt.seconds * 1000).toLocaleDateString() 
+        ? new Date(user.createdAt.seconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) 
         : '-';
 
+    // Get initials for avatar
+    const initials = user.displayName 
+        ? user.displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+        : 'U';
+
+    // Role colors
+    const roleColors = {
+        'admin': '#8b5cf6',
+        'doctor': '#3b82f6',
+        'nurse': '#10b981',
+        'receptionist': '#f59e0b',
+        'pharmacist': '#ec4899',
+        'lab_technician': '#06b6d4',
+        'billing': '#f97316',
+        'inventory_manager': '#84cc16'
+    };
+    const roleColor = roleColors[user.role] || '#6b7280';
+
     return `
-        <tr>
-            <td>
-                <div class="user-info">
-                    <i class="fas fa-user-circle" style="font-size: 24px; color: #667eea; margin-right: 10px;"></i>
-                    <div>
-                        <strong>${user.displayName || 'N/A'}</strong>
-                        ${user.department ? `<br><small>${user.department}</small>` : ''}
+        <div class="user-card" style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; transition: all 0.2s; position: relative; overflow: hidden;">
+            <!-- Status Indicator -->
+            <div style="position: absolute; top: 0; right: 0; width: 100%; height: 3px; background: ${statusColor};"></div>
+            
+            <!-- Card Header -->
+            <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 16px;">
+                <!-- Avatar -->
+                <div style="width: 56px; height: 56px; border-radius: 12px; background: ${roleColor}; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; flex-shrink: 0;">
+                    ${initials}
+                </div>
+                
+                <!-- User Info -->
+                <div style="flex: 1; min-width: 0;">
+                    <h3 style="margin: 0 0 4px 0; font-size: 16px; font-weight: 600; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        ${user.displayName || 'N/A'}
+                    </h3>
+                    <p style="margin: 0 0 4px 0; font-size: 13px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        <i class="fas fa-envelope" style="font-size: 11px; margin-right: 4px;"></i>${user.email}
+                    </p>
+                    ${user.userId ? `<p style="margin: 0 0 6px 0; font-size: 12px; color: #6b7280; font-family: monospace; font-weight: 600;">
+                        <i class="fas fa-id-card" style="font-size: 11px; margin-right: 4px;"></i>${user.userId}
+                    </p>` : ''}
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: ${statusColor}; font-weight: 500;">
+                            <i class="fas ${statusIcon}"></i>${statusText}
+                        </span>
                     </div>
                 </div>
-            </td>
-            <td>${user.email}</td>
-            <td><span class="badge badge-primary">${roleDisplay}</span></td>
-            <td><small>${moduleText}</small></td>
-            <td>${statusBadge}</td>
-            <td>${createdDate}</td>
-            <td>
-                <div class="action-buttons">
-                    <button class="btn-icon btn-edit" onclick="editUser('${uid}')" title="Edit">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn-icon btn-delete" onclick="deleteUser('${uid}', '${user.email}')" title="Delete">
-                        <i class="fas fa-trash"></i>
-                    </button>
+            </div>
+            
+            <!-- Card Body -->
+            <div style="display: grid; gap: 12px; margin-bottom: 16px; padding: 14px; background: #f9fafb; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Role</span>
+                    <span style="display: inline-block; padding: 4px 12px; background: ${roleColor}; color: white; border-radius: 6px; font-size: 12px; font-weight: 500;">
+                        ${roleDisplay}
+                    </span>
                 </div>
-            </td>
-        </tr>
+                ${user.department ? `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Department</span>
+                    <span style="font-size: 13px; color: #111827; font-weight: 500;">${user.department}</span>
+                </div>
+                ` : ''}
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Module Access</span>
+                    <span style="font-size: 13px; color: #111827; font-weight: 500;">${moduleCount} modules</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Created</span>
+                    <span style="font-size: 12px; color: #6b7280;">${createdDate}</span>
+                </div>
+            </div>
+            
+            <!-- Card Footer -->
+            <div style="display: flex; gap: 8px;">
+                <button 
+                    onclick="editUser('${uid}')" 
+                    class="btn btn-secondary" 
+                    style="flex: 1; padding: 10px; font-size: 13px; border-radius: 6px; background: #f3f4f6; color: #374151; border: none; font-weight: 500; transition: all 0.2s;"
+                    onmouseover="this.style.background='#e5e7eb'" 
+                    onmouseout="this.style.background='#f3f4f6'"
+                >
+                    <i class="fas fa-edit"></i> Edit
+                </button>
+                <button 
+                    onclick="deleteUser('${uid}', '${user.email}')" 
+                    class="btn btn-danger" 
+                    style="flex: 1; padding: 10px; font-size: 13px; border-radius: 6px; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; font-weight: 500; transition: all 0.2s;"
+                    onmouseover="this.style.background='#fee2e2'; this.style.borderColor='#fca5a5'" 
+                    onmouseout="this.style.background='#fef2f2'; this.style.borderColor='#fecaca'"
+                >
+                    <i class="fas fa-trash"></i> Delete
+                </button>
+            </div>
+        </div>
     `;
+}
+
+// Generate User ID based on name and role (e.g., JT-5321N)
+function generateUserId(displayName, role) {
+    // Get initials from name (first letter of first and last name)
+    const nameParts = displayName.trim().split(' ').filter(part => part.length > 0);
+    let initials = '';
+    if (nameParts.length >= 2) {
+        initials = (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+    } else if (nameParts.length === 1) {
+        initials = (nameParts[0].substring(0, 2)).toUpperCase();
+    } else {
+        initials = 'US';
+    }
+    
+    // Generate random 4-digit number
+    const randomNumber = Math.floor(1000 + Math.random() * 9000);
+    
+    // Get role abbreviation
+    const roleAbbreviations = {
+        'admin': 'A',
+        'doctor': 'D',
+        'nurse': 'N',
+        'receptionist': 'R',
+        'pharmacist': 'P',
+        'lab_technician': 'L',
+        'billing': 'B',
+        'inventory_manager': 'I'
+    };
+    const roleAbbr = roleAbbreviations[role] || 'U';
+    
+    return `${initials}-${randomNumber}${roleAbbr}`;
 }
 
 // Get role display name
@@ -394,6 +531,12 @@ window.editUser = async function(uid) {
         document.getElementById('userActive').checked = user.active !== false;
         document.getElementById('userPassword').required = false;
         document.getElementById('userPassword').value = '';
+        
+        // Set User ID (readonly, can't be changed)
+        const userIdField = document.getElementById('userGeneratedId');
+        if (userIdField) {
+            userIdField.value = user.userId || 'Not assigned';
+        }
 
         // Set permissions
         clearAllPermissions();
@@ -419,23 +562,158 @@ window.editUser = async function(uid) {
     }
 };
 
-// Delete user
+// Delete user - Show modal
 window.deleteUser = async function(uid, email) {
-    if (!confirm(`Are you sure you want to delete user: ${email}?\n\nThis action cannot be undone.`)) {
+    // Find user data to display
+    const usersSnapshot = await getDocs(collection(db, 'users'));
+    let userData = null;
+    usersSnapshot.forEach(doc => {
+        if (doc.id === uid) {
+            userData = { id: doc.id, ...doc.data() };
+        }
+    });
+
+    if (!userData) {
+        showNotification('User not found', 'error');
+        return;
+    }
+
+    // Populate modal with user info
+    document.getElementById('deleteUserName').textContent = userData.displayName || 'Unknown';
+    document.getElementById('deleteUserEmail').textContent = email;
+    document.getElementById('deleteUserRole').textContent = (userData.role || 'Unknown').toUpperCase();
+    document.getElementById('deleteUserUid').textContent = uid;
+
+    // Reset confirmation input
+    const confirmInput = document.getElementById('deleteUserConfirmInput');
+    confirmInput.value = '';
+    document.getElementById('confirmDeleteUserBtn').disabled = true;
+
+    // Store user data for deletion
+    window._deleteUserData = { uid, email, userData };
+
+    // Show modal
+    const modal = document.getElementById('deleteUserModal');
+    modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('show'), 10);
+
+    // Focus on input
+    setTimeout(() => confirmInput.focus(), 300);
+};
+
+// Close delete user modal
+window.closeDeleteUserModal = function() {
+    const modal = document.getElementById('deleteUserModal');
+    modal.classList.remove('show');
+    setTimeout(() => {
+        modal.style.display = 'none';
+        window._deleteUserData = null;
+        document.getElementById('deleteUserConfirmInput').value = '';
+    }, 300);
+};
+
+// Enable delete button when typing DELETE
+document.addEventListener('DOMContentLoaded', () => {
+    const confirmInput = document.getElementById('deleteUserConfirmInput');
+    const confirmBtn = document.getElementById('confirmDeleteUserBtn');
+    
+    if (confirmInput && confirmBtn) {
+        confirmInput.addEventListener('input', function() {
+            confirmBtn.disabled = this.value.toUpperCase() !== 'DELETE';
+        });
+        
+        // Allow Enter key to confirm if input is correct
+        confirmInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && this.value.toUpperCase() === 'DELETE') {
+                confirmDeleteUser();
+            }
+        });
+    }
+});
+
+// Confirm and execute user deletion
+window.confirmDeleteUser = async function() {
+    const confirmInput = document.getElementById('deleteUserConfirmInput');
+    if (confirmInput.value.toUpperCase() !== 'DELETE') {
+        showNotification('Please type DELETE to confirm', 'error');
+        return;
+    }
+
+    const { uid, email } = window._deleteUserData || {};
+    if (!uid || !email) {
+        showNotification('User data not found', 'error');
         return;
     }
 
     try {
+        // Close modal and show loading
+        closeDeleteUserModal();
+        showNotification('⏳ Deleting user... Please wait.', 'info');
+
+        // 1. Delete from Firestore users collection
         await deleteDoc(doc(db, 'users', uid));
+        console.log('✓ Deleted user document from Firestore');
+
+        // 2. Delete all user sessions from Realtime Database (if exists)
+        try {
+            const { realtimeDb } = await import('./firebase-config.js');
+            const { ref, remove } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js');
+            const userSessionsRef = ref(realtimeDb, `active_sessions/${uid}`);
+            await remove(userSessionsRef);
+            console.log('✓ Deleted user sessions from Realtime Database');
+        } catch (error) {
+            console.warn('Could not delete sessions:', error);
+        }
+
+        // 3. Delete all activity logs for this user
+        try {
+            const logsQuery = query(collection(db, 'activity_logs'), where('userId', '==', uid));
+            const logsSnapshot = await getDocs(logsQuery);
+            const deletePromises = [];
+            logsSnapshot.forEach(logDoc => {
+                deletePromises.push(deleteDoc(doc(db, 'activity_logs', logDoc.id)));
+            });
+            await Promise.all(deletePromises);
+            console.log(`✓ Deleted ${logsSnapshot.size} activity log entries`);
+        } catch (error) {
+            console.warn('Could not delete activity logs:', error);
+        }
+
+        // 4. Delete any user-specific data (prescriptions, notes, etc.)
+        try {
+            // Delete user's created prescriptions
+            const prescQuery = query(collection(db, 'prescriptions'), where('prescribedBy', '==', email));
+            const prescSnapshot = await getDocs(prescQuery);
+            const prescPromises = [];
+            prescSnapshot.forEach(prescDoc => {
+                prescPromises.push(updateDoc(doc(db, 'prescriptions', prescDoc.id), {
+                    prescribedBy: 'Deleted User',
+                    prescribedByDeleted: true
+                }));
+            });
+            await Promise.all(prescPromises);
+            console.log(`✓ Updated ${prescSnapshot.size} prescriptions (marked as deleted user)`);
+        } catch (error) {
+            console.warn('Could not update prescriptions:', error);
+        }
+
+        // 5. Log the deletion activity
+        await logActivity('user', 'User permanently deleted', auth.currentUser?.uid, 
+            `Permanently deleted user: ${email} (UID: ${uid}). All related data removed.`);
+
+        showNotification(`✅ User ${email} has been completely removed from the system`, 'success');
         
-        // Log activity
-        await logActivity('user', 'User deleted', auth.currentUser?.uid, `Deleted user: ${email}`);
-        
-        showNotification('User deleted successfully', 'success');
+        // Reload user list
         loadUsers();
+
+        // Show follow-up message about Auth
+        setTimeout(() => {
+            showNotification('ℹ️ Note: Firebase Auth account may need manual deletion from Firebase Console', 'info');
+        }, 3000);
+
     } catch (error) {
         console.error('Error deleting user:', error);
-        showNotification('Failed to delete user', 'error');
+        showNotification(`❌ Failed to delete user: ${error.message}`, 'error');
     }
 };
 
@@ -770,33 +1048,38 @@ async function loadActivityLogs(loadMore = false) {
         }
 
         if (!loadMore) {
-            // Set up real-time listener for initial load
-            logsUnsubscribe = onSnapshot(logsQuery, (snapshot) => {
-                if (snapshot.empty) {
-                    timeline.innerHTML = '<div class="log-item"><div class="log-icon log-icon-info"><i class="fas fa-info-circle"></i></div><div class="log-content"><p>No activity logs found</p></div></div>';
-                    if (loadMoreBtn) loadMoreBtn.style.display = 'none';
-                    logsLoading = false;
-                    return;
-                }
-
-                logsLastDoc = snapshot.docs[snapshot.docs.length - 1];
-                timeline.innerHTML = '';
-
-                snapshot.forEach(doc => {
-                    const log = doc.data();
-                    timeline.innerHTML += createLogItem(log);
-                });
-
-                if (loadMoreBtn) {
-                    loadMoreBtn.style.display = snapshot.size === 20 ? 'block' : 'none';
-                }
-                
+            // Use getDocs instead of onSnapshot for faster initial load
+            const snapshot = await getDocs(logsQuery);
+            
+            if (snapshot.empty) {
+                timeline.innerHTML = '<div class="log-item"><div class="log-icon log-icon-info"><i class="fas fa-info-circle"></i></div><div class="log-content"><p>No activity logs found</p></div></div>';
+                if (loadMoreBtn) loadMoreBtn.style.display = 'none';
                 logsLoading = false;
-            }, (error) => {
-                console.error('Error loading logs:', error);
-                timeline.innerHTML = '<div class="log-item"><div class="log-icon log-icon-error"><i class="fas fa-exclamation-circle"></i></div><div class="log-content"><p>Error loading logs</p></div></div>';
-                logsLoading = false;
+                return;
+            }
+
+            logsLastDoc = snapshot.docs[snapshot.docs.length - 1];
+            
+            // Use DocumentFragment for batch DOM update
+            const fragment = document.createDocumentFragment();
+            const tempDiv = document.createElement('div');
+            
+            snapshot.forEach(doc => {
+                const log = doc.data();
+                const logHTML = createLogItem(log);
+                tempDiv.innerHTML = logHTML;
+                const logItem = tempDiv.firstElementChild;
+                fragment.appendChild(logItem);
             });
+            
+            timeline.innerHTML = '';
+            timeline.appendChild(fragment);
+
+            if (loadMoreBtn) {
+                loadMoreBtn.style.display = snapshot.size === 20 ? 'block' : 'none';
+            }
+            
+            logsLoading = false;
         } else {
             // For load more, use regular getDocs
             const snapshot = await getDocs(logsQuery);
@@ -808,11 +1091,20 @@ async function loadActivityLogs(loadMore = false) {
             }
 
             logsLastDoc = snapshot.docs[snapshot.docs.length - 1];
+            
+            // Use DocumentFragment for batch DOM update
+            const fragment = document.createDocumentFragment();
+            const tempDiv = document.createElement('div');
 
             snapshot.forEach(doc => {
                 const log = doc.data();
-                timeline.innerHTML += createLogItem(log);
+                const logHTML = createLogItem(log);
+                tempDiv.innerHTML = logHTML;
+                const logItem = tempDiv.firstElementChild;
+                fragment.appendChild(logItem);
             });
+            
+            timeline.appendChild(fragment);
 
             loadMoreBtn.style.display = snapshot.size === 20 ? 'block' : 'none';
             logsLoading = false;

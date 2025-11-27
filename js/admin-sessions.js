@@ -59,13 +59,21 @@ export async function loadActiveSessions() {
                 return;
             }
             
-            sessionsGrid.innerHTML = '';
             if (sessionCountBadge) sessionCountBadge.textContent = activeSessions.length;
             
+            // Use DocumentFragment for batch DOM update
+            const fragment = document.createDocumentFragment();
+            const tempDiv = document.createElement('div');
+            
             activeSessions.forEach((session) => {
-                const sessionCard = createSessionCard(session);
-                sessionsGrid.innerHTML += sessionCard;
+                const cardHTML = createSessionCard(session);
+                tempDiv.innerHTML = cardHTML;
+                const card = tempDiv.firstElementChild;
+                fragment.appendChild(card);
             });
+            
+            sessionsGrid.innerHTML = '';
+            sessionsGrid.appendChild(fragment);
         }, (error) => {
             console.error('Error in session snapshot listener:', error);
             sessionsGrid.innerHTML = `
@@ -195,10 +203,19 @@ export async function loadRecentLogins() {
             return;
         }
         
-        timeline.innerHTML = '';
+        // Use DocumentFragment for batch DOM update
+        const fragment = document.createDocumentFragment();
+        const tempDiv = document.createElement('div');
+        
         loginActivities.slice(0, 15).forEach((log) => {
-            timeline.innerHTML += createLogItem(log);
+            const logHTML = createLogItem(log);
+            tempDiv.innerHTML = logHTML;
+            const logItem = tempDiv.firstElementChild;
+            fragment.appendChild(logItem);
         });
+        
+        timeline.innerHTML = '';
+        timeline.appendChild(fragment);
         
     } catch (error) {
         console.error('Error loading recent logins:', error);
@@ -321,10 +338,19 @@ export async function loadDepartmentActivity() {
             return;
         }
         
-        grid.innerHTML = '';
+        // Use DocumentFragment for batch DOM update
+        const fragment = document.createDocumentFragment();
+        const tempDiv = document.createElement('div');
+        
         Object.values(departments).forEach(dept => {
-            grid.innerHTML += createDepartmentCard(dept);
+            const cardHTML = createDepartmentCard(dept);
+            tempDiv.innerHTML = cardHTML;
+            const card = tempDiv.firstElementChild;
+            fragment.appendChild(card);
         });
+        
+        grid.innerHTML = '';
+        grid.appendChild(fragment);
         
     } catch (error) {
         console.error('Error loading department activity:', error);
