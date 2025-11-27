@@ -11668,6 +11668,113 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Send Consultation Fee to Billing Queue
+// ===================================
+window.sendConsultationToBilling = async function() {
+    // Check if consultation fee is enabled
+    const chargeConsultationFee = document.getElementById('chargeConsultationFee');
+    if (!chargeConsultationFee || !chargeConsultationFee.checked) {
+        alert('Please enable "Charge Consultation Fee" first.');
+        return;
+    }
+    
+    // Get patient details
+    const firstName = document.getElementById('firstName')?.value.trim();
+    const lastName = document.getElementById('lastName')?.value.trim();
+    const phoneNumber = document.getElementById('phoneNumber')?.value.trim();
+    const idNumber = document.getElementById('idNumber')?.value.trim();
+    
+    if (!firstName || !lastName) {
+        alert('Please fill in patient details (First Name and Last Name) before sending to billing.');
+        return;
+    }
+    
+    // Get consultation fee details
+    const feeAmount = parseFloat(document.getElementById('consultationFeeAmount')?.value) || 0;
+    const feeType = document.getElementById('consultationFeeType')?.value;
+    const feeNotes = document.getElementById('consultationFeeNotes')?.value.trim();
+    
+    if (feeAmount <= 0) {
+        alert('Please enter a valid consultation fee amount.');
+        return;
+    }
+    
+    // Check if billing request function is available
+    if (typeof window.createBillingRequest !== 'function') {
+        alert('Billing request module not loaded. Please refresh the page.');
+        console.error('window.createBillingRequest is not available');
+        return;
+    }
+    
+    const patientName = `${firstName} ${lastName}`;
+    // Use phone number or ID number as temporary patient identifier
+    const patientIdentifier = phoneNumber || idNumber || 'WALK-IN';
+    
+    if (!confirm(`Send consultation fee to billing?\n\nPatient: ${patientName}\nContact: ${patientIdentifier}\nAmount: KSh ${feeAmount.toFixed(2)}`)) {
+        return;
+    }
+    
+    try {
+        // Disable button and show loading
+        const button = document.getElementById('sendConsultationBillingBtn');
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+        
+        // Create billing request
+        const result = await window.createBillingRequest({
+            patientNumber: patientIdentifier,
+            patientName: patientName,
+            patientId: patientIdentifier,
+            department: 'Reception',
+            serviceType: feeType === 'standard' ? 'Standard Consultation Fee' : 'Custom Consultation Fee',
+            amount: feeAmount,
+            notes: feeNotes || `Consultation fee - ${patientName}, Contact: ${phoneNumber || idNumber || 'N/A'}`,
+            requestedBy: localStorage.getItem('userName') || 'Reception Staff'
+        });
+        
+        console.log('✅ Consultation billing request created:', result);
+        
+        // Show success notification
+        if (typeof window.showNotification === 'function') {
+            window.showNotification(
+                `Consultation fee sent to billing successfully!\nRequest ID: ${result.requestId}`,
+                'success'
+            );
+        } else {
+            alert(`✅ Consultation fee sent to billing successfully!\n\nRequest ID: ${result.requestId}\n\nPatient can now proceed to billing to pay.`);
+        }
+        
+        // Update button to show success
+        button.innerHTML = '<i class="fas fa-check"></i> Sent to Billing';
+        button.classList.add('btn-success');
+        
+        // Reset button after 3 seconds
+        setTimeout(() => {
+            button.disabled = false;
+            button.innerHTML = originalText;
+            button.classList.remove('btn-success');
+        }, 3000);
+        
+    } catch (error) {
+        console.error('❌ Failed to send consultation fee to billing:', error);
+        
+        // Show error notification
+        if (typeof window.showNotification === 'function') {
+            window.showNotification('Failed to send to billing. Please try again.', 'error');
+        } else {
+            alert('❌ Failed to send to billing. Please try again.');
+        }
+        
+        // Restore button
+        const button = document.getElementById('sendConsultationBillingBtn');
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Send to Billing';
+        }
+    }
+};
+
 // Function to send consultation fee to billing
 function sendConsultationFeeToBilling(patientData, feeData) {
     try {
