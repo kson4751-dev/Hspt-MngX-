@@ -8625,6 +8625,9 @@ window.sendLabToBilling = async function(requestId) {
         const result = await window.createBillingRequest({
             patientNumber: request.patientId,
             patientName: request.patientName,
+            patientAge: request.age || request.patientAge || null,
+            patientGender: request.gender || request.patientGender || null,
+            patientContact: request.contact || request.patientContact || null,
             patientId: requestId,
             department: 'Laboratory',
             serviceType: `Lab Tests: ${request.requestedTests.join(', ')}`,
@@ -11683,6 +11686,8 @@ window.sendConsultationToBilling = async function() {
     const lastName = document.getElementById('lastName')?.value.trim();
     const phoneNumber = document.getElementById('phoneNumber')?.value.trim();
     const idNumber = document.getElementById('idNumber')?.value.trim();
+    const age = document.getElementById('age')?.value.trim();
+    const gender = document.getElementById('gender')?.value;
     
     if (!firstName || !lastName) {
         alert('Please fill in patient details (First Name and Last Name) before sending to billing.');
@@ -11725,6 +11730,9 @@ window.sendConsultationToBilling = async function() {
         const result = await window.createBillingRequest({
             patientNumber: patientIdentifier,
             patientName: patientName,
+            patientAge: age || null,
+            patientGender: gender || null,
+            patientContact: phoneNumber || null,
             patientId: patientIdentifier,
             department: 'Reception',
             serviceType: feeType === 'standard' ? 'Standard Consultation Fee' : 'Custom Consultation Fee',

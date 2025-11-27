@@ -56,31 +56,67 @@ const formatMoney = (amount) => {
 
 const formatDate = (dateStr) => {
     if (!dateStr) return '-';
+    // Handle Firestore Timestamp
+    if (dateStr.toDate && typeof dateStr.toDate === 'function') {
+        const d = dateStr.toDate();
+        return d.toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+    // Handle regular date string
     const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '-';
     return d.toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 const formatTime = (dateStr) => {
     if (!dateStr) return '-';
+    // Handle Firestore Timestamp
+    if (dateStr.toDate && typeof dateStr.toDate === 'function') {
+        const d = dateStr.toDate();
+        return d.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
+    }
+    // Handle regular date string
     const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '-';
     return d.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
 };
 
 const formatDateTime = (dateStr) => {
     if (!dateStr) return '-';
-    return `${formatDate(dateStr)} ${formatTime(dateStr)}`;
+    // Handle Firestore Timestamp
+    if (dateStr.toDate && typeof dateStr.toDate === 'function') {
+        const d = dateStr.toDate();
+        return `${d.toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })} ${d.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+    // Handle regular date string
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '-';
+    return `${d.toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })} ${d.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}`;
 };
 
 const getTimeAgo = (dateStr) => {
     if (!dateStr) return '';
     const now = new Date();
-    const date = new Date(dateStr);
+    // Handle Firestore Timestamp
+    const date = (dateStr.toDate && typeof dateStr.toDate === 'function') ? dateStr.toDate() : new Date(dateStr);
     const seconds = Math.floor((now - date) / 1000);
     
     if (seconds < 60) return 'Just now';
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
     return `${Math.floor(seconds / 86400)}d ago`;
+};
+
+const calculateAge = (dateOfBirth) => {
+    if (!dateOfBirth) return null;
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    if (isNaN(birthDate.getTime())) return null;
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+    return age;
 };
 
 const notify = (message, type = 'info') => {
@@ -666,9 +702,19 @@ window.viewRequestDetails = function(requestId) {
     statusBadge.className = `status-badge status-${request.status}`;
     
     // Patient Information
-    document.getElementById('detailPatientNumber').textContent = request.patientNumber || '-';
+    document.getElementById('detailPatientNumber').textContent = request.patientNumber || request.patientId || '-';
     document.getElementById('detailPatientName').textContent = request.patientName || '-';
-    document.getElementById('detailPatientAge').textContent = request.patientAge || '-';
+    
+    // Calculate age in real-time if DOB available, otherwise use provided age
+    let displayAge = request.patientAge || '-';
+    if (request.dateOfBirth) {
+        const calculatedAge = calculateAge(request.dateOfBirth);
+        if (calculatedAge !== null) {
+            displayAge = calculatedAge;
+        }
+    }
+    document.getElementById('detailPatientAge').textContent = displayAge;
+    
     document.getElementById('detailPatientGender').textContent = request.patientGender || '-';
     document.getElementById('detailPatientContact').textContent = request.patientContact || '-';
     
@@ -858,11 +904,11 @@ window.printBillingRequestDetails = function() {
                     </div>
                     <div class="row">
                         <span class="label">Patient #:</span>
-                        <span class="value">${request.patientNumber || '-'}</span>
+                        <span class="value">${request.patientNumber || request.patientId || '-'}</span>
                     </div>
                     <div class="row">
                         <span class="label">Age/Gender:</span>
-                        <span class="value">${request.patientAge || '-'} / ${request.patientGender || '-'}</span>
+                        <span class="value">${request.dateOfBirth ? (calculateAge(request.dateOfBirth) || request.patientAge || '-') : (request.patientAge || '-')} / ${request.patientGender || '-'}</span>
                     </div>
                 </div>
                 

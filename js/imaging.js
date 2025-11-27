@@ -1361,6 +1361,9 @@ window.sendImagingToBilling = async function(requestId) {
         const result = await window.createBillingRequest({
             patientNumber: request.patientNumber || request.patientId,
             patientName: request.patientName,
+            patientAge: request.age || request.patientAge || null,
+            patientGender: request.gender || request.patientGender || null,
+            patientContact: request.contact || request.patientContact || null,
             patientId: requestId,
             department: 'Imaging',
             serviceType: `${request.imagingType} - ${request.bodyPart}`,
