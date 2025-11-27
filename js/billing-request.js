@@ -444,7 +444,23 @@ function createRequestCard(request) {
                 
                 <div class="request-amount-section">
                     <div class="request-amount-label">Amount to Bill</div>
-                    <div class="request-amount">${formatMoney(request.amount)}</div>
+                    ${(request.department === 'Laboratory' || request.department === 'Imaging') && (request.amount === 0 || !request.amount) ? `
+                        <div class="request-amount-editable">
+                            <input type="number" 
+                                   id="amount-${request.id}" 
+                                   class="request-amount-input" 
+                                   placeholder="Enter amount" 
+                                   value="${request.amount || ''}"
+                                   min="0"
+                                   step="0.01"
+                                   onchange="updateRequestAmount('${request.id}', this.value)">
+                            <button class="btn-save-amount" onclick="saveRequestAmount('${request.id}')" title="Save Amount">
+                                <i class="fas fa-check"></i>
+                            </button>
+                        </div>
+                    ` : `
+                        <div class="request-amount">${formatMoney(request.amount)}</div>
+                    `}
                 </div>
                 
                 <div class="request-meta">
@@ -494,6 +510,63 @@ function getDepartmentIcon(department) {
 // ===================================
 // GLOBAL FUNCTIONS (Exposed to Window)
 // ===================================
+
+// Update request amount (stores temporarily)
+window.updateRequestAmount = function(requestId, amount) {
+    const request = BillingRequestState.allRequests.find(r => r.id === requestId);
+    if (request) {
+        request.tempAmount = parseFloat(amount) || 0;
+    }
+};
+
+// Save request amount to Firebase
+window.saveRequestAmount = async function(requestId) {
+    const request = BillingRequestState.allRequests.find(r => r.id === requestId);
+    if (!request) {
+        notify('Request not found', 'error');
+        return;
+    }
+    
+    const amountInput = $(`amount-${requestId}`);
+    const amount = parseFloat(amountInput?.value) || 0;
+    
+    if (amount <= 0) {
+        notify('Please enter a valid amount greater than 0', 'error');
+        amountInput?.focus();
+        return;
+    }
+    
+    try {
+        // Update in Firestore
+        const requestRef = doc(db, 'billing_requests', requestId);
+        await updateDoc(requestRef, {
+            amount: amount,
+            amountUpdatedAt: new Date().toISOString(),
+            amountUpdatedBy: getUserContext().userName || 'Biller'
+        });
+        
+        // Update in Realtime Database
+        const rtdbRef = dbRef(realtimeDb, `billing_requests/${requestId}`);
+        await set(rtdbRef, {
+            ...request,
+            amount: amount,
+            amountUpdatedAt: new Date().toISOString(),
+            amountUpdatedBy: getUserContext().userName || 'Biller'
+        });
+        
+        // Update local state
+        request.amount = amount;
+        
+        notify(`Amount updated to ${formatMoney(amount)}`, 'success');
+        
+        // Re-render the card
+        filterAndRenderQueue();
+        
+    } catch (err) {
+        console.error('Failed to update amount:', err);
+        notify('Failed to update amount. Please try again.', 'error');
+    }
+};
 
 // Filter Queue
 window.filterRequestQueue = function(status) {

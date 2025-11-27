@@ -796,6 +796,29 @@ export async function updateLabRequest(requestId, updates) {
     }
 }
 
+// ==================== IMAGING ====================
+
+// Update imaging request
+export async function updateImagingRequest(requestId, updates) {
+    try {
+        if (!requestId) {
+            throw new Error('Request ID is required');
+        }
+        const requestRef = doc(db, 'imaging_requests', requestId);
+        await updateDoc(requestRef, {
+            ...updates,
+            updatedAt: serverTimestamp()
+        });
+        console.log('Imaging request updated:', requestId);
+        return { success: true };
+    } catch (error) {
+        console.error('Error updating imaging request:', error);
+        console.error('Request ID:', requestId);
+        console.error('Updates:', updates);
+        return { success: false, error: error.message };
+    }
+}
+
 // ==================== WARD & NURSING ====================
 
 // Add patient to ward queue (from doctor/Rx module)

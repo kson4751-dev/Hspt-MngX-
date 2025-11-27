@@ -200,6 +200,7 @@ function renderQueue() {
                     <button onclick="window.markAsReviewed('${request.id}')" style="padding: 6px 10px; font-size: 11px; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer;" title="Mark as Reviewed">
                         <i class="fas fa-check"></i> Reviewed
                     </button>
+                    ${getImagingBillingButton(request)}
                 </div>
             </div>
         `;
@@ -1304,6 +1305,126 @@ function debounce(func, wait) {
         timeout = setTimeout(later, wait);
     };
 }
+
+// ===================================
+// BILLING INTEGRATION
+// ===================================
+
+// Get imaging billing button based on request billing status
+function getImagingBillingButton(request) {
+    // Check billing status
+    if (request.billingStatus === 'billed' || request.billed === true) {
+        return `<button style="padding: 6px 10px; font-size: 11px; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: not-allowed;" disabled title="Already Billed">
+            <i class="fas fa-check-circle"></i> Billed
+        </button>`;
+    }
+    
+    if (request.billingStatus === 'sent') {
+        return `<button style="padding: 6px 10px; font-size: 11px; background: #f39c12; color: white; border: none; border-radius: 6px; cursor: not-allowed;" disabled title="Sent to Billing">
+            <i class="fas fa-paper-plane"></i> Sent
+        </button>`;
+    }
+    
+    // Default: can send to billing
+    return `<button onclick="window.sendImagingToBilling('${request.id}')" style="padding: 6px 10px; font-size: 11px; background: #95a5a6; color: white; border: none; border-radius: 6px; cursor: pointer;" title="Send to Billing">
+        <i class="fas fa-file-invoice"></i> Billing
+    </button>`;
+}
+
+// Send imaging request to billing
+window.sendImagingToBilling = async function(requestId) {
+    const request = imagingRequests.find(r => r.id === requestId);
+    if (!request) {
+        alert('Imaging request not found');
+        return;
+    }
+    
+    // Check if billing request function is available
+    if (typeof window.createBillingRequest !== 'function') {
+        alert('Billing request module not loaded. Please refresh the page.');
+        console.error('window.createBillingRequest is not available');
+        return;
+    }
+    
+    if (!confirm(`Send imaging request to billing module?\n\nPatient: ${request.patientName}\nImaging Type: ${request.imagingType}\nBody Part: ${request.bodyPart}\n\nNote: Price will be added by the accountant/biller.`)) {
+        return;
+    }
+    
+    try {
+        // Show loading state
+        const button = event.target.closest('button');
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        
+        // Create billing request without amount (to be added by biller)
+        const result = await window.createBillingRequest({
+            patientNumber: request.patientNumber || request.patientId,
+            patientName: request.patientName,
+            patientId: requestId,
+            department: 'Imaging',
+            serviceType: `${request.imagingType} - ${request.bodyPart}`,
+            amount: 0, // No amount - to be filled by biller
+            notes: `Priority: ${request.priority}, Requested by: Dr. ${request.requestedBy || 'Unknown'}. Price to be added by billing staff.`,
+            requestedBy: request.requestedBy || 'Imaging Staff'
+        });
+        
+        console.log('✅ Billing request created:', result);
+        
+        // Update imaging request document with billing status
+        const { updateImagingRequest } = await import('./firebase-helpers.js');
+        if (typeof updateImagingRequest === 'function') {
+            await updateImagingRequest(requestId, {
+                billingStatus: 'sent',
+                billingRequestId: result.requestId,
+                sentToBillingAt: new Date().toISOString(),
+                sentToBillingBy: localStorage.getItem('userName') || 'Imaging Staff'
+            });
+            
+            // Update local state
+            request.billingStatus = 'sent';
+            request.billingRequestId = result.requestId;
+        }
+        
+        // Show success notification
+        if (typeof window.showNotification === 'function') {
+            window.showNotification(
+                `Imaging request sent to billing queue successfully!\nRequest ID: ${result.requestId}`,
+                'success'
+            );
+        } else {
+            alert(`✅ Imaging request sent to billing successfully!\n\nRequest ID: ${result.requestId}\n\nBilling staff will add the price and process payment.`);
+        }
+        
+        // Update button state permanently
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-paper-plane"></i> Sent';
+        button.style.background = '#f39c12';
+        
+        // Reload queue to update display
+        renderQueue();
+        
+    } catch (error) {
+        console.error('❌ Failed to send to billing:', error);
+        
+        // Show error notification
+        if (typeof window.showNotification === 'function') {
+            window.showNotification('Failed to send to billing. Please try again.', 'error');
+        } else {
+            alert('❌ Failed to send to billing. Please try again.');
+        }
+        
+        // Restore button
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    }
+};
+
+// ===================================
+// AUTO-INITIALIZATION
+// ===================================
 
 // Auto-initialize when module loads if imaging module is visible
 document.addEventListener('DOMContentLoaded', () => {

@@ -8530,6 +8530,7 @@ function renderLabReportsQueue() {
                         <i class="fas fa-microscope"></i>
                         ${request.status === 'in-progress' ? 'Continue' : 'Start Test'}
                     </button>
+                    ${getLabBillingButton(request)}
                 </div>
             </div>
         `;
@@ -8569,6 +8570,122 @@ function refreshLabQueue() {
         icon.classList.remove('fa-spin');
     }, 1000);
 }
+
+// Get lab billing button based on request billing status
+function getLabBillingButton(request) {
+    // Check billing status
+    if (request.billingStatus === 'billed' || request.billed === true) {
+        return `<button class="btn btn-sm btn-success" disabled>
+            <i class="fas fa-check-circle"></i> Billed
+        </button>`;
+    }
+    
+    if (request.billingStatus === 'sent') {
+        return `<button class="btn btn-sm btn-warning" disabled>
+            <i class="fas fa-paper-plane"></i> Sent to Billing
+        </button>`;
+    }
+    
+    // Default: can send to billing
+    return `<button class="btn btn-sm btn-secondary" onclick="sendLabToBilling('${request.id}')">
+        <i class="fas fa-file-invoice"></i> Send to Billing
+    </button>`;
+}
+
+// Send lab request to billing
+window.sendLabToBilling = async function(requestId) {
+    const request = labRequests.find(r => r.id === requestId);
+    if (!request) {
+        alert('Lab request not found');
+        return;
+    }
+    
+    // Check if billing request function is available
+    if (typeof window.createBillingRequest !== 'function') {
+        alert('Billing request module not loaded. Please refresh the page.');
+        console.error('window.createBillingRequest is not available');
+        return;
+    }
+    
+    // Calculate estimated amount based on number of tests
+    const estimatedAmount = request.requestedTests.length * 500; // KSh 500 per test
+    
+    if (!confirm(`Send lab request to billing module?\n\nPatient: ${request.patientName}\nTests: ${request.requestedTests.length}\nEstimated Amount: KSh ${estimatedAmount.toFixed(2)}`)) {
+        return;
+    }
+    
+    try {
+        // Show loading state
+        const button = event.target.closest('button');
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+        
+        // Create billing request in real-time
+        const result = await window.createBillingRequest({
+            patientNumber: request.patientId,
+            patientName: request.patientName,
+            patientId: requestId,
+            department: 'Laboratory',
+            serviceType: `Lab Tests: ${request.requestedTests.join(', ')}`,
+            amount: estimatedAmount,
+            notes: `Request ID: ${request.displayId || request.id}, Tests: ${request.requestedTests.length}, Requested by: Dr. ${request.requestedBy}`,
+            requestedBy: request.requestedBy || 'Lab Technician'
+        });
+        
+        console.log('✅ Billing request created:', result);
+        
+        // Update lab request document with billing status
+        const { updateLabRequest } = await import('./firebase-helpers.js');
+        if (typeof updateLabRequest === 'function') {
+            await updateLabRequest(requestId, {
+                billingStatus: 'sent',
+                billingRequestId: result.requestId,
+                sentToBillingAt: new Date().toISOString(),
+                sentToBillingBy: localStorage.getItem('userName') || 'Lab Staff'
+            });
+            
+            // Update local state
+            request.billingStatus = 'sent';
+            request.billingRequestId = result.requestId;
+        }
+        
+        // Show success notification
+        if (typeof window.showNotification === 'function') {
+            window.showNotification(
+                `Lab request sent to billing queue successfully!\nRequest ID: ${result.requestId}`,
+                'success'
+            );
+        } else {
+            alert(`✅ Lab request sent to billing successfully!\n\nRequest ID: ${result.requestId}\n\nBilling staff will be notified immediately.`);
+        }
+        
+        // Update button state permanently
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-paper-plane"></i> Sent to Billing';
+        button.classList.remove('btn-secondary');
+        button.classList.add('btn-warning');
+        
+        // Reload queue to update display
+        renderLabReportsQueue();
+        
+    } catch (error) {
+        console.error('❌ Failed to send to billing:', error);
+        
+        // Show error notification
+        if (typeof window.showNotification === 'function') {
+            window.showNotification('Failed to send to billing. Please try again.', 'error');
+        } else {
+            alert('❌ Failed to send to billing. Please try again.');
+        }
+        
+        // Restore button
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    }
+};
 
 // View lab request details
 function viewLabRequest(requestId) {

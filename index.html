@@ -5119,6 +5119,58 @@
                 color: #2e7d32;
             }
 
+            /* Editable Amount */
+            .request-amount-editable {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                justify-content: center;
+            }
+
+            .request-amount-input {
+                width: 150px;
+                padding: 8px 12px;
+                font-size: 16px;
+                font-weight: 600;
+                border: 2px solid #e0e0e0;
+                border-radius: 6px;
+                text-align: center;
+                transition: all 0.2s ease;
+            }
+
+            .request-amount-input:focus {
+                outline: none;
+                border-color: var(--primary-color);
+                background: #fff;
+            }
+
+            .request-amount-input::placeholder {
+                color: #bbb;
+                font-weight: 400;
+            }
+
+            .btn-save-amount {
+                padding: 8px 12px;
+                background: #2e7d32;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .btn-save-amount:hover {
+                background: #1b5e20;
+                transform: scale(1.05);
+            }
+
+            .btn-save-amount i {
+                font-size: 14px;
+            }
+
             /* Meta Info */
             .request-meta {
                 display: flex;
