@@ -1,0 +1,76 @@
+// Firebase Firestore Security Rules for Billing Requests
+// Add these rules to your existing firestore.rules file
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Billing Requests Collection
+    match /billing_requests/{requestId} {
+      
+      // Allow read access to all authenticated users
+      // (All staff can view billing requests)
+      allow read: if request.auth != null;
+      
+      // Allow create access to authenticated users with specific roles
+      // (Reception, Lab, Imaging, Pharmacy, Ward staff can create requests)
+      allow create: if request.auth != null 
+        && request.auth.token.role in [
+          'Admin', 
+          'Doctor', 
+          'Nurse', 
+          'Receptionist', 
+          'Lab Technician', 
+          'Radiologist', 
+          'Pharmacist'
+        ]
+        && request.resource.data.keys().hasAll([
+          'requestId',
+          'patientNumber',
+          'patientName',
+          'department',
+          'serviceType',
+          'amount',
+          'status',
+          'requestedBy',
+          'createdAt',
+          'dateTime'
+        ])
+        && request.resource.data.status == 'new'
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0;
+      
+      // Allow update access to billing staff and admins
+      // (Only Accountant and Admin can mark as processed)
+      allow update: if request.auth != null 
+        && request.auth.token.role in ['Admin', 'Accountant']
+        && (
+          // Allow status updates: new -> pending -> processed
+          (resource.data.status == 'new' && request.resource.data.status == 'pending')
+          || (resource.data.status == 'pending' && request.resource.data.status == 'processed')
+          || (resource.data.status == 'new' && request.resource.data.status == 'processed')
+        );
+      
+      // Allow delete only for admins
+      allow delete: if request.auth != null 
+        && request.auth.token.role == 'Admin';
+    }
+  }
+}
+
+// Additional validation helpers (optional)
+function isValidDepartment(dept) {
+  return dept in ['Reception', 'Laboratory', 'Imaging', 'Pharmacy', 'Ward'];
+}
+
+function hasRequiredFields(data) {
+  return data.keys().hasAll([
+    'requestId',
+    'patientNumber',
+    'patientName',
+    'department',
+    'serviceType',
+    'amount',
+    'status'
+  ]);
+}

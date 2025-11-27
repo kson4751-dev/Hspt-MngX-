@@ -1,0 +1,62 @@
+// Firebase Realtime Database Security Rules for Billing Requests
+// Add these rules to your existing database.rules.json file
+
+{
+  "rules": {
+    "billing_requests": {
+      // Index for faster queries
+      ".indexOn": ["status", "department", "createdAt", "dateTime"],
+      
+      "$requestId": {
+        // Read: All authenticated users can read
+        ".read": "auth != null",
+        
+        // Write: Only authenticated users with specific roles can write
+        ".write": "auth != null && (
+          root.child('users').child(auth.uid).child('role').val() == 'Admin' ||
+          root.child('users').child(auth.uid).child('role').val() == 'Accountant' ||
+          root.child('users').child(auth.uid).child('role').val() == 'Receptionist' ||
+          root.child('users').child(auth.uid).child('role').val() == 'Lab Technician' ||
+          root.child('users').child(auth.uid).child('role').val() == 'Radiologist' ||
+          root.child('users').child(auth.uid).child('role').val() == 'Pharmacist' ||
+          root.child('users').child(auth.uid).child('role').val() == 'Nurse'
+        )",
+        
+        // Validation
+        ".validate": "newData.hasChildren(['requestId', 'patientNumber', 'patientName', 'department', 'serviceType', 'amount', 'status', 'dateTime']) &&
+          newData.child('amount').isNumber() &&
+          newData.child('amount').val() > 0 &&
+          newData.child('status').val().matches(/^(new|pending|processed)$/) &&
+          newData.child('department').val().matches(/^(Reception|Laboratory|Imaging|Pharmacy|Ward)$/)"
+      }
+    },
+    
+    // Users collection for role verification
+    "users": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    }
+  }
+}
+
+/*
+NOTES:
+1. This assumes you have a 'users' collection in Realtime Database with user roles
+2. Indexes are set up for common query patterns (status, department, date)
+3. All authenticated users can read billing requests
+4. Only specific roles can create/update billing requests
+5. Validation ensures required fields and correct data types
+
+SETUP INSTRUCTIONS:
+1. Go to Firebase Console > Realtime Database > Rules tab
+2. Merge these rules with your existing rules
+3. Click "Publish" to deploy the rules
+
+TESTING:
+You can test these rules in the Firebase Console:
+- Go to Rules tab
+- Click "Simulator"
+- Test read/write operations with different authentication states
+*/

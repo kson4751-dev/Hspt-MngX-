@@ -696,7 +696,34 @@ async function processCheckout() {
         };
         
         // Save sale to Firestore
-        await addDoc(collection(db, 'pharmacy_sales'), saleData);
+        const saleDocRef = await addDoc(collection(db, 'pharmacy_sales'), saleData);
+        console.log('Pharmacy Sale created:', saleDocRef.id);
+        
+        // Send to billing request queue in real-time
+        try {
+            if (typeof window.createBillingRequest === 'function') {
+                const billingResult = await window.createBillingRequest({
+                    patientNumber: saleData.customerContact || 'WALK-IN',
+                    patientName: saleData.customerName,
+                    patientId: saleDocRef.id, // Use sale ID as reference
+                    department: 'Pharmacy',
+                    serviceType: `Prescription Dispensing${saleData.prescriptionNumber !== 'N/A' ? ` (Rx: ${saleData.prescriptionNumber})` : ''}`,
+                    amount: saleData.total,
+                    notes: `Sale #${saleData.saleNumber}, Items: ${saleData.items.length}, Payment: ${saleData.paymentMethod}`,
+                    requestedBy: saleData.soldBy || 'Pharmacist'
+                });
+                
+                console.log('✅ Billing request created:', billingResult.requestId);
+                showNotification('Sale completed and sent to billing queue!', 'success');
+            } else {
+                console.warn('⚠️ Billing request function not available');
+                showNotification(`Sale ${saleNumber} completed successfully!`, 'success');
+            }
+        } catch (billingError) {
+            console.error('❌ Failed to send to billing:', billingError);
+            // Don't fail the sale if billing request fails
+            showNotification(`Sale ${saleNumber} completed! (Billing notification failed)`, 'warning');
+        }
         
         // Track pharmacy sale activity
         if (window.trackPharmacyOrder) {
@@ -724,8 +751,7 @@ async function processCheckout() {
             }
         }
         
-        // Show success message
-        showNotification(`Sale ${saleNumber} completed successfully!`, 'success');
+        // Show success message removed - already shown in billing request section
         
         // Print receipt
         printReceipt(saleData);
@@ -896,6 +922,13 @@ function printReceipt(saleData) {
             <div class="footer">
                 <p>Thank you for your business!</p>
                 <p>Keep this receipt for your records</p>
+                <p style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #000;">
+                    <strong>✓ Sent to Billing Department</strong>
+                </p>
+                <p style="font-size: 9px; margin-top: 3px;">
+                    This transaction has been automatically<br>
+                    submitted to billing for processing
+                </p>
             </div>
             
             <script>

@@ -451,6 +451,10 @@
                         <i class="fas fa-plus-circle"></i>
                         <span class="nav-text">Create Bill</span>
                     </a>
+                    <a href="#billing-request" class="nav-dropdown-item" data-module="billing" data-submodule="billing-request">
+                        <i class="fas fa-file-invoice"></i>
+                        <span class="nav-text">Billing Request</span>
+                    </a>
                     <a href="#view-bills" class="nav-dropdown-item" data-module="billing" data-submodule="billing-view">
                         <i class="fas fa-eye"></i>
                         <span class="nav-text">View Bills</span>
@@ -4438,9 +4442,15 @@
                     <h1 class="module-title">Billing & Payments</h1>
                     <p class="module-description">Patient invoicing, payment processing, and receipt generation</p>
                 </div>
-                <button class="btn btn-primary" onclick="showModule('billing-view')">
-                    <i class="fas fa-file-invoice-dollar"></i> View All Bills
-                </button>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <button class="btn btn-secondary" onclick="showModule('billing-request')" style="position: relative;">
+                        <i class="fas fa-bell"></i> Billing Requests
+                        <span id="billingRequestBadge" class="notification-badge" style="display: none;">0</span>
+                    </button>
+                    <button class="btn btn-primary" onclick="showModule('billing-view')">
+                        <i class="fas fa-file-invoice-dollar"></i> View All Bills
+                    </button>
+                </div>
             </div>
 
             <!-- Billing Stats -->
@@ -4742,6 +4752,756 @@
                 </div>
             </div>
         </div>
+
+        <!-- Billing Request Sub-module -->
+        <div class="module" id="billing-request-module">
+            <div class="module-header">
+                <div>
+                    <h1 class="module-title">Billing Requests</h1>
+                    <p class="module-description">Real-time billing requests from departments - Reception, Lab, Imaging, Pharmacy & Ward</p>
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn btn-secondary" onclick="refreshBillingRequests()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <button class="btn btn-primary" onclick="showModule('billing')">
+                        <i class="fas fa-plus-circle"></i> Create Bill
+                    </button>
+                </div>
+            </div>
+
+            <!-- Request Stats -->
+            <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: rgba(52, 152, 219, 0.1);">
+                        <i class="fas fa-clock" style="color: #3498db;"></i>
+                    </div>
+                    <div class="stat-details">
+                        <h3 id="newRequestsCount">0</h3>
+                        <p>New Requests</p>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: rgba(241, 196, 15, 0.1);">
+                        <i class="fas fa-hourglass-half" style="color: #f1c40f;"></i>
+                    </div>
+                    <div class="stat-details">
+                        <h3 id="pendingRequestsCount">0</h3>
+                        <p>Pending</p>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: rgba(46, 204, 113, 0.1);">
+                        <i class="fas fa-check-circle" style="color: #2ecc71;"></i>
+                    </div>
+                    <div class="stat-details">
+                        <h3 id="processedRequestsCount">0</h3>
+                        <p>Processed Today</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Request Queue Section -->
+            <div class="billing-section">
+                <div class="section-header">
+                    <i class="fas fa-list-ul"></i>
+                    <h4>Request Queue</h4>
+                </div>
+
+                <!-- Queue Filters -->
+                <div class="billing-request-filters">
+                    <div class="filter-btn-group">
+                        <button class="btn active" id="queueFilterAll" onclick="filterRequestQueue('all')">
+                            <i class="fas fa-th"></i> All
+                        </button>
+                        <button class="btn" id="queueFilterNew" onclick="filterRequestQueue('new')">
+                            <i class="fas fa-clock"></i> New
+                        </button>
+                        <button class="btn" id="queueFilterPending" onclick="filterRequestQueue('pending')">
+                            <i class="fas fa-hourglass-half"></i> Pending
+                        </button>
+                        <button class="btn" id="queueFilterProcessed" onclick="filterRequestQueue('processed')">
+                            <i class="fas fa-check-circle"></i> Processed
+                        </button>
+                    </div>
+                    
+                    <div style="flex: 1; min-width: 280px;">
+                        <div class="search-input-wrapper" style="margin: 0;">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="requestQueueSearch" class="form-input" placeholder="Search by patient number or name...">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Queue Cards -->
+                <div id="requestQueueContainer" class="request-queue-container">
+                    <div class="empty-state-content">
+                        <i class="fas fa-inbox"></i>
+                        <p>No billing requests at the moment</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Access Section -->
+            <div class="billing-section">
+                <div class="section-header">
+                    <i class="fas fa-link"></i>
+                    <h4>Quick Access</h4>
+                </div>
+
+                <div class="quick-access-grid">
+                    <button class="quick-access-card" onclick="showModule('billing')">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        <h5>Create New Bill</h5>
+                        <p>Process new billing request</p>
+                    </button>
+                    
+                    <button class="quick-access-card" onclick="navigateToModule('billing', 'billing-view')">
+                        <i class="fas fa-receipt"></i>
+                        <h5>View All Bills</h5>
+                        <p>See processed and paid bills</p>
+                    </button>
+                    
+                    <button class="quick-access-card" onclick="refreshBillingRequests()">
+                        <i class="fas fa-sync-alt"></i>
+                        <h5>Refresh Queue</h5>
+                        <p>Reload billing requests</p>
+                    </button>
+                    
+                    <button class="quick-access-card" onclick="navigateToModule('dashboard')">
+                        <i class="fas fa-chart-line"></i>
+                        <h5>Dashboard</h5>
+                        <p>View analytics & reports</p>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <style>
+            /* ============================================
+               BILLING REQUEST MODULE - CLEAN STYLES
+               ============================================ */
+
+            /* Queue Container */
+            .request-queue-container {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+                gap: 20px;
+                margin-top: 20px;
+            }
+
+            /* Quick Access Grid */
+            .quick-access-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 16px;
+                margin-top: 16px;
+            }
+
+            .quick-access-card {
+                background: white;
+                border: 1px solid #e0e0e0;
+                padding: 24px;
+                text-align: center;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .quick-access-card:hover {
+                border-color: var(--primary-color);
+                background: #f8f9fa;
+            }
+
+            .quick-access-card i {
+                font-size: 32px;
+                color: var(--primary-color);
+                margin-bottom: 8px;
+            }
+
+            .quick-access-card h5 {
+                font-size: 14px;
+                font-weight: 600;
+                color: #333;
+                margin: 0;
+            }
+
+            .quick-access-card p {
+                font-size: 12px;
+                color: #666;
+                margin: 0;
+            }
+
+            /* Request Cards */
+            .request-card {
+                background: white;
+                border: 1px solid #e0e0e0;
+                border-radius: 0;
+                padding: 18px;
+                position: relative;
+                display: flex;
+                flex-direction: column;
+                margin-bottom: 12px;
+            }
+
+            /* Status Indicators */
+            .request-card.status-new {
+                border: 1px solid #e0e0e0;
+            }
+
+            .request-card.status-pending {
+                border: 1px solid #e0e0e0;
+            }
+
+            .request-card.status-processed {
+                border: 1px solid #e0e0e0;
+                opacity: 0.7;
+            }
+
+            /* Card Header */
+            .request-card-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 14px;
+                padding-bottom: 10px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+
+            .request-id {
+                font-size: 12px;
+                font-weight: 600;
+                color: #666;
+                font-family: 'Courier New', monospace;
+            }
+
+            /* Status Badges */
+            .request-status-badge {
+                padding: 4px 10px;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .request-status-badge.status-new {
+                background: #e3f2fd;
+                color: #1976d2;
+            }
+
+            .request-status-badge.status-pending {
+                background: #fff3e0;
+                color: #f57c00;
+            }
+
+            .request-status-badge.status-processed {
+                background: #e8f5e9;
+                color: #388e3c;
+            }
+
+            /* Card Body */
+            .request-card-body {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                flex: 1;
+            }
+
+            .request-patient-info {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            .request-patient-name {
+                font-size: 16px;
+                font-weight: 600;
+                color: #333;
+                line-height: 1.3;
+            }
+
+            .request-patient-number {
+                font-size: 12px;
+                color: #666;
+                font-family: 'Courier New', monospace;
+            }
+
+            /* Info Grid */
+            .request-info-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+                margin: 10px 0;
+            }
+
+            .request-info-item {
+                display: flex;
+                flex-direction: column;
+                gap: 3px;
+            }
+
+            .request-info-label {
+                font-size: 10px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                color: #888;
+                font-weight: 600;
+            }
+
+            .request-info-value {
+                font-size: 13px;
+                font-weight: 500;
+                color: #333;
+            }
+
+            /* Department Badge */
+            .request-department-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                padding: 4px 10px;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: 600;
+                width: fit-content;
+            }
+
+            .request-department-badge.dept-reception {
+                background: #e3f2fd;
+                color: #1976d2;
+            }
+
+            .request-department-badge.dept-laboratory {
+                background: #f3e5f5;
+                color: #7b1fa2;
+            }
+
+            .request-department-badge.dept-imaging {
+                background: #fff3e0;
+                color: #e65100;
+            }
+
+            .request-department-badge.dept-pharmacy {
+                background: #e8f5e9;
+                color: #2e7d32;
+            }
+
+            .request-department-badge.dept-ward {
+                background: #ffebee;
+                color: #c62828;
+            }
+
+            /* Amount Display */
+            .request-amount-section {
+                margin: 10px 0;
+                padding: 10px;
+                background: #f5f5f5;
+                border-radius: 6px;
+                text-align: center;
+            }
+
+            .request-amount-label {
+                font-size: 10px;
+                text-transform: uppercase;
+                color: #888;
+                margin-bottom: 3px;
+            }
+
+            .request-amount {
+                font-size: 20px;
+                font-weight: 700;
+                color: #2e7d32;
+            }
+
+            /* Meta Info */
+            .request-meta {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                font-size: 11px;
+                color: #888;
+                padding-top: 10px;
+                border-top: 1px solid #f0f0f0;
+            }
+
+            .request-time {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+            }
+
+            .request-requester {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                font-weight: 500;
+            }
+
+            /* Card Footer */
+            .request-card-footer {
+                display: flex;
+                gap: 8px;
+                margin-top: 12px;
+            }
+
+            .request-card-footer .btn {
+                flex: 1;
+                padding: 8px 14px;
+                font-size: 12px;
+                font-weight: 600;
+                border-radius: 6px;
+            }
+
+            /* Filter Buttons */
+            .billing-request-filters {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+                align-items: center;
+            }
+
+            .filter-btn-group {
+                display: flex;
+                gap: 6px;
+                background: white;
+                padding: 3px;
+                border-radius: 6px;
+                border: 1px solid #e0e0e0;
+            }
+
+            .filter-btn-group .btn {
+                border-radius: 4px;
+                padding: 6px 14px;
+                font-size: 12px;
+                font-weight: 600;
+                border: none;
+                background: transparent;
+                color: #666;
+            }
+
+            .filter-btn-group .btn.active {
+                background: var(--primary-color);
+                color: white;
+            }
+
+            .filter-btn-group .btn:hover:not(.active) {
+                background: #f5f5f5;
+            }
+
+            /* Empty State */
+            .request-queue-container .empty-state-content {
+                grid-column: 1 / -1;
+                padding: 60px 20px;
+                text-align: center;
+            }
+
+            .request-queue-container .empty-state-content i {
+                font-size: 64px;
+                color: var(--text-secondary);
+                opacity: 0.3;
+                margin-bottom: 20px;
+            }
+
+            .request-queue-container .empty-state-content p {
+                font-size: 16px;
+                color: var(--text-secondary);
+                font-weight: 500;
+            }
+
+            /* Responsive */
+            @media (max-width: 1200px) {
+                .request-queue-container {
+                    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+                }
+            }
+
+            @media (max-width: 768px) {
+                .request-queue-container {
+                    grid-template-columns: 1fr;
+                }
+
+                .request-info-grid {
+                    grid-template-columns: 1fr;
+                }
+
+                .billing-request-filters {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+
+                .filter-btn-group {
+                    justify-content: stretch;
+                }
+            }
+
+            /* Loading Animation */
+            .request-card.loading {
+                opacity: 0.6;
+                pointer-events: none;
+            }
+
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.5; }
+            }
+
+            .request-card.loading::after {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+                animation: shimmer 1.5s infinite;
+            }
+
+            @keyframes shimmer {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(100%); }
+            }
+        </style>
+
+        <!-- Billing Request Details Modal -->
+        <div class="modal" id="billingRequestDetailsModal" style="display: none;">
+            <div class="modal-overlay" onclick="closeBillingRequestDetails()"></div>
+            <div class="modal-content" style="max-width: 700px; max-height: 85vh; overflow-y: auto;">
+                <div class="modal-header">
+                    <h2 class="modal-title">
+                        <i class="fas fa-file-invoice"></i>
+                        Billing Request Details
+                    </h2>
+                    <button class="modal-close" onclick="closeBillingRequestDetails()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="modal-body">
+                    <!-- Request ID & Status -->
+                    <div class="request-detail-header">
+                        <div class="request-id-section">
+                            <span class="detail-label">Request ID</span>
+                            <span class="detail-value request-id" id="detailRequestId">-</span>
+                        </div>
+                        <div class="request-status-section">
+                            <span class="status-badge" id="detailStatusBadge">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Patient Information -->
+                    <div class="detail-section">
+                        <h3 class="section-title">
+                            <i class="fas fa-user"></i> Patient Information
+                        </h3>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <span class="detail-label">Patient Number</span>
+                                <span class="detail-value" id="detailPatientNumber">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Patient Name</span>
+                                <span class="detail-value" id="detailPatientName">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Age</span>
+                                <span class="detail-value" id="detailPatientAge">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Gender</span>
+                                <span class="detail-value" id="detailPatientGender">-</span>
+                            </div>
+                            <div class="detail-item" style="grid-column: span 2;">
+                                <span class="detail-label">Contact</span>
+                                <span class="detail-value" id="detailPatientContact">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Service Information -->
+                    <div class="detail-section">
+                        <h3 class="section-title">
+                            <i class="fas fa-clipboard-list"></i> Service Information
+                        </h3>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <span class="detail-label">Department</span>
+                                <span class="department-badge" id="detailDepartment">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Service Type</span>
+                                <span class="detail-value" id="detailServiceType">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Amount</span>
+                                <span class="detail-value detail-amount" id="detailAmount">-</span>
+                            </div>
+                            <div class="detail-item" id="detailRxNumberContainer" style="display: none;">
+                                <span class="detail-label">Prescription #</span>
+                                <span class="detail-value" id="detailRxNumber">-</span>
+                            </div>
+                        </div>
+                        <div class="detail-item" id="detailNotesContainer" style="display: none; margin-top: 15px;">
+                            <span class="detail-label">Notes</span>
+                            <div class="detail-notes" id="detailNotes">-</div>
+                        </div>
+                    </div>
+
+                    <!-- Request Information -->
+                    <div class="detail-section">
+                        <h3 class="section-title">
+                            <i class="fas fa-info-circle"></i> Request Information
+                        </h3>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <span class="detail-label">Requested By</span>
+                                <span class="detail-value" id="detailRequestedBy">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Requested At</span>
+                                <span class="detail-value" id="detailRequestedAt">-</span>
+                            </div>
+                            <div class="detail-item" id="detailProcessedByContainer" style="display: none;">
+                                <span class="detail-label">Processed By</span>
+                                <span class="detail-value" id="detailProcessedBy">-</span>
+                            </div>
+                            <div class="detail-item" id="detailProcessedAtContainer" style="display: none;">
+                                <span class="detail-label">Processed At</span>
+                                <span class="detail-value" id="detailProcessedAt">-</span>
+                            </div>
+                            <div class="detail-item" id="detailReceiptNumberContainer" style="display: none;">
+                                <span class="detail-label">Receipt Number</span>
+                                <span class="detail-value" id="detailReceiptNumber">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeBillingRequestDetails()">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                    <button class="btn btn-primary" id="detailPrintBtn" onclick="printBillingRequestDetails()">
+                        <i class="fas fa-print"></i> Print Details
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <style>
+            /* Billing Request Details Modal Styles */
+            .request-detail-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 20px;
+                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+                border-radius: 12px;
+                margin-bottom: 24px;
+                border: 2px solid var(--border-color);
+            }
+
+            .request-id-section .detail-label {
+                display: block;
+                font-size: 12px;
+                color: var(--text-secondary);
+                margin-bottom: 4px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .request-id-section .request-id {
+                font-size: 20px;
+                font-weight: 700;
+                color: var(--primary-color);
+                font-family: 'Courier New', monospace;
+            }
+
+            .detail-section {
+                margin-bottom: 28px;
+                padding: 20px;
+                background: var(--card-bg);
+                border: 1px solid var(--border-color);
+                border-radius: 12px;
+            }
+
+            .detail-section .section-title {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                font-size: 16px;
+                font-weight: 600;
+                color: var(--text-primary);
+                margin-bottom: 16px;
+                padding-bottom: 12px;
+                border-bottom: 2px solid var(--border-color);
+            }
+
+            .detail-section .section-title i {
+                color: var(--primary-color);
+                font-size: 18px;
+            }
+
+            .detail-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 16px;
+            }
+
+            .detail-item {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .detail-label {
+                font-size: 12px;
+                font-weight: 600;
+                color: var(--text-secondary);
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .detail-value {
+                font-size: 15px;
+                font-weight: 500;
+                color: var(--text-primary);
+            }
+
+            .detail-amount {
+                font-size: 18px;
+                font-weight: 700;
+                color: #27ae60;
+            }
+
+            .detail-notes {
+                padding: 12px;
+                background: #f8f9fa;
+                border-radius: 8px;
+                font-size: 14px;
+                line-height: 1.6;
+                color: var(--text-primary);
+                white-space: pre-wrap;
+                border: 1px solid var(--border-color);
+            }
+
+            @media (max-width: 768px) {
+                .detail-grid {
+                    grid-template-columns: 1fr;
+                }
+                
+                .request-detail-header {
+                    flex-direction: column;
+                    align-items: flex-start;
+                    gap: 12px;
+                }
+            }
+        </style>
 
         <!-- View All Bills Sub-module -->
         <div class="module" id="billing-view-module">
@@ -10617,6 +11377,7 @@
     <!-- Initialize Modules -->
     <script type="module">
         import { initBillingModule, initViewBillsModule } from './js/billing.js';
+        import { initBillingRequestModule } from './js/billing-request.js';
         import { initWardNursingModule } from './js/ward-nursing.js';
         import { initImagingModule } from './js/imaging.js';
         import { initTelemedicineModule } from './js/telemedicine.js';
@@ -10652,6 +11413,7 @@
                     if (mutation.attributeName === 'class') {
                         const billingModule = document.getElementById('billing-module');
                         const billingViewModule = document.getElementById('billing-view-module');
+                        const billingRequestModule = document.getElementById('billing-request-module');
                         const wardNursingModule = document.getElementById('ward-nursing-module');
                         const imagingModule = document.getElementById('imaging-module');
                         const telemedicineModule = document.getElementById('telemedicine-module');
@@ -10664,6 +11426,10 @@
                         
                         if (billingViewModule && billingViewModule.classList.contains('active')) {
                             initViewBillsModule();
+                        }
+                        
+                        if (billingRequestModule && billingRequestModule.classList.contains('active')) {
+                            initBillingRequestModule();
                         }
                         
                         if (wardNursingModule && wardNursingModule.classList.contains('active')) {

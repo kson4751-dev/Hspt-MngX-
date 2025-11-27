@@ -1485,5 +1485,129 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+// ===================================
+// PREFILL BILLING FORM FROM REQUEST
+// ===================================
+window.prefillBillingForm = function(request) {
+    console.log('🔄 Prefilling billing form from request:', request);
+    
+    try {
+        // Set patient information
+        const patient = {
+            id: request.patientId || `request-${request.id}`,
+            number: request.patientNumber || 'N/A',
+            name: request.patientName || 'Unknown',
+            age: request.patientAge || '-',
+            gender: request.patientGender || '-',
+            isFromRequest: true,
+            requestId: request.id
+        };
+        
+        State.selectedPatient = patient;
+        
+        // Update patient display
+        const numEl = $('displayPatientNumber');
+        const nameEl = $('displayPatientName');
+        const ageEl = $('displayPatientAge');
+        const genderEl = $('displayPatientGender');
+        
+        if (numEl) numEl.textContent = patient.number;
+        if (nameEl) nameEl.textContent = patient.name;
+        if (ageEl) ageEl.textContent = patient.age;
+        if (genderEl) genderEl.textContent = patient.gender;
+        
+        // Show patient and form sections
+        const infoSection = $('selectedPatientSection');
+        const formSection = $('billingFormSection');
+        if (infoSection) infoSection.style.display = 'block';
+        if (formSection) formSection.style.display = 'block';
+        
+        // Hide search modes
+        const searchMode = $('patientSearchMode');
+        const manualMode = $('manualPatientMode');
+        if (searchMode) searchMode.style.display = 'none';
+        if (manualMode) manualMode.style.display = 'none';
+        
+        // Pre-fill service based on department
+        if (request.department === 'Pharmacy') {
+            // Enable pharmacy payment toggle
+            const pharmToggle = $('pharmacyPaymentToggle');
+            if (pharmToggle && !pharmToggle.checked) {
+                pharmToggle.click();
+            }
+            
+            // Set pharmacy amount
+            const pharmAmount = $('pharmacyAmount');
+            if (pharmAmount) pharmAmount.value = request.amount || 0;
+            
+            // Set prescription number if available
+            const pharmPrescription = $('pharmacyPrescriptionNumber');
+            if (pharmPrescription && request.notes) {
+                const rxMatch = request.notes.match(/Rx[:\s#]*([A-Z0-9-]+)/i);
+                if (rxMatch) {
+                    pharmPrescription.value = rxMatch[1];
+                }
+            }
+            
+        } else if (request.department === 'Laboratory' || request.department === 'Imaging' || request.department === 'Ward') {
+            // Add as additional service
+            addServiceRow();
+            
+            // Wait for row to be added
+            setTimeout(() => {
+                const serviceRows = document.querySelectorAll('.service-row');
+                if (serviceRows.length > 0) {
+                    const lastRow = serviceRows[serviceRows.length - 1];
+                    const descInput = lastRow.querySelector('.svc-desc');
+                    const amtInput = lastRow.querySelector('.svc-amt');
+                    
+                    if (descInput) descInput.value = request.serviceType || `${request.department} Service`;
+                    if (amtInput) amtInput.value = request.amount || 0;
+                }
+            }, 100);
+            
+        } else if (request.department === 'Reception') {
+            // Enable consultation fee
+            const consultToggle = $('consultationFeeToggle');
+            if (consultToggle && !consultToggle.checked) {
+                consultToggle.click();
+            }
+            
+            // Set consultation amount
+            const consultAmount = $('consultationAmount');
+            if (consultAmount) consultAmount.value = request.amount || 500;
+        }
+        
+        // Add notes
+        const notesField = $('billingNotes');
+        if (notesField) {
+            const noteText = `From ${request.department} - ${request.serviceType}\n${request.notes || ''}`.trim();
+            notesField.value = noteText;
+        }
+        
+        // Update summary
+        updateSummary();
+        
+        // Store request ID for later reference
+        window._currentBillingRequestId = request.id;
+        
+        // Show success message
+        notify(`Loaded billing request from ${request.department}`, 'success');
+        
+        // Scroll to form
+        setTimeout(() => {
+            if (formSection) {
+                formSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 200);
+        
+        console.log('✅ Billing form prefilled successfully');
+        
+    } catch (error) {
+        console.error('❌ Failed to prefill billing form:', error);
+        notify('Failed to load request data', 'error');
+    }
+};
+
 // Module loaded
 console.log('✅ Billing Module v3.0 Ready');

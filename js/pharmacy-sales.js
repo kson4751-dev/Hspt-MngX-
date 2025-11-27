@@ -655,16 +655,85 @@ window.printSale = function(saleId) {
 };
 
 /**
- * Send to billing
+ * Send to billing - Creates real-time billing request
  */
-window.sendToBilling = function(saleId) {
+window.sendToBilling = async function(saleId) {
     const sale = allSales.find(s => s.id === saleId);
-    if (!sale) return;
+    if (!sale) {
+        alert('Sale not found');
+        return;
+    }
     
-    if (confirm(`Send sale ${sale.saleNumber} to billing module?`)) {
-        // TODO: Implement billing integration
-        alert('Sale sent to billing successfully!\n\nThis will create an invoice in the billing module.');
-        console.log('Sending to billing:', sale);
+    // Check if billing request function is available
+    if (typeof window.createBillingRequest !== 'function') {
+        alert('Billing request module not loaded. Please refresh the page.');
+        console.error('window.createBillingRequest is not available');
+        return;
+    }
+    
+    if (!confirm(`Send sale ${sale.saleNumber} to billing module?\n\nCustomer: ${sale.customerName}\nAmount: KSh ${sale.total.toFixed(2)}`)) {
+        return;
+    }
+    
+    try {
+        // Show loading state
+        const button = event.target.closest('button');
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+        
+        // Create billing request in real-time
+        const result = await window.createBillingRequest({
+            patientNumber: sale.customerContact || 'WALK-IN',
+            patientName: sale.customerName,
+            patientId: saleId,
+            department: 'Pharmacy',
+            serviceType: `Prescription Dispensing${sale.prescriptionNumber !== 'N/A' ? ` (Rx: ${sale.prescriptionNumber})` : ''}`,
+            amount: sale.total,
+            notes: `Sale #${sale.saleNumber}, Items: ${sale.items?.length || 0}, Payment: ${sale.paymentMethod}`,
+            requestedBy: sale.soldBy || 'Pharmacist'
+        });
+        
+        console.log('✅ Billing request created:', result);
+        
+        // Show success notification
+        if (typeof window.showNotification === 'function') {
+            window.showNotification(
+                `Sale ${sale.saleNumber} sent to billing queue successfully!\nRequest ID: ${result.requestId}`,
+                'success'
+            );
+        } else {
+            alert(`✅ Sale sent to billing successfully!\n\nRequest ID: ${result.requestId}\n\nBilling staff will be notified immediately.`);
+        }
+        
+        // Restore button
+        button.disabled = false;
+        button.innerHTML = '<i class="fas fa-check"></i> Sent';
+        button.classList.remove('billing');
+        button.classList.add('success');
+        
+        // Reset button after 3 seconds
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.classList.remove('success');
+            button.classList.add('billing');
+        }, 3000);
+        
+    } catch (error) {
+        console.error('❌ Failed to send to billing:', error);
+        
+        // Show error notification
+        if (typeof window.showNotification === 'function') {
+            window.showNotification('Failed to send to billing. Please try again.', 'error');
+        } else {
+            alert('❌ Failed to send to billing. Please try again.');
+        }
+        
+        // Restore button
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
     }
 };
 
