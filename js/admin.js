@@ -124,15 +124,75 @@ window.closeUserModal = function() {
 function autoSelectPermissions(role) {
     clearAllPermissions();
 
+    // COMPLETE permission mapping - includes all modules and submodules
+    // Module names must match data-module and data-submodule attributes in sidebar
     const rolePermissions = {
-        admin: ['dashboard', 'reception', 'triage', 'doctor', 'nursing', 'laboratory', 'ward', 'pharmacy', 'billing', 'inventory', 'expenses', 'admin', 'settings', 'emergency'],
-        doctor: ['dashboard', 'triage', 'doctor', 'laboratory', 'ward', 'emergency', 'settings'],
-        nurse: ['dashboard', 'triage', 'nursing', 'ward', 'emergency', 'settings'],
-        pharmacist: ['dashboard', 'pharmacy', 'inventory', 'settings'],
-        receptionist: ['dashboard', 'reception', 'billing', 'settings'],
-        lab_technician: ['dashboard', 'laboratory', 'settings'],
-        billing: ['dashboard', 'billing', 'expenses', 'settings'],
-        inventory_manager: ['dashboard', 'inventory', 'settings']
+        admin: [
+            'dashboard', 
+            'reception', 'new-patient', 'all-patients',
+            'triage', 
+            'doctor', 
+            'ward-nursing', 
+            'laboratory', 'lab-reports',
+            'pharmacy', 'pharmacy-inventory', 'pharmacy-pos', 'pharmacy-sales', 'prescription-queue',
+            'imaging', 'imaging-reports',
+            'telemedicine',
+            'billing', 'billing-request', 'billing-view',
+            'inventory', 'add-item', 'view-inventory',
+            'expenses', 'add-expense', 'all-expenses',
+            'reports',
+            'emergency',
+            'admin',
+            'settings'
+        ],
+        doctor: [
+            'dashboard',
+            'triage',
+            'doctor',
+            'ward-nursing',
+            'laboratory', 'lab-reports',
+            'imaging', 'imaging-reports',
+            'pharmacy', 'prescription-queue',
+            'emergency',
+            'settings'
+        ],
+        nurse: [
+            'dashboard',
+            'triage',
+            'ward-nursing',
+            'emergency',
+            'settings'
+        ],
+        pharmacist: [
+            'dashboard',
+            'pharmacy', 'pharmacy-inventory', 'pharmacy-pos', 'pharmacy-sales', 'prescription-queue',
+            'inventory', 'view-inventory',
+            'settings'
+        ],
+        receptionist: [
+            'dashboard',
+            'reception', 'new-patient', 'all-patients',
+            'billing', 'billing-view',
+            'settings'
+        ],
+        lab_technician: [
+            'dashboard',
+            'laboratory', 'lab-reports',
+            'settings'
+        ],
+        billing: [
+            'dashboard',
+            'billing', 'billing-request', 'billing-view',
+            'expenses', 'add-expense', 'all-expenses',
+            'reports',
+            'settings'
+        ],
+        inventory_manager: [
+            'dashboard',
+            'inventory', 'add-item', 'view-inventory',
+            'expenses', 'add-expense', 'all-expenses',
+            'settings'
+        ]
     };
 
     const permissions = rolePermissions[role] || [];

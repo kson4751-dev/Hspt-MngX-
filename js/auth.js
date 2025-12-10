@@ -1,4 +1,5 @@
-// Authentication and Role-Based Access Control with Real-time Audit Trail
+// Authentication and Role-Based Access Control with Real-time Permissions & Audit Trail
+// RxFlow Hospital Management System - Enhanced Security Module
 
 // User Roles
 const USER_ROLES = {
@@ -24,15 +25,476 @@ const DEPARTMENT_MODULES = {
     'Medical': ['dashboard', 'doctor', 'triage', 'laboratory', 'ward-nursing', 'emergency', 'prescription-queue', 'settings']
 };
 
+// Audit Trail Action Types
+const AUDIT_ACTIONS = {
+    LOGIN: 'login',
+    LOGOUT: 'logout',
+    SESSION_START: 'session_start',
+    SESSION_END: 'session_end',
+    MODULE_ACCESS: 'module_access',
+    ACCESS_DENIED: 'access_denied',
+    PERMISSION_CHANGE: 'permission_change',
+    DATA_VIEW: 'data_view',
+    DATA_CREATE: 'data_create',
+    DATA_UPDATE: 'data_update',
+    DATA_DELETE: 'data_delete',
+    REPORT_GENERATE: 'report_generate',
+    EXPORT_DATA: 'export_data',
+    PRINT_ACTION: 'print_action',
+    SETTINGS_CHANGE: 'settings_change',
+    PASSWORD_CHANGE: 'password_change',
+    PROFILE_UPDATE: 'profile_update'
+};
+
 // Current user and session data
 let currentUser = null;
 let userSession = null;
 let activityMonitor = null;
 let inactivityTimeout = null;
 let lastActivityTime = Date.now();
+let permissionListener = null;
+let previousPermissions = [];
 
 // Inactivity timeout duration (30 minutes in milliseconds)
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+
+// ==================== REAL-TIME PERMISSION LISTENER ====================
+
+// Start listening to user permissions in real-time
+async function startRealtimePermissionListener() {
+    try {
+        const { getFirestore, doc, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        const { getApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+        
+        const app = getApp();
+        const db = getFirestore(app);
+        const user = getCurrentUser();
+        
+        if (!user || !user.uid) {
+            console.warn('⚠️ Cannot start permission listener: No user found');
+            return;
+        }
+        
+        // Unsubscribe from previous listener if exists
+        if (permissionListener) {
+            permissionListener();
+            permissionListener = null;
+        }
+        
+        // Store current permissions for comparison
+        previousPermissions = [...(user.permissions || [])];
+        
+        console.log('🔄 Starting real-time permission listener for user:', user.uid);
+        
+        // Listen to user document changes in real-time
+        permissionListener = onSnapshot(doc(db, 'users', user.uid), async (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                const userData = docSnapshot.data();
+                
+                // Check if user is still active
+                if (userData.active === false) {
+                    console.warn('⚠️ User account has been deactivated');
+                    showPermissionChangeNotification('deactivated');
+                    await logAuditTrail(AUDIT_ACTIONS.LOGOUT, 'Account Deactivated', 'User account was deactivated by administrator', { reason: 'account_deactivated' });
+                    setTimeout(() => logout('account_deactivated'), 3000);
+                    return;
+                }
+                
+                // Get new permissions
+                const newPermissions = userData.permissions || [];
+                const newRole = userData.role;
+                
+                // Check if permissions changed
+                const permissionsChanged = !arraysEqual(previousPermissions, newPermissions);
+                const roleChanged = user.role !== newRole;
+                
+                if (permissionsChanged || roleChanged) {
+                    console.log('🔄 Permissions updated in real-time!');
+                    console.log('Previous permissions:', previousPermissions);
+                    console.log('New permissions:', newPermissions);
+                    
+                    // Calculate added and removed permissions
+                    const addedPermissions = newPermissions.filter(p => !previousPermissions.includes(p));
+                    const removedPermissions = previousPermissions.filter(p => !newPermissions.includes(p));
+                    
+                    // Update stored permissions
+                    const storageType = localStorage.getItem('userId') ? localStorage : sessionStorage;
+                    storageType.setItem('userPermissions', JSON.stringify(newPermissions));
+                    storageType.setItem('userRole', newRole);
+                    
+                    // Update current user object
+                    if (currentUser) {
+                        currentUser.permissions = newPermissions;
+                        currentUser.role = newRole;
+                        storageType.setItem('currentUser', JSON.stringify(currentUser));
+                    }
+                    
+                    // Update previous permissions for next comparison
+                    previousPermissions = [...newPermissions];
+                    
+                    // Log permission change in audit trail
+                    await logAuditTrail(AUDIT_ACTIONS.PERMISSION_CHANGE, 'Permissions Updated', 
+                        `User permissions were updated in real-time`, {
+                            addedPermissions,
+                            removedPermissions,
+                            newRole,
+                            previousRole: user.role
+                        });
+                    
+                    // Re-filter sidebar with new permissions
+                    filterModulesByPermissions();
+                    
+                    // Check if currently viewing a module that was removed
+                    const activeModule = document.querySelector('.module.active');
+                    if (activeModule) {
+                        const moduleId = activeModule.id.replace('-module', '');
+                        if (removedPermissions.includes(moduleId) && moduleId !== 'dashboard') {
+                            // Redirect to dashboard if current module access was revoked
+                            showPermissionChangeNotification('revoked', moduleId);
+                            navigateToDashboard();
+                        } else if (addedPermissions.length > 0 || removedPermissions.length > 0) {
+                            // Show notification about permission changes
+                            showPermissionChangeNotification('updated', null, addedPermissions, removedPermissions);
+                        }
+                    } else {
+                        showPermissionChangeNotification('updated', null, addedPermissions, removedPermissions);
+                    }
+                }
+                
+                // Update other user data if changed
+                if (userData.displayName !== user.displayName) {
+                    const storageType = localStorage.getItem('userId') ? localStorage : sessionStorage;
+                    storageType.setItem('userName', userData.displayName);
+                    if (currentUser) {
+                        currentUser.displayName = userData.displayName;
+                    }
+                    const profileNameEl = document.getElementById('profileName');
+                    if (profileNameEl) {
+                        profileNameEl.textContent = userData.displayName;
+                    }
+                }
+                
+                if (userData.department !== user.department) {
+                    const storageType = localStorage.getItem('userId') ? localStorage : sessionStorage;
+                    storageType.setItem('userDepartment', userData.department);
+                    if (currentUser) {
+                        currentUser.department = userData.department;
+                    }
+                }
+                
+            } else {
+                // User document was deleted
+                console.error('❌ User document no longer exists');
+                showPermissionChangeNotification('deleted');
+                await logAuditTrail(AUDIT_ACTIONS.LOGOUT, 'Account Deleted', 'User account was deleted', { reason: 'account_deleted' });
+                setTimeout(() => logout('account_deleted'), 3000);
+            }
+        }, (error) => {
+            console.error('❌ Error listening to permission changes:', error);
+        });
+        
+        console.log('✅ Real-time permission listener active');
+        
+    } catch (error) {
+        console.error('❌ Error starting permission listener:', error);
+    }
+}
+
+// Stop real-time permission listener
+function stopRealtimePermissionListener() {
+    if (permissionListener) {
+        permissionListener();
+        permissionListener = null;
+        console.log('🛑 Real-time permission listener stopped');
+    }
+}
+
+// Helper function to compare arrays
+function arraysEqual(a, b) {
+    if (a.length !== b.length) return false;
+    const sortedA = [...a].sort();
+    const sortedB = [...b].sort();
+    return sortedA.every((val, index) => val === sortedB[index]);
+}
+
+// Navigate to dashboard
+function navigateToDashboard() {
+    const modules = document.querySelectorAll('.module');
+    const navItems = document.querySelectorAll('.nav-item');
+    
+    modules.forEach(m => m.classList.remove('active'));
+    navItems.forEach(n => n.classList.remove('active'));
+    
+    const dashboardModule = document.getElementById('dashboard-module');
+    const dashboardNav = document.querySelector('.nav-item[data-module="dashboard"]');
+    
+    if (dashboardModule) dashboardModule.classList.add('active');
+    if (dashboardNav) dashboardNav.classList.add('active');
+}
+
+// Show permission change notification
+function showPermissionChangeNotification(type, moduleName = null, added = [], removed = []) {
+    // Remove existing notification if any
+    const existingNotif = document.getElementById('permission-change-notification');
+    if (existingNotif) existingNotif.remove();
+    
+    let title, message, icon, bgColor;
+    
+    switch (type) {
+        case 'deactivated':
+            title = 'Account Deactivated';
+            message = 'Your account has been deactivated by an administrator. You will be logged out.';
+            icon = 'fa-user-slash';
+            bgColor = '#dc2626';
+            break;
+        case 'deleted':
+            title = 'Account Removed';
+            message = 'Your account has been removed from the system. You will be logged out.';
+            icon = 'fa-user-times';
+            bgColor = '#dc2626';
+            break;
+        case 'revoked':
+            title = 'Access Revoked';
+            message = `Your access to the ${moduleName} module has been revoked. Redirecting to dashboard...`;
+            icon = 'fa-lock';
+            bgColor = '#f59e0b';
+            break;
+        case 'updated':
+            title = 'Permissions Updated';
+            let details = [];
+            if (added.length > 0) details.push(`Added: ${added.join(', ')}`);
+            if (removed.length > 0) details.push(`Removed: ${removed.join(', ')}`);
+            message = `Your permissions have been updated by an administrator. ${details.join('. ')}`;
+            icon = 'fa-shield-alt';
+            bgColor = '#3b82f6';
+            break;
+        default:
+            return;
+    }
+    
+    const notification = document.createElement('div');
+    notification.id = 'permission-change-notification';
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${bgColor};
+        color: white;
+        padding: 16px 24px;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        z-index: 99999;
+        max-width: 400px;
+        animation: slideInRight 0.3s ease;
+        font-family: 'Montserrat', sans-serif;
+    `;
+    
+    notification.innerHTML = `
+        <style>
+            @keyframes slideInRight {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+        </style>
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+            <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <i class="fas ${icon}" style="font-size: 18px;"></i>
+            </div>
+            <div style="flex: 1;">
+                <h4 style="margin: 0 0 4px 0; font-size: 15px; font-weight: 600;">${title}</h4>
+                <p style="margin: 0; font-size: 13px; opacity: 0.9; line-height: 1.4;">${message}</p>
+            </div>
+            <button onclick="this.closest('#permission-change-notification').remove()" style="background: none; border: none; color: white; cursor: pointer; padding: 4px; opacity: 0.7; font-size: 16px;">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto remove after 10 seconds (unless account deactivated/deleted)
+    if (type !== 'deactivated' && type !== 'deleted') {
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.style.animation = 'slideInRight 0.3s ease reverse';
+                setTimeout(() => notification.remove(), 300);
+            }
+        }, 10000);
+    }
+}
+
+// ==================== COMPREHENSIVE AUDIT TRAIL ====================
+
+// Log activity to audit trail with enhanced metadata
+async function logAuditTrail(actionType, action, description, metadata = {}) {
+    try {
+        const { getFirestore, collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        const { getApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+        
+        const app = getApp();
+        const db = getFirestore(app);
+        const user = getCurrentUser();
+        
+        // Get browser and device info
+        const deviceInfo = getDeviceInfo();
+        
+        const auditEntry = {
+            // Action details
+            actionType: actionType,
+            action: action,
+            description: description,
+            
+            // User details
+            userId: user?.uid || 'unknown',
+            userName: user?.displayName || 'Unknown User',
+            userEmail: user?.email || 'unknown',
+            userRole: user?.role || 'unknown',
+            department: user?.department || 'N/A',
+            
+            // Session details
+            sessionId: user?.sessionId || userSession || 'no_session',
+            
+            // Timing
+            timestamp: serverTimestamp(),
+            clientTimestamp: new Date().toISOString(),
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            
+            // Location & Device
+            ipAddress: await getClientIP(),
+            userAgent: navigator.userAgent,
+            browser: deviceInfo.browser,
+            os: deviceInfo.os,
+            device: deviceInfo.device,
+            screenResolution: `${window.screen.width}x${window.screen.height}`,
+            
+            // Page context
+            currentPage: window.location.pathname,
+            currentModule: getCurrentActiveModule(),
+            referrer: document.referrer || 'direct',
+            
+            // Additional metadata
+            metadata: {
+                ...metadata,
+                pageTitle: document.title,
+                windowSize: `${window.innerWidth}x${window.innerHeight}`
+            }
+        };
+        
+        await addDoc(collection(db, 'audit_trail'), auditEntry);
+        
+        // Also add to activity_logs for backward compatibility
+        await addDoc(collection(db, 'activity_logs'), {
+            type: actionType,
+            action: action,
+            description: description,
+            userId: user?.uid,
+            userName: user?.displayName,
+            userEmail: user?.email,
+            userRole: user?.role,
+            department: user?.department || 'N/A',
+            sessionId: user?.sessionId || '',
+            metadata: metadata,
+            timestamp: serverTimestamp(),
+            ipAddress: auditEntry.ipAddress,
+            userAgent: navigator.userAgent
+        });
+        
+        console.log(`📝 Audit Trail: ${actionType} - ${action}`);
+        
+    } catch (error) {
+        console.error('❌ Error logging to audit trail:', error);
+    }
+}
+
+// Get current active module
+function getCurrentActiveModule() {
+    const activeModule = document.querySelector('.module.active');
+    if (activeModule) {
+        return activeModule.id.replace('-module', '');
+    }
+    return 'dashboard';
+}
+
+// Get device information
+function getDeviceInfo() {
+    const ua = navigator.userAgent;
+    let browser = 'Unknown';
+    let os = 'Unknown';
+    let device = 'Desktop';
+    
+    // Detect browser
+    if (ua.includes('Firefox')) browser = 'Firefox';
+    else if (ua.includes('Chrome')) browser = 'Chrome';
+    else if (ua.includes('Safari')) browser = 'Safari';
+    else if (ua.includes('Edge')) browser = 'Edge';
+    else if (ua.includes('Opera')) browser = 'Opera';
+    
+    // Detect OS
+    if (ua.includes('Windows')) os = 'Windows';
+    else if (ua.includes('Mac')) os = 'macOS';
+    else if (ua.includes('Linux')) os = 'Linux';
+    else if (ua.includes('Android')) os = 'Android';
+    else if (ua.includes('iOS') || ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+    
+    // Detect device type
+    if (ua.includes('Mobile') || ua.includes('Android')) device = 'Mobile';
+    else if (ua.includes('Tablet') || ua.includes('iPad')) device = 'Tablet';
+    
+    return { browser, os, device };
+}
+
+// Get client IP address
+async function getClientIP() {
+    try {
+        const response = await fetch('https://api.ipify.org?format=json', { timeout: 3000 });
+        const data = await response.json();
+        return data.ip;
+    } catch {
+        return 'Unknown';
+    }
+}
+
+// ==================== MODULE ACCESS TRACKING ====================
+
+// Track module access with audit trail
+async function trackModuleAccess(moduleName, granted = true) {
+    await logAuditTrail(
+        granted ? AUDIT_ACTIONS.MODULE_ACCESS : AUDIT_ACTIONS.ACCESS_DENIED,
+        granted ? `Accessed ${moduleName}` : `Access Denied: ${moduleName}`,
+        granted 
+            ? `User successfully accessed the ${moduleName} module`
+            : `User attempted to access ${moduleName} module without permission`,
+        { 
+            moduleName, 
+            granted,
+            userPermissions: getCurrentUser()?.permissions || []
+        }
+    );
+}
+
+// Track data operations
+async function trackDataOperation(operation, entityType, entityId, details = {}) {
+    const actionMap = {
+        'view': AUDIT_ACTIONS.DATA_VIEW,
+        'create': AUDIT_ACTIONS.DATA_CREATE,
+        'update': AUDIT_ACTIONS.DATA_UPDATE,
+        'delete': AUDIT_ACTIONS.DATA_DELETE
+    };
+    
+    await logAuditTrail(
+        actionMap[operation] || 'data_operation',
+        `${operation.charAt(0).toUpperCase() + operation.slice(1)} ${entityType}`,
+        `User ${operation}ed ${entityType} record`,
+        {
+            operation,
+            entityType,
+            entityId,
+            ...details
+        }
+    );
+}
+
+// ==================== CORE AUTH FUNCTIONS ====================
 
 // Check if user is authenticated
 function isAuthenticated() {
@@ -70,11 +532,17 @@ function getCurrentUser() {
     return currentUser;
 }
 
-// Check if user has access to a module based on their permissions
+// Check if user has access to a module based on their EXPLICIT permissions
+// Users can ONLY access modules listed in their permissions array
 function hasAccess(moduleName) {
     const user = getCurrentUser();
     if (!user) {
         return false;
+    }
+    
+    // Dashboard is always accessible to everyone
+    if (moduleName === 'dashboard') {
+        return true;
     }
     
     // Admin has access to everything
@@ -82,20 +550,25 @@ function hasAccess(moduleName) {
         return true;
     }
     
-    // Check user's specific permissions
-    if (user.permissions && user.permissions.length > 0) {
-        return user.permissions.includes(moduleName);
-    }
-    
-    return false;
+    // STRICT CHECK: User must have explicit permission for this module
+    const userPermissions = user.permissions || [];
+    return userPermissions.includes(moduleName);
 }
 
 // Check if user has permission for specific module
 function checkModulePermission(moduleName) {
+    // Dashboard is always allowed
+    if (moduleName === 'dashboard') {
+        trackModuleAccess(moduleName, true);
+        return true;
+    }
+    
     if (!hasAccess(moduleName)) {
         showAccessDeniedMessage(moduleName);
+        trackModuleAccess(moduleName, false);
         return false;
     }
+    trackModuleAccess(moduleName, true);
     return true;
 }
 
@@ -119,66 +592,9 @@ function showAccessDeniedMessage(moduleName) {
         </div>
     `;
     document.body.appendChild(modal);
-    
-    // Log access attempt
-    logAccessAttempt(moduleName, false);
 }
 
-// Log user activity to Firebase
-async function logActivity(type, action, description, metadata = {}) {
-    try {
-        const { getFirestore, collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-        const { getApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
-        
-        const app = getApp();
-        const db = getFirestore(app);
-        const user = getCurrentUser();
-        
-        if (!user) return;
-        
-        await addDoc(collection(db, 'activity_logs'), {
-            type: type,
-            action: action,
-            description: description,
-            userId: user.uid,
-            userName: user.displayName,
-            userEmail: user.email,
-            userRole: user.role,
-            department: user.department || 'N/A',
-            sessionId: user.sessionId || '',
-            metadata: metadata,
-            timestamp: serverTimestamp(),
-            ipAddress: await getClientIP(),
-            userAgent: navigator.userAgent
-        });
-    } catch (error) {
-        console.error('Error logging activity:', error);
-    }
-}
-
-// Log access attempt (authorized or unauthorized)
-async function logAccessAttempt(moduleName, granted) {
-    const user = getCurrentUser();
-    await logActivity(
-        granted ? 'access_granted' : 'access_denied',
-        `Module Access: ${moduleName}`,
-        granted 
-            ? `User accessed ${moduleName} module` 
-            : `User attempted to access ${moduleName} module without permission`,
-        { moduleName, granted }
-    );
-}
-
-// Get client IP address (simplified - would need backend API for real IP)
-async function getClientIP() {
-    try {
-        const response = await fetch('https://api.ipify.org?format=json');
-        const data = await response.json();
-        return data.ip;
-    } catch {
-        return 'Unknown';
-    }
-}
+// ==================== SESSION MANAGEMENT ====================
 
 // Start user session tracking
 async function startSession() {
@@ -200,6 +616,9 @@ async function startSession() {
             currentUser.sessionId = sessionId;
         }
         
+        const deviceInfo = getDeviceInfo();
+        const ipAddress = await getClientIP();
+        
         // Create session document
         await setDoc(doc(db, 'user_sessions', sessionId), {
             userId: user.uid,
@@ -207,18 +626,26 @@ async function startSession() {
             userEmail: user.email,
             userRole: user.role,
             department: user.department || 'N/A',
+            permissions: user.permissions || [],
             sessionId: sessionId,
             loginTime: serverTimestamp(),
             lastActivity: serverTimestamp(),
-            ipAddress: await getClientIP(),
+            ipAddress: ipAddress,
             userAgent: navigator.userAgent,
+            browser: deviceInfo.browser,
+            os: deviceInfo.os,
+            device: deviceInfo.device,
             status: 'active'
         });
         
-        // Log login activity
-        await logActivity('login', 'User Login', `${user.displayName} logged in successfully`, {
-            sessionId: sessionId
-        });
+        // Log session start in audit trail
+        await logAuditTrail(AUDIT_ACTIONS.SESSION_START, 'Session Started', 
+            `${user.displayName} started a new session`, {
+                sessionId: sessionId,
+                ipAddress: ipAddress,
+                device: deviceInfo.device,
+                browser: deviceInfo.browser
+            });
         
         // Start activity monitoring
         startActivityMonitoring(sessionId);
@@ -282,7 +709,7 @@ function throttle(func, limit) {
 }
 
 // End user session
-async function endSession() {
+async function endSession(reason = 'manual') {
     try {
         const { getFirestore, doc, updateDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
         const { getApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
@@ -296,13 +723,16 @@ async function endSession() {
         // Update session document
         await updateDoc(doc(db, 'user_sessions', user.sessionId), {
             logoutTime: serverTimestamp(),
-            status: 'ended'
+            status: 'ended',
+            endReason: reason
         });
         
-        // Log logout activity
-        await logActivity('logout', 'User Logout', `${user.displayName} logged out`, {
-            sessionId: user.sessionId
-        });
+        // Log session end in audit trail
+        await logAuditTrail(AUDIT_ACTIONS.SESSION_END, 'Session Ended', 
+            `${user.displayName}'s session ended`, {
+                sessionId: user.sessionId,
+                reason: reason
+            });
         
         // Clear activity monitor
         if (activityMonitor) {
@@ -326,11 +756,21 @@ function requireAuth() {
 
 // Logout function with session cleanup
 async function logout(reason = 'manual') {
-    // End session before logging out
-    await endSession();
+    // Stop permission listener
+    stopRealtimePermissionListener();
     
-    const currentUserId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
-    const currentUserName = localStorage.getItem('userName') || sessionStorage.getItem('userName');
+    // Log logout before ending session
+    const user = getCurrentUser();
+    if (user) {
+        await logAuditTrail(AUDIT_ACTIONS.LOGOUT, 'User Logout', 
+            `${user.displayName} logged out`, {
+                reason: reason,
+                sessionId: user.sessionId
+            });
+    }
+    
+    // End session
+    await endSession(reason);
     
     // Clear inactivity timers
     if (inactivityTimeout) {
@@ -359,10 +799,17 @@ async function logout(reason = 'manual') {
     
     currentUser = null;
     userSession = null;
+    previousPermissions = [];
     
     // Store logout reason for display on login page
     if (reason === 'inactivity') {
         sessionStorage.setItem('logoutReason', 'Session expired due to inactivity');
+    } else if (reason === 'account_deactivated') {
+        sessionStorage.setItem('logoutReason', 'Your account has been deactivated');
+    } else if (reason === 'account_deleted') {
+        sessionStorage.setItem('logoutReason', 'Your account has been removed');
+    } else if (reason === 'permission_revoked') {
+        sessionStorage.setItem('logoutReason', 'Your permissions have been revoked');
     }
     
     // Redirect to login
@@ -379,8 +826,12 @@ function resetInactivityTimer() {
     }
     
     // Set new timeout
-    inactivityTimeout = setTimeout(() => {
+    inactivityTimeout = setTimeout(async () => {
         console.warn('⏱️ Session expired due to inactivity');
+        await logAuditTrail(AUDIT_ACTIONS.LOGOUT, 'Inactivity Logout', 
+            'User was logged out due to 30 minutes of inactivity', {
+                inactivityDuration: '30 minutes'
+            });
         alert('Your session has expired due to 30 minutes of inactivity. You will be logged out.');
         logout('inactivity');
     }, INACTIVITY_TIMEOUT);
@@ -393,7 +844,6 @@ function setupActivityListeners() {
     events.forEach(event => {
         document.addEventListener(event, () => {
             // Only reset if more than 1 second has passed since last activity
-            // This prevents excessive timer resets
             if (Date.now() - lastActivityTime > 1000) {
                 resetInactivityTimer();
             }
@@ -408,76 +858,170 @@ function setupActivityListeners() {
 // Make logout function globally accessible
 window.logout = logout;
 
-// Filter modules in sidebar based on permissions
+// Filter modules in sidebar based on STRICT permissions
+// Users only see modules they explicitly have permission for
 function filterModulesByPermissions() {
     const user = getCurrentUser();
     if (!user) return;
     
-    console.log('🔒 Filtering modules based on permissions...');
+    console.log('🔒 Filtering modules based on STRICT permissions...');
+    console.log('📋 User permissions:', user.permissions);
+    console.log('🎭 User role:', user.role);
     
-    const navItems = document.querySelectorAll('.nav-item');
-    const navDropdownItems = document.querySelectorAll('.nav-dropdown-item');
+    const userPermissions = user.permissions || [];
+    const isAdmin = user.role === 'admin';
+    
+    // Dashboard is always visible
+    const alwaysAllowed = ['dashboard'];
     
     let hiddenCount = 0;
     let visibleCount = 0;
     
-    // Hide unauthorized main nav items
+    // Get all navigation items
+    const navItems = document.querySelectorAll('.nav-item');
+    const navDropdownItems = document.querySelectorAll('.nav-dropdown-item');
+    const navGroups = document.querySelectorAll('.nav-item-group');
+    
+    // First, hide ALL nav items (except dashboard)
     navItems.forEach(item => {
         const module = item.getAttribute('data-module');
-        if (module && module !== 'dashboard') {
-            if (!hasAccess(module)) {
-                item.style.display = 'none';
-                hiddenCount++;
-            } else {
-                item.style.display = '';
-                visibleCount++;
-            }
+        if (module && !alwaysAllowed.includes(module)) {
+            item.style.display = 'none';
+            item.classList.add('permission-hidden');
         }
     });
     
-    // Hide unauthorized dropdown items
+    // Hide ALL dropdown items
     navDropdownItems.forEach(item => {
-        const submodule = item.getAttribute('data-submodule');
-        if (submodule) {
-            if (!hasAccess(submodule)) {
-                item.style.display = 'none';
-                hiddenCount++;
-            } else {
-                item.style.display = '';
+        item.style.display = 'none';
+        item.classList.add('permission-hidden');
+    });
+    
+    // Hide ALL nav groups initially
+    navGroups.forEach(group => {
+        group.style.display = 'none';
+        group.classList.add('permission-hidden');
+    });
+    
+    // Now show ONLY what user has explicit permission for
+    if (isAdmin) {
+        // Admin sees everything
+        navItems.forEach(item => {
+            item.style.display = '';
+            item.classList.remove('permission-hidden');
+            visibleCount++;
+        });
+        navDropdownItems.forEach(item => {
+            item.style.display = '';
+            item.classList.remove('permission-hidden');
+        });
+        navGroups.forEach(group => {
+            group.style.display = '';
+            group.classList.remove('permission-hidden');
+        });
+        console.log('👑 Admin user - all modules visible');
+    } else {
+        // Non-admin: Only show explicitly permitted modules
+        userPermissions.forEach(permission => {
+            // Show main nav item if it matches permission
+            const mainNavItem = document.querySelector(`.nav-item[data-module="${permission}"]:not(.nav-item-group .nav-item)`);
+            if (mainNavItem) {
+                mainNavItem.style.display = '';
+                mainNavItem.classList.remove('permission-hidden');
                 visibleCount++;
             }
-        }
-    });
-    
-    // Hide empty nav groups
-    document.querySelectorAll('.nav-item-group').forEach(group => {
-        const visibleItems = group.querySelectorAll('.nav-dropdown-item:not([style*="display: none"])');
-        if (visibleItems.length === 0) {
-            const parentNav = group.querySelector('.nav-item');
-            if (parentNav) {
-                parentNav.style.display = 'none';
+            
+            // Show nav group parent if permission matches
+            const groupNavItem = document.querySelector(`.nav-item-group .nav-item[data-module="${permission}"]`);
+            if (groupNavItem) {
+                const parentGroup = groupNavItem.closest('.nav-item-group');
+                if (parentGroup) {
+                    parentGroup.style.display = '';
+                    parentGroup.classList.remove('permission-hidden');
+                    groupNavItem.style.display = '';
+                    groupNavItem.classList.remove('permission-hidden');
+                    visibleCount++;
+                }
             }
-        }
-    });
+            
+            // Show dropdown items that match permission
+            const dropdownItems = document.querySelectorAll(`.nav-dropdown-item[data-submodule="${permission}"]`);
+            dropdownItems.forEach(item => {
+                item.style.display = '';
+                item.classList.remove('permission-hidden');
+                
+                // Also show the parent group
+                const parentGroup = item.closest('.nav-item-group');
+                if (parentGroup) {
+                    parentGroup.style.display = '';
+                    parentGroup.classList.remove('permission-hidden');
+                    const parentNav = parentGroup.querySelector('.nav-item');
+                    if (parentNav) {
+                        parentNav.style.display = '';
+                        parentNav.classList.remove('permission-hidden');
+                    }
+                }
+            });
+            
+            // Also check if permission matches a parent module with dropdowns
+            const parentNavWithDropdown = document.querySelector(`.nav-item-group .nav-item[data-module="${permission}"]`);
+            if (parentNavWithDropdown) {
+                const parentGroup = parentNavWithDropdown.closest('.nav-item-group');
+                if (parentGroup) {
+                    parentGroup.style.display = '';
+                    parentGroup.classList.remove('permission-hidden');
+                    parentNavWithDropdown.style.display = '';
+                    parentNavWithDropdown.classList.remove('permission-hidden');
+                    
+                    // Show all dropdown items under this parent
+                    const dropdownItemsInGroup = parentGroup.querySelectorAll('.nav-dropdown-item');
+                    dropdownItemsInGroup.forEach(item => {
+                        item.style.display = '';
+                        item.classList.remove('permission-hidden');
+                    });
+                }
+            }
+        });
+        
+        // Count hidden items
+        navItems.forEach(item => {
+            if (item.classList.contains('permission-hidden')) hiddenCount++;
+        });
+    }
     
-    // Also hide the module content elements for unauthorized modules
+    // Hide module content elements for unauthorized modules
     document.querySelectorAll('.module').forEach(moduleElement => {
         const moduleId = moduleElement.id;
-        // Extract module name from id (e.g., "billing-module" -> "billing")
         const moduleName = moduleId.replace('-module', '');
         
-        if (moduleName && moduleName !== 'dashboard' && !hasAccess(moduleName)) {
-            // Hide the entire module element
-            moduleElement.style.display = 'none';
-            moduleElement.setAttribute('data-restricted', 'true');
+        if (moduleName && !alwaysAllowed.includes(moduleName)) {
+            if (isAdmin || userPermissions.includes(moduleName)) {
+                moduleElement.style.display = '';
+                moduleElement.removeAttribute('data-restricted');
+                moduleElement.classList.remove('permission-restricted');
+            } else {
+                moduleElement.style.display = 'none';
+                moduleElement.setAttribute('data-restricted', 'true');
+                moduleElement.classList.add('permission-restricted');
+            }
         }
     });
     
-    console.log(`✅ Sidebar filtered: ${visibleCount} modules visible, ${hiddenCount} modules hidden`);
+    console.log(`✅ Strict filtering complete: ${visibleCount} modules visible, ${hiddenCount} modules hidden`);
+    console.log(`📋 Allowed modules: ${['dashboard', ...userPermissions].join(', ')}`);
+    
+    // Mark sidebar as permissions-ready to show filtered items
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+        sidebar.classList.add('permissions-ready');
+        console.log('✅ Sidebar marked as permissions-ready - seamless transition complete');
+    }
 }
 
+// ==================== INITIALIZATION ====================
+
 // Initialize auth on page load
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Check if we're on the login page
     const isLoginPage = window.location.pathname.includes('login.html');
     
@@ -501,7 +1045,10 @@ document.addEventListener('DOMContentLoaded', () => {
             filterModulesByPermissions();
             
             // Start user session
-            startSession();
+            await startSession();
+            
+            // Start real-time permission listener
+            await startRealtimePermissionListener();
             
             // Setup inactivity timeout
             setupActivityListeners();
@@ -512,8 +1059,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 profileNameEl.textContent = user.displayName;
             }
             
+            // Log page view
+            await logAuditTrail(AUDIT_ACTIONS.MODULE_ACCESS, 'Application Loaded', 
+                'User accessed the main application', {
+                    initialModule: 'dashboard'
+                });
+            
             // Show role indicator
             console.log(`✅ Access Control Active - ${user.permissions.length} modules accessible`);
+            console.log('✅ Real-time permission sync enabled');
+            console.log('✅ Comprehensive audit trail active');
         } else {
             console.error('❌ No user found, redirecting to login');
             window.location.href = 'login.html';
@@ -523,10 +1078,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Setup logout button
         const logoutBtn = document.getElementById('logoutBtn');
         if (logoutBtn) {
-            logoutBtn.addEventListener('click', (e) => {
+            logoutBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
                 if (confirm('Are you sure you want to logout?')) {
-                    logout();
+                    await logout('manual');
                 }
             });
         }
@@ -551,94 +1106,32 @@ function getRoleDisplayName(role) {
 
 // Export functions for global use
 window.authSystem = {
+    // Core auth functions
     getCurrentUser,
     hasAccess,
     checkModulePermission,
-    logActivity,
     logout,
+    isAuthenticated,
     getRoleDisplayName,
-    isAuthenticated
-};
-
-console.log('✅ Authentication system with audit trail loaded');
-        console.log('Login attempt:', email);
-        
-        // Mock successful login
-        currentUser = {
-            uid: 'user123',
-            email: email,
-            displayName: 'John Doe',
-            role: 'admin',
-            profileImage: 'https://via.placeholder.com/40'
-        };
-        
-        updateUserProfile();
-        filterNavigationByRole();
-        
-        return { success: true, user: currentUser };
-    } catch (error) {
-        console.error('Login error:', error);
-        return { success: false, error: error.message };
-    }
-}
-
-// Logout function
-async function logout() {
-    try {
-        // TODO: Implement Firebase sign out
-        console.log('Logout');
-        
-        currentUser = null;
-        localStorage.removeItem('user');
-        
-        // Redirect to login page
-        window.location.href = 'login.html';
-        
-        return { success: true };
-    } catch (error) {
-        console.error('Logout error:', error);
-        return { success: false, error: error.message };
-    }
-}
-
-// Get current user role
-function getCurrentUserRole() {
-    return currentUser ? currentUser.role : null;
-}
-
-// Check authentication on page load
-document.addEventListener('DOMContentLoaded', () => {
-    // TODO: Check if user is authenticated with Firebase
     
-    // For development, use mock user
-    if (currentUser) {
-        updateUserProfile();
-        filterNavigationByRole();
-    } else {
-        // Redirect to login if not authenticated
-        // window.location.href = 'login.html';
-    }
-});
-
-// Logout button handler
-const logoutBtn = document.getElementById('logoutBtn');
-if (logoutBtn) {
-    logoutBtn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        const result = await logout();
-        if (result.success) {
-            console.log('Logged out successfully');
-        }
-    });
-}
-
-// Export functions for use in other modules
-window.rxFlowAuth = {
-    login,
-    logout,
-    hasAccess,
-    getCurrentUserRole,
-    currentUser
+    // Audit trail functions
+    logAuditTrail,
+    trackDataOperation,
+    trackModuleAccess,
+    AUDIT_ACTIONS,
+    
+    // Permission management
+    filterModulesByPermissions,
+    startRealtimePermissionListener,
+    stopRealtimePermissionListener
 };
 
-console.log('Authentication module loaded');
+// Also expose audit trail for other modules
+window.auditTrail = {
+    log: logAuditTrail,
+    trackData: trackDataOperation,
+    trackModule: trackModuleAccess,
+    ACTIONS: AUDIT_ACTIONS
+};
+
+console.log('✅ Authentication system with real-time permissions & audit trail loaded');

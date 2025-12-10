@@ -1103,6 +1103,16 @@ function navigateToModule(module, submodule = null) {
         }
     }
     
+    // Log module access to audit trail
+    if (window.auditTrail && typeof window.auditTrail.log === 'function') {
+        window.auditTrail.log(
+            window.auditTrail.ACTIONS.MODULE_ACCESS,
+            `Navigated to ${targetModule}`,
+            `User navigated to ${targetModule} module`,
+            { module, submodule, targetModule }
+        );
+    }
+    
     // Remove active from all
     navItems.forEach(nav => nav.classList.remove('active'));
     navDropdownItems.forEach(nav => nav.classList.remove('active'));

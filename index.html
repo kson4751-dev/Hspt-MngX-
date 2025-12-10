@@ -33,6 +33,15 @@
         body.authenticated {
             display: block !important;
         }
+        
+        /* CRITICAL: Hide all sidebar nav items until permissions are loaded */
+        /* This inline style loads BEFORE CSS file for instant effect - NO FLASH */
+        .sidebar:not(.permissions-ready) .nav-item:not([data-module="dashboard"]),
+        .sidebar:not(.permissions-ready) .nav-item-group,
+        .sidebar:not(.permissions-ready) .nav-dropdown-item {
+            display: none !important;
+            visibility: hidden !important;
+        }
 
         /* User Card Styles */
         .user-card {
@@ -7278,6 +7287,7 @@
                             <p class="form-text">Select which modules this user can access</p>
                             
                             <div class="permissions-grid">
+                                <!-- Core Modules -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="dashboard">
                                     <div class="permission-content">
@@ -7286,6 +7296,7 @@
                                     </div>
                                 </label>
 
+                                <!-- Reception Module & Submodules -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="reception">
                                     <div class="permission-content">
@@ -7294,6 +7305,23 @@
                                     </div>
                                 </label>
 
+                                <label class="permission-item sub-permission">
+                                    <input type="checkbox" name="modulePermission" value="new-patient">
+                                    <div class="permission-content">
+                                        <i class="fas fa-user-plus"></i>
+                                        <span>↳ New Patient</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item sub-permission">
+                                    <input type="checkbox" name="modulePermission" value="all-patients">
+                                    <div class="permission-content">
+                                        <i class="fas fa-users"></i>
+                                        <span>↳ All Patients</span>
+                                    </div>
+                                </label>
+
+                                <!-- Triage -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="triage">
                                     <div class="permission-content">
@@ -7302,6 +7330,7 @@
                                     </div>
                                 </label>
 
+                                <!-- Doctor -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="doctor">
                                     <div class="permission-content">
@@ -7310,6 +7339,7 @@
                                     </div>
                                 </label>
 
+                                <!-- Ward & Nursing -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="ward-nursing">
                                     <div class="permission-content">
@@ -7318,6 +7348,7 @@
                                     </div>
                                 </label>
 
+                                <!-- Laboratory Module & Submodules -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="laboratory">
                                     <div class="permission-content">
@@ -7326,14 +7357,15 @@
                                     </div>
                                 </label>
 
-                                <label class="permission-item">
+                                <label class="permission-item sub-permission">
                                     <input type="checkbox" name="modulePermission" value="lab-reports">
                                     <div class="permission-content">
                                         <i class="fas fa-file-medical"></i>
-                                        <span>Lab Reports</span>
+                                        <span>↳ Lab Reports</span>
                                     </div>
                                 </label>
 
+                                <!-- Pharmacy Module & Submodules -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="pharmacy">
                                     <div class="permission-content">
@@ -7342,6 +7374,39 @@
                                     </div>
                                 </label>
 
+                                <label class="permission-item sub-permission">
+                                    <input type="checkbox" name="modulePermission" value="pharmacy-inventory">
+                                    <div class="permission-content">
+                                        <i class="fas fa-boxes"></i>
+                                        <span>↳ Pharmacy Inventory</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item sub-permission">
+                                    <input type="checkbox" name="modulePermission" value="pharmacy-pos">
+                                    <div class="permission-content">
+                                        <i class="fas fa-cash-register"></i>
+                                        <span>↳ Pharmacy POS</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item sub-permission">
+                                    <input type="checkbox" name="modulePermission" value="pharmacy-sales">
+                                    <div class="permission-content">
+                                        <i class="fas fa-chart-line"></i>
+                                        <span>↳ Pharmacy Sales</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item sub-permission">
+                                    <input type="checkbox" name="modulePermission" value="prescription-queue">
+                                    <div class="permission-content">
+                                        <i class="fas fa-prescription"></i>
+                                        <span>↳ Prescription Queue</span>
+                                    </div>
+                                </label>
+
+                                <!-- Imaging Module & Submodules -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="imaging">
                                     <div class="permission-content">
@@ -7350,14 +7415,15 @@
                                     </div>
                                 </label>
 
-                                <label class="permission-item">
+                                <label class="permission-item sub-permission">
                                     <input type="checkbox" name="modulePermission" value="imaging-reports">
                                     <div class="permission-content">
                                         <i class="fas fa-file-image"></i>
-                                        <span>Imaging Reports</span>
+                                        <span>↳ Imaging Reports</span>
                                     </div>
                                 </label>
 
+                                <!-- Telemedicine -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="telemedicine">
                                     <div class="permission-content">
@@ -7366,6 +7432,7 @@
                                     </div>
                                 </label>
 
+                                <!-- Billing Module & Submodules -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="billing">
                                     <div class="permission-content">
@@ -7374,6 +7441,23 @@
                                     </div>
                                 </label>
 
+                                <label class="permission-item sub-permission">
+                                    <input type="checkbox" name="modulePermission" value="billing-request">
+                                    <div class="permission-content">
+                                        <i class="fas fa-file-invoice"></i>
+                                        <span>↳ Billing Request</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item sub-permission">
+                                    <input type="checkbox" name="modulePermission" value="billing-view">
+                                    <div class="permission-content">
+                                        <i class="fas fa-eye"></i>
+                                        <span>↳ View Bills</span>
+                                    </div>
+                                </label>
+
+                                <!-- Inventory Module & Submodules -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="inventory">
                                     <div class="permission-content">
@@ -7382,6 +7466,23 @@
                                     </div>
                                 </label>
 
+                                <label class="permission-item sub-permission">
+                                    <input type="checkbox" name="modulePermission" value="add-item">
+                                    <div class="permission-content">
+                                        <i class="fas fa-plus-circle"></i>
+                                        <span>↳ Add Item</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item sub-permission">
+                                    <input type="checkbox" name="modulePermission" value="view-inventory">
+                                    <div class="permission-content">
+                                        <i class="fas fa-eye"></i>
+                                        <span>↳ View Inventory</span>
+                                    </div>
+                                </label>
+
+                                <!-- Expenses Module & Submodules -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="expenses">
                                     <div class="permission-content">
@@ -7390,6 +7491,23 @@
                                     </div>
                                 </label>
 
+                                <label class="permission-item sub-permission">
+                                    <input type="checkbox" name="modulePermission" value="add-expense">
+                                    <div class="permission-content">
+                                        <i class="fas fa-plus-circle"></i>
+                                        <span>↳ Add Expense</span>
+                                    </div>
+                                </label>
+
+                                <label class="permission-item sub-permission">
+                                    <input type="checkbox" name="modulePermission" value="all-expenses">
+                                    <div class="permission-content">
+                                        <i class="fas fa-list"></i>
+                                        <span>↳ All Expenses</span>
+                                    </div>
+                                </label>
+
+                                <!-- Reports & Analytics -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="reports">
                                     <div class="permission-content">
@@ -7398,6 +7516,7 @@
                                     </div>
                                 </label>
 
+                                <!-- Emergency -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="emergency">
                                     <div class="permission-content">
@@ -7406,6 +7525,7 @@
                                     </div>
                                 </label>
 
+                                <!-- Admin Panel -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="admin">
                                     <div class="permission-content">
@@ -7414,6 +7534,7 @@
                                     </div>
                                 </label>
 
+                                <!-- Settings -->
                                 <label class="permission-item">
                                     <input type="checkbox" name="modulePermission" value="settings">
                                     <div class="permission-content">

@@ -1333,6 +1333,21 @@ body.dark-theme .theme-toggle .moon-icon {
     z-index: 999;
 }
 
+/* CRITICAL: Hide all nav items by default until permissions are loaded */
+/* This prevents flash of unauthorized modules on login */
+.sidebar:not(.permissions-ready) .nav-item:not([data-module="dashboard"]),
+.sidebar:not(.permissions-ready) .nav-item-group,
+.sidebar:not(.permissions-ready) .nav-dropdown-item {
+    display: none !important;
+}
+
+/* Show items once permissions are ready */
+.sidebar.permissions-ready .nav-item,
+.sidebar.permissions-ready .nav-item-group,
+.sidebar.permissions-ready .nav-dropdown-item {
+    /* Allow JS to control display */
+}
+
 .sidebar.collapsed {
     width: var(--sidebar-collapsed-width);
 }
