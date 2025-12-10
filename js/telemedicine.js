@@ -45,6 +45,79 @@ const configuration = {
     iceCandidatePoolSize: 10
 };
 
+// ==================== DEPLOYMENT CONFIGURATION ====================
+// Set your deployed URL here for stable consultation links
+// This ensures links work correctly regardless of where you access the admin from
+const DEPLOYMENT_CONFIG = {
+    // Auto-detect or use your deployed Firebase Hosting URL
+    // Options: 'auto' (uses current origin) or your actual deployed URL
+    // Example: 'https://your-app.web.app' or 'https://your-custom-domain.com'
+    baseUrl: 'auto',
+    
+    // Firebase Hosting URL (automatically detected from Firebase config)
+    firebaseHostingUrl: 'https://rxflow-bd167.web.app',
+    
+    // Consultation page path
+    consultationPath: '/patient-consultation.html'
+};
+
+// Generate stable consultation link that works on deployment
+function generateConsultationLink(appointmentId) {
+    let baseUrl;
+    
+    if (DEPLOYMENT_CONFIG.baseUrl === 'auto') {
+        // Smart detection: Use Firebase Hosting URL if on localhost, otherwise use current origin
+        const currentOrigin = window.location.origin;
+        
+        if (currentOrigin.includes('localhost') || currentOrigin.includes('127.0.0.1')) {
+            // On localhost - use Firebase Hosting URL for shareable links
+            baseUrl = DEPLOYMENT_CONFIG.firebaseHostingUrl;
+            console.log('🔗 Using Firebase Hosting URL for link (detected localhost)');
+        } else {
+            // On deployed site - use current origin
+            baseUrl = currentOrigin;
+            console.log('🔗 Using current origin for link');
+        }
+    } else {
+        // Use configured base URL
+        baseUrl = DEPLOYMENT_CONFIG.baseUrl;
+    }
+    
+    // Remove trailing slash if present
+    baseUrl = baseUrl.replace(/\/$/, '');
+    
+    const link = `${baseUrl}${DEPLOYMENT_CONFIG.consultationPath}?id=${appointmentId}`;
+    console.log('🔗 Generated consultation link:', link);
+    
+    return link;
+}
+
+// Regenerate consultation link for existing appointment (useful when link is broken)
+window.regenerateConsultationLink = async function(appointmentId) {
+    try {
+        const newLink = generateConsultationLink(appointmentId);
+        
+        // Update in Firebase
+        const appointmentRef = doc(db, 'telemedicine_appointments', appointmentId);
+        await updateDoc(appointmentRef, {
+            consultationLink: newLink,
+            linkRegeneratedAt: new Date().toISOString()
+        });
+        
+        console.log('✅ Consultation link regenerated:', newLink);
+        alert('Link regenerated successfully!\n\n' + newLink);
+        
+        // Copy to clipboard
+        navigator.clipboard.writeText(newLink).catch(() => {});
+        
+        return newLink;
+    } catch (error) {
+        console.error('❌ Error regenerating link:', error);
+        alert('Failed to regenerate link: ' + error.message);
+        return null;
+    }
+};
+
 // Initialize Telemedicine Module
 export function initTelemedicineModule() {
     console.log('🎥 Initializing Telemedicine Module...');
@@ -102,10 +175,10 @@ function setupRealtimeListener() {
                 
                 console.log('✅ Appointments loaded:', appointments.length);
                 
-                // Sort by date (newest first)
+                // Sort by createdAt date (most recently created first)
                 appointments.sort((a, b) => {
-                    const dateA = new Date(a.scheduledDate || a.createdAt || 0);
-                    const dateB = new Date(b.scheduledDate || b.createdAt || 0);
+                    const dateA = new Date(a.createdAt || a.scheduledDate || 0);
+                    const dateB = new Date(b.createdAt || b.scheduledDate || 0);
                     return dateB - dateA;
                 });
                 
@@ -424,10 +497,10 @@ window.showScheduleAppointmentModal = function() {
     document.getElementById('consultationNotes').value = '';
     
     // Clear manual fields
-    document.getElementById('manualPatientName').value = '';
-    document.getElementById('manualPatientPhone').value = '';
-    document.getElementById('manualPatientAge').value = '';
-    document.getElementById('manualPatientGender').value = '';
+    document.getElementById('telemedicineManualPatientName').value = '';
+    document.getElementById('telemedicineManualPatientPhone').value = '';
+    document.getElementById('telemedicineManualPatientAge').value = '';
+    document.getElementById('telemedicineManualPatientGender').value = '';
     
     setTimeout(() => {
         setupPatientSearch();
@@ -443,7 +516,18 @@ window.closeScheduleAppointmentModal = function() {
 window.submitTelemedicineAppointment = async function() {
     try {
         let patientData = null;
-        const mode = document.getElementById('telemedicineSearchMode').style.display !== 'none' ? 'search' : 'manual';
+        
+        // Check mode by looking at which button is active (more reliable than checking display)
+        const manualBtn = document.getElementById('manualPatientTelemedicineBtn');
+        const searchModeEl = document.getElementById('telemedicineSearchMode');
+        
+        // Determine mode: check if manual button has 'active' class OR search mode is hidden
+        const isManualMode = manualBtn.classList.contains('active') || 
+                            (searchModeEl && window.getComputedStyle(searchModeEl).display === 'none');
+        
+        const mode = isManualMode ? 'manual' : 'search';
+        
+        console.log('📋 Appointment mode:', mode);
         
         if (mode === 'search') {
             if (!selectedPatientForConsultation) {
@@ -452,18 +536,23 @@ window.submitTelemedicineAppointment = async function() {
             }
             patientData = selectedPatientForConsultation;
         } else {
-            const name = document.getElementById('manualPatientName').value.trim();
+            const nameInput = document.getElementById('telemedicineManualPatientName');
+            const name = nameInput ? nameInput.value.trim() : '';
+            
+            console.log('📝 Manual patient name:', name);
+            
             if (!name) {
                 alert('Please enter patient name');
+                nameInput?.focus();
                 return;
             }
             patientData = {
                 id: 'manual_' + Date.now(),
                 name: name,
                 number: 'TM-' + Date.now().toString().slice(-6),
-                phone: document.getElementById('manualPatientPhone').value,
-                age: document.getElementById('manualPatientAge').value,
-                gender: document.getElementById('manualPatientGender').value
+                phone: document.getElementById('telemedicineManualPatientPhone').value,
+                age: document.getElementById('telemedicineManualPatientAge').value,
+                gender: document.getElementById('telemedicineManualPatientGender').value
             };
         }
 
@@ -502,13 +591,13 @@ window.submitTelemedicineAppointment = async function() {
         const appointmentsRef = collection(db, 'telemedicine_appointments');
         const docRef = await addDoc(appointmentsRef, appointmentData);
         
-        // Generate patient consultation link
-        const baseUrl = window.location.origin;
-        const consultationLink = `${baseUrl}/patient-consultation.html?id=${docRef.id}`;
+        // Generate patient consultation link - use stable base URL for deployment
+        const consultationLink = generateConsultationLink(docRef.id);
         
         // Update appointment with the link
         await updateDoc(docRef, {
-            consultationLink: consultationLink
+            consultationLink: consultationLink,
+            appointmentDocId: docRef.id  // Store doc ID for link regeneration
         });
         
         console.log('✅ Appointment scheduled successfully with ID:', docRef.id);
@@ -1084,26 +1173,35 @@ window.viewAppointmentDetails = function(appointmentId) {
     document.getElementById('viewAppointmentDate').textContent = new Date(appointment.scheduledDate).toLocaleString();
     document.getElementById('viewAppointmentNotes').textContent = appointment.notes || 'No notes';
     
-    // Display consultation link
+    // Display consultation link with regenerate option
     const linkElement = document.getElementById('viewAppointmentLink');
-    if (appointment.consultationLink) {
-        linkElement.innerHTML = `
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <input type="text" value="${appointment.consultationLink}" readonly 
-                    style="flex: 1; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-color); font-size: 12px;">
-                <button onclick="copyConsultationLink('${appointment.consultationLink}')" 
+    const currentLink = appointment.consultationLink || generateConsultationLink(appointment.id);
+    
+    linkElement.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input type="text" id="appointmentLinkInput" value="${currentLink}" readonly 
+                    style="flex: 1; min-width: 200px; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-color); font-size: 12px;">
+                <button onclick="copyConsultationLink('${currentLink}')" 
                     style="padding: 8px 16px; background: var(--primary-color); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap;">
                     <i class="fas fa-copy"></i> Copy
                 </button>
-                <button onclick="shareConsultationLink('${appointment.consultationLink}', '${appointment.patientPhone}')" 
+                <button onclick="shareConsultationLink('${currentLink}', '${appointment.patientPhone || ''}')" 
                     style="padding: 8px 16px; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap;">
                     <i class="fas fa-share"></i> Share
                 </button>
             </div>
-        `;
-    } else {
-        linkElement.textContent = 'Link not generated';
-    }
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button onclick="window.regenerateAndUpdateLink('${appointment.id}')" 
+                    style="padding: 6px 12px; background: #e67e22; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; white-space: nowrap;">
+                    <i class="fas fa-sync-alt"></i> Regenerate Link (if broken)
+                </button>
+                <span style="font-size: 11px; color: var(--text-secondary);">
+                    Use this if the patient's link is not working
+                </span>
+            </div>
+        </div>
+    `;
 };
 
 // Copy consultation link
@@ -1113,6 +1211,28 @@ window.copyConsultationLink = function(link) {
     }).catch(() => {
         alert('Failed to copy link');
     });
+};
+
+// Regenerate and update link in the UI
+window.regenerateAndUpdateLink = async function(appointmentId) {
+    try {
+        const newLink = await window.regenerateConsultationLink(appointmentId);
+        if (newLink) {
+            // Update the input field in the modal
+            const linkInput = document.getElementById('appointmentLinkInput');
+            if (linkInput) {
+                linkInput.value = newLink;
+            }
+            
+            // Refresh the appointment in the local array
+            const appointmentIndex = appointments.findIndex(a => a.id === appointmentId);
+            if (appointmentIndex !== -1) {
+                appointments[appointmentIndex].consultationLink = newLink;
+            }
+        }
+    } catch (error) {
+        console.error('Error regenerating link:', error);
+    }
 };
 
 // Share consultation link
@@ -1562,6 +1682,9 @@ window.printAppointmentReceipt = function(appointmentId) {
         return;
     }
     
+    // Ensure we have a proper consultation link (regenerate if needed)
+    const consultationLink = appointment.consultationLink || generateConsultationLink(appointmentId);
+    
     // Format date and time
     const scheduledDate = new Date(appointment.scheduledDate);
     const dateStr = scheduledDate.toLocaleDateString('en-US', { 
@@ -1587,7 +1710,7 @@ window.printAppointmentReceipt = function(appointmentId) {
         hour12: true 
     });
     
-    // Generate simple clean receipt HTML
+    // Generate simple clean receipt HTML - use the correct consultationLink
     const receiptHTML = `
         <!DOCTYPE html>
         <html>
@@ -1720,9 +1843,9 @@ window.printAppointmentReceipt = function(appointmentId) {
                 <div class="time">${timeStr}</div>
             </div>
             
-            ${appointment.consultationLink ? `
+            ${consultationLink ? `
                 <div class="link-label">Video Call Link:</div>
-                <div class="link-box">${appointment.consultationLink}</div>
+                <div class="link-box">${consultationLink}</div>
             ` : ''}
             
             ${appointment.notes ? `

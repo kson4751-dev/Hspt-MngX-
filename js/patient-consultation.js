@@ -44,13 +44,26 @@ const configuration = {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🎥 Patient Consultation Page Loaded');
+    console.log('📍 Current URL:', window.location.href);
     
-    // Get appointment ID from URL
+    // Get appointment ID from URL - support both 'id' and 'appointmentId' parameters
     const urlParams = new URLSearchParams(window.location.search);
-    appointmentId = urlParams.get('id');
+    appointmentId = urlParams.get('id') || urlParams.get('appointmentId');
+    
+    // Also check hash parameters (some share methods use hash)
+    if (!appointmentId && window.location.hash) {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        appointmentId = hashParams.get('id') || hashParams.get('appointmentId');
+    }
     
     if (!appointmentId) {
-        showError('Invalid consultation link. Please contact your doctor.');
+        showError('Invalid consultation link. The appointment ID is missing.<br><br>Please contact your doctor to get a valid link.', true);
+        return;
+    }
+    
+    // Validate appointment ID format (Firebase IDs are typically 20 chars alphanumeric)
+    if (appointmentId.length < 10 || appointmentId.length > 30) {
+        showError('Invalid consultation link format.<br><br>Please contact your doctor for a new link.', true);
         return;
     }
     
@@ -90,28 +103,76 @@ function setupChatToggle() {
     }
 }
 
-// Load appointment details
+// Load appointment details with retry logic
+let loadRetryCount = 0;
+const MAX_RETRIES = 3;
+
 async function loadAppointmentDetails() {
     try {
-        console.log('📥 Loading appointment details...');
+        console.log('📥 Loading appointment details... (attempt', loadRetryCount + 1, ')');
+        
+        // Show loading state
+        const detailsContainer = document.getElementById('patientDetails');
+        if (detailsContainer) {
+            detailsContainer.innerHTML = `
+                <div class="loading-spinner" style="padding: 40px; text-align: center;">
+                    <div class="spinner"></div>
+                    <p style="color: rgba(255,255,255,0.6); margin-top: 15px; font-size: 14px;">Loading appointment...</p>
+                </div>
+            `;
+        }
         
         const appointmentRef = doc(db, 'telemedicine_appointments', appointmentId);
         const appointmentSnap = await getDoc(appointmentRef);
         
         if (!appointmentSnap.exists()) {
-            showError('Appointment not found. Please check your link.');
+            showError(`
+                <strong>Appointment not found</strong><br><br>
+                This could mean:<br>
+                • The link has expired<br>
+                • The appointment was cancelled<br>
+                • The link was copied incorrectly<br><br>
+                <span style="font-size: 12px; opacity: 0.7;">Appointment ID: ${appointmentId}</span>
+            `, true);
             return;
         }
         
         appointmentData = appointmentSnap.data();
         console.log('✅ Appointment loaded:', appointmentData);
         
+        // Check appointment status
+        if (appointmentData.status === 'Cancelled') {
+            showError(`
+                <strong>Appointment Cancelled</strong><br><br>
+                This appointment has been cancelled.<br>
+                Please contact your doctor to reschedule.
+            `, false);
+            return;
+        }
+        
         displayAppointmentDetails();
         setupRealtimeListeners();
         
     } catch (error) {
         console.error('❌ Error loading appointment:', error);
-        showError('Failed to load appointment details. Please try again.');
+        
+        loadRetryCount++;
+        
+        if (loadRetryCount < MAX_RETRIES) {
+            console.log(`🔄 Retrying in 2 seconds... (${loadRetryCount}/${MAX_RETRIES})`);
+            setTimeout(loadAppointmentDetails, 2000);
+        } else {
+            showError(`
+                <strong>Connection Error</strong><br><br>
+                Failed to load appointment after ${MAX_RETRIES} attempts.<br><br>
+                Please check:<br>
+                • Your internet connection<br>
+                • Try refreshing the page<br><br>
+                <button onclick="location.reload()" style="padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 10px;">
+                    <i class="fas fa-sync-alt"></i> Retry
+                </button>
+            `, false);
+        }
     }
 }
 
@@ -744,11 +805,48 @@ function playNotificationSound() {
     audio.play().catch(() => {}); // Ignore errors if audio playback is blocked
 }
 
-// Show error
-function showError(message) {
+// Show error with better styling and optional contact info
+function showError(message, showContactInfo = false) {
     const errorDiv = document.getElementById('errorMessage');
-    errorDiv.innerHTML = `<div class="error-message" style="color: #ffc107;"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
-    document.getElementById('patientDetails').style.display = 'none';
+    const detailsContainer = document.getElementById('patientDetails');
+    const joinBtn = document.getElementById('joinBtn');
+    
+    // Hide the loading/details area
+    if (detailsContainer) {
+        detailsContainer.innerHTML = '';
+        detailsContainer.style.display = 'none';
+    }
+    
+    // Hide join button
+    if (joinBtn) {
+        joinBtn.style.display = 'none';
+    }
+    
+    // Show error with helpful styling
+    errorDiv.innerHTML = `
+        <div class="error-box" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 16px; padding: 24px; margin-top: 20px; text-align: left;">
+            <div style="display: flex; align-items: flex-start; gap: 16px;">
+                <div style="width: 48px; height: 48px; background: rgba(239, 68, 68, 0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 22px; color: #fca5a5;"></i>
+                </div>
+                <div style="flex: 1;">
+                    <div style="color: #fca5a5; font-size: 14px; line-height: 1.6;">
+                        ${message}
+                    </div>
+                    ${showContactInfo ? `
+                        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+                            <p style="color: rgba(255,255,255,0.5); font-size: 12px; margin-bottom: 8px;">Need help? Contact the hospital:</p>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <a href="tel:+1234567890" style="color: var(--primary); text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+                                    <i class="fas fa-phone"></i> Call Support
+                                </a>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 // Cleanup on page unload
