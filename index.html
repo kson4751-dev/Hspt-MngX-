@@ -391,7 +391,7 @@
                     <path d="M17.5 11.18C17.3178 12.2054 16.8808 13.1683 16.2293 13.9812C15.5778 14.7941 14.7326 15.4313 13.7718 15.8373C12.811 16.2432 11.7655 16.4053 10.7254 16.3095C9.68531 16.2137 8.68494 15.8628 7.81471 15.2884C6.94447 14.714 6.22975 13.9336 5.73385 13.0158C5.23795 12.098 4.97633 11.0714 4.97215 10.0275C4.96797 8.98366 5.22134 7.9552 5.70883 7.03329C6.19632 6.11137 6.90423 5.32524 7.76999 4.74366C6.95427 4.92731 6.19063 5.29244 5.53566 5.81349C4.88068 6.33453 4.35059 7.00003 3.98667 7.75959C3.62276 8.51915 3.43456 9.35276 3.43657 10.1968C3.43858 11.0408 3.63078 11.8735 3.9988 12.6313C4.36682 13.3891 4.90064 14.0523 5.55875 14.5702C6.21685 15.0881 6.98272 15.4493 7.79996 15.6285C8.61721 15.8078 9.46538 15.8007 10.2794 15.6078C11.0933 15.4149 11.8534 15.0408 12.5032 14.5124C13.1531 13.9839 13.6767 13.3139 14.0365 12.5533" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </button>
-            <button class="icon-button ai-insights-btn" onclick="navigateToModule('ai-insights')" title="AI Insights">
+            <button class="icon-button ai-insights-btn" onclick="navigateToModule('ai-insights')" title="Rx Companion">
                 <svg class="copilot-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                         <linearGradient id="copilot-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -611,7 +611,7 @@
             </a>
             <a href="#ai-insights" class="nav-item" data-module="ai-insights">
                 <i class="fas fa-robot"></i>
-                <span class="nav-text">AI Insights</span>
+                <span class="nav-text">Rx Companion</span>
             </a>
         </nav>
     </aside>
@@ -8372,28 +8372,708 @@
 
         <!-- AI Insights Module -->
         <div class="module" id="ai-insights-module">
-            <div class="module-header">
+            <!-- AI Background Animation -->
+            <div class="ai-bg-animation">
+                <div class="ai-particle"></div>
+                <div class="ai-particle"></div>
+                <div class="ai-particle"></div>
+                <div class="ai-particle"></div>
+                <div class="ai-particle"></div>
+                <div class="ai-grid-lines"></div>
+            </div>
+
+            <style>
+                /* AI Module Futuristic Styles */
+                #ai-insights-module {
+                    position: relative;
+                    overflow: hidden;
+                }
+
+                .ai-bg-animation {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    pointer-events: none;
+                    overflow: hidden;
+                    z-index: 0;
+                }
+
+                .ai-particle {
+                    position: absolute;
+                    width: 4px;
+                    height: 4px;
+                    background: linear-gradient(135deg, #6366f1, #a855f7);
+                    border-radius: 50%;
+                    opacity: 0.4;
+                    animation: ai-float 15s infinite ease-in-out;
+                }
+
+                .ai-particle:nth-child(1) { left: 10%; top: 20%; animation-delay: 0s; animation-duration: 20s; }
+                .ai-particle:nth-child(2) { left: 30%; top: 60%; animation-delay: 2s; animation-duration: 18s; }
+                .ai-particle:nth-child(3) { left: 60%; top: 30%; animation-delay: 4s; animation-duration: 22s; }
+                .ai-particle:nth-child(4) { left: 80%; top: 70%; animation-delay: 1s; animation-duration: 16s; }
+                .ai-particle:nth-child(5) { left: 50%; top: 80%; animation-delay: 3s; animation-duration: 19s; }
+
+                @keyframes ai-float {
+                    0%, 100% { transform: translateY(0) translateX(0) scale(1); opacity: 0.3; }
+                    25% { transform: translateY(-30px) translateX(20px) scale(1.5); opacity: 0.6; }
+                    50% { transform: translateY(-10px) translateX(-10px) scale(1.2); opacity: 0.4; }
+                    75% { transform: translateY(-40px) translateX(15px) scale(1.8); opacity: 0.5; }
+                }
+
+                .ai-grid-lines {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background-image: 
+                        linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+                    background-size: 50px 50px;
+                    animation: ai-grid-move 20s linear infinite;
+                }
+
+                @keyframes ai-grid-move {
+                    0% { transform: translateY(0); }
+                    100% { transform: translateY(50px); }
+                }
+
+                /* AI Section Cards */
+                .ai-section-card {
+                    position: relative;
+                    background: linear-gradient(135deg, var(--card-bg) 0%, var(--card-bg) 100%);
+                    border-radius: 20px;
+                    padding: 28px;
+                    box-shadow: 0 4px 24px rgba(99, 102, 241, 0.1);
+                    border: 1px solid rgba(99, 102, 241, 0.15);
+                    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                    overflow: hidden;
+                    z-index: 1;
+                }
+
+                .ai-section-card::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 3px;
+                    background: linear-gradient(90deg, #6366f1, #8b5cf6, #a855f7, #8b5cf6, #6366f1);
+                    background-size: 200% 100%;
+                    animation: ai-border-flow 3s linear infinite;
+                }
+
+                @keyframes ai-border-flow {
+                    0% { background-position: 0% 50%; }
+                    100% { background-position: 200% 50%; }
+                }
+
+                .ai-section-card:hover {
+                    transform: translateY(-4px);
+                    box-shadow: 0 8px 32px rgba(99, 102, 241, 0.2);
+                    border-color: rgba(139, 92, 246, 0.3);
+                }
+
+                /* AI Icon Container */
+                .ai-icon-container {
+                    position: relative;
+                    width: 52px;
+                    height: 52px;
+                    border-radius: 16px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    overflow: hidden;
+                }
+
+                .ai-icon-container::before {
+                    content: '';
+                    position: absolute;
+                    top: -50%;
+                    left: -50%;
+                    width: 200%;
+                    height: 200%;
+                    background: conic-gradient(from 0deg, transparent 0deg, rgba(255,255,255,0.3) 60deg, transparent 120deg);
+                    animation: ai-icon-rotate 3s linear infinite;
+                }
+
+                @keyframes ai-icon-rotate {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+
+                .ai-icon-inner {
+                    position: relative;
+                    width: 48px;
+                    height: 48px;
+                    border-radius: 14px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1;
+                }
+
+                /* AI Sparkle Animation */
+                .ai-sparkle {
+                    animation: ai-sparkle-pulse 2s ease-in-out infinite;
+                }
+
+                @keyframes ai-sparkle-pulse {
+                    0%, 100% { filter: drop-shadow(0 0 2px rgba(139, 92, 246, 0.5)); }
+                    50% { filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.8)); }
+                }
+
+                /* AI Input Fields */
+                .ai-input-field {
+                    background: var(--bg-secondary);
+                    border: 2px solid transparent;
+                    border-radius: 12px;
+                    padding: 14px 16px;
+                    font-size: 14px;
+                    color: var(--text-primary);
+                    transition: all 0.3s ease;
+                    width: 100%;
+                }
+
+                .ai-input-field:focus {
+                    outline: none;
+                    border-color: #8b5cf6;
+                    box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.15);
+                    background: var(--card-bg);
+                }
+
+                .ai-input-field::placeholder {
+                    color: var(--text-secondary);
+                    opacity: 0.7;
+                }
+
+                /* AI Primary Button - Google-style outline */
+                .ai-btn-primary {
+                    position: relative;
+                    background: transparent;
+                    color: #6366f1;
+                    border: 1.5px solid #6366f1;
+                    border-radius: 24px;
+                    padding: 14px 28px;
+                    font-size: 15px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 10px;
+                    transition: all 0.2s ease;
+                }
+
+                .ai-btn-primary:hover {
+                    background: rgba(99, 102, 241, 0.08);
+                    border-color: #4f46e5;
+                    color: #4f46e5;
+                }
+
+                .ai-btn-primary:active {
+                    background: rgba(99, 102, 241, 0.12);
+                }
+
+                /* AI Chat Container */
+                .ai-chat-container {
+                    background: linear-gradient(180deg, var(--bg-secondary) 0%, rgba(99, 102, 241, 0.05) 100%);
+                    border-radius: 16px;
+                    border: 1px solid rgba(99, 102, 241, 0.1);
+                    position: relative;
+                    overflow: hidden;
+                }
+
+                .ai-chat-container::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: radial-gradient(ellipse at top, rgba(139, 92, 246, 0.05) 0%, transparent 50%);
+                    pointer-events: none;
+                }
+
+                /* AI Results Cards */
+                .ai-result-card {
+                    position: relative;
+                    background: var(--bg-secondary);
+                    border-radius: 16px;
+                    padding: 24px;
+                    border: 1px solid rgba(99, 102, 241, 0.1);
+                    transition: all 0.3s ease;
+                    overflow: hidden;
+                }
+
+                .ai-result-card::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 4px;
+                    height: 100%;
+                    background: var(--accent-color, #6366f1);
+                }
+
+                .ai-result-card:hover {
+                    transform: translateX(4px);
+                    box-shadow: -4px 4px 20px rgba(99, 102, 241, 0.15);
+                }
+
+                /* Typing Animation */
+                .ai-typing {
+                    display: flex;
+                    gap: 4px;
+                    padding: 8px 0;
+                }
+
+                .ai-typing-dot {
+                    width: 8px;
+                    height: 8px;
+                    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+                    border-radius: 50%;
+                    animation: ai-typing-bounce 1.4s infinite ease-in-out;
+                }
+
+                .ai-typing-dot:nth-child(1) { animation-delay: 0s; }
+                .ai-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+                .ai-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+                @keyframes ai-typing-bounce {
+                    0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+                    40% { transform: scale(1); opacity: 1; }
+                }
+
+                /* AI Label */
+                .ai-label {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-weight: 600;
+                    color: var(--text-primary);
+                    margin-bottom: 10px;
+                    font-size: 14px;
+                }
+
+                .ai-label i {
+                    width: 20px;
+                    text-align: center;
+                }
+
+                /* Neural Network Lines Background */
+                .ai-neural-bg {
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    width: 150%;
+                    height: 150%;
+                    opacity: 0.03;
+                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Ccircle cx='50' cy='50' r='3' fill='%236366f1'/%3E%3Ccircle cx='150' cy='50' r='3' fill='%238b5cf6'/%3E%3Ccircle cx='100' cy='100' r='3' fill='%23a855f7'/%3E%3Ccircle cx='50' cy='150' r='3' fill='%238b5cf6'/%3E%3Ccircle cx='150' cy='150' r='3' fill='%236366f1'/%3E%3Cline x1='50' y1='50' x2='150' y2='50' stroke='%236366f1' stroke-width='1'/%3E%3Cline x1='50' y1='50' x2='100' y2='100' stroke='%238b5cf6' stroke-width='1'/%3E%3Cline x1='150' y1='50' x2='100' y2='100' stroke='%23a855f7' stroke-width='1'/%3E%3Cline x1='100' y1='100' x2='50' y2='150' stroke='%238b5cf6' stroke-width='1'/%3E%3Cline x1='100' y1='100' x2='150' y2='150' stroke='%236366f1' stroke-width='1'/%3E%3C/svg%3E");
+                    background-size: 100px 100px;
+                    pointer-events: none;
+                }
+
+                /* Quick Question Chips */
+                .ai-chip {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    padding: 8px 14px;
+                    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+                    border: 1px solid rgba(139, 92, 246, 0.2);
+                    border-radius: 20px;
+                    font-size: 12px;
+                    color: var(--text-primary);
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                }
+
+                .ai-chip:hover {
+                    background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
+                    border-color: rgba(139, 92, 246, 0.4);
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
+                }
+
+                /* Responsive */
+                @media (max-width: 1200px) {
+                    .ai-insights-grid {
+                        grid-template-columns: 1fr !important;
+                    }
+                }
+            </style>
+
+            <div class="module-header" style="position: relative; z-index: 1;">
                 <div style="flex: 1;">
-                    <h1 class="module-title" style="color: var(--primary-color);">
-                        <i class="fas fa-robot"></i>
-                        AI Insights
+                    <h1 class="module-title" style="display: flex; align-items: center; gap: 12px;">
+                        <div class="ai-icon-container" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);">
+                            <div class="ai-icon-inner" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);">
+                                <svg class="ai-sparkle" style="width: 26px; height: 26px;" viewBox="0 0 24 24" fill="white">
+                                    <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <span style="background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                            Rx Companion
+                        </span>
                     </h1>
-                    <p class="module-description">Intelligent analytics, predictions, and recommendations powered by AI</p>
+                    <p class="module-description" style="opacity: 0.8;">Your Medical AI Companion • Intelligent Analysis • Clinical Recommendations</p>
                 </div>
                 <div class="dashboard-actions">
-                    <button class="btn btn-primary" onclick="refreshAIInsights()">
-                        <i class="fas fa-sync-alt"></i>
-                        Refresh
+                    <button class="btn btn-outline" onclick="openAISettingsModal()" title="AI Settings" style="border-color: rgba(139, 92, 246, 0.3);">
+                        <i class="fas fa-cog"></i>
+                        Settings
                     </button>
                 </div>
             </div>
 
-            <div class="dashboard-content">
-                <!-- AI Insights Content Placeholder -->
-                <div style="text-align: center; padding: 80px 40px; color: var(--text-secondary);">
-                    <i class="fas fa-robot" style="font-size: 64px; margin-bottom: 20px; display: block; color: var(--primary-color); opacity: 0.5;"></i>
-                    <h2 style="margin-bottom: 10px; color: var(--text-primary);">AI Insights Coming Soon</h2>
-                    <p style="max-width: 500px; margin: 0 auto;">This module will provide intelligent analytics, predictive insights, and AI-powered recommendations for hospital operations.</p>
+            <div class="dashboard-content" style="position: relative; z-index: 1;">
+                <!-- AI Disclaimer Banner -->
+                <div style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 16px; padding: 18px 24px; margin-bottom: 28px; display: flex; align-items: center; gap: 16px; position: relative; overflow: hidden;">
+                    <div style="position: absolute; top: 0; right: 0; width: 150px; height: 150px; background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%); pointer-events: none;"></div>
+                    <div style="width: 44px; height: 44px; background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <i class="fas fa-shield-alt" style="color: white; font-size: 20px;"></i>
+                    </div>
+                    <div>
+                        <strong style="color: var(--text-primary); font-size: 14px;">Medical AI Disclaimer</strong>
+                        <p style="margin: 4px 0 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.5;">
+                            AI suggestions are for clinical reference only. All recommendations must be verified by qualified healthcare professionals before use.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Main AI Grid -->
+                <div class="ai-insights-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 28px;">
+                    
+                    <!-- Left Column: Patient Analysis -->
+                    <div class="ai-section-card">
+                        <div class="ai-neural-bg"></div>
+                        <div class="ai-section-header" style="display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid rgba(99, 102, 241, 0.1); position: relative;">
+                            <div class="ai-icon-container" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);">
+                                <div class="ai-icon-inner" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);">
+                                    <i class="fas fa-user-md" style="color: white; font-size: 20px;"></i>
+                                </div>
+                            </div>
+                            <div>
+                                <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: var(--text-primary);">Patient AI Analysis</h3>
+                                <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--text-secondary);">
+                                    <svg style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M12 3L13.5 9.5L20 11L13.5 12.5L12 19L10.5 12.5L4 11L10.5 9.5L12 3Z"/>
+                                    </svg>
+                                    Get DDx & management recommendations
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <!-- Patient Search -->
+                        <div style="margin-bottom: 24px; position: relative;">
+                            <label class="ai-label">
+                                <i class="fas fa-search" style="color: #8b5cf6;"></i>
+                                Search Patient
+                            </label>
+                            <div style="display: flex; gap: 12px;">
+                                <input type="text" id="aiPatientSearch" class="ai-input-field" placeholder="Enter Patient ID, name, or phone..." style="flex: 1;">
+                                <button class="btn btn-primary" onclick="searchPatientForAI()" id="aiPatientSearchBtn" style="padding: 14px 18px; border-radius: 12px; background: linear-gradient(135deg, #6366f1, #8b5cf6);">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                            <div id="aiPatientSearchResults" style="margin-top: 12px; display: none;"></div>
+                        </div>
+
+                        <!-- Selected Patient Card -->
+                        <div id="aiSelectedPatient" style="display: none; background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%); border-radius: 16px; padding: 20px; margin-bottom: 24px; border: 1px solid rgba(139, 92, 246, 0.15);">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <div style="width: 44px; height: 44px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-user" style="color: white; font-size: 18px;"></i>
+                                    </div>
+                                    <div>
+                                        <h4 style="margin: 0 0 4px 0; color: var(--text-primary); font-weight: 600;" id="aiPatientName">-</h4>
+                                        <p style="margin: 0; font-size: 13px; color: var(--text-secondary);">
+                                            <span id="aiPatientId">-</span> • <span id="aiPatientAge">-</span> • <span id="aiPatientGender">-</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-outline" onclick="clearSelectedPatient()" title="Clear" style="border-radius: 8px;">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
+                                <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--card-bg); border-radius: 8px;">
+                                    <i class="fas fa-tint" style="color: #ef4444;"></i> <span id="aiPatientBlood">-</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--card-bg); border-radius: 8px;">
+                                    <i class="fas fa-phone" style="color: #10b981;"></i> <span id="aiPatientPhone">-</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--card-bg); border-radius: 8px;">
+                                    <i class="fas fa-allergies" style="color: #f59e0b;"></i> <span id="aiPatientAllergies">None</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--card-bg); border-radius: 8px;">
+                                    <i class="fas fa-notes-medical" style="color: #8b5cf6;"></i> <span id="aiPatientHistory">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Current Symptoms/Complaints Input -->
+                        <div style="margin-bottom: 24px;">
+                            <label class="ai-label">
+                                <i class="fas fa-stethoscope" style="color: #ef4444;"></i>
+                                Chief Complaint / Symptoms
+                            </label>
+                            <textarea id="aiCurrentSymptoms" class="ai-input-field" rows="3" placeholder="Enter current symptoms, vital signs, duration, severity...&#10;Example: Fever 3 days, productive cough, chest pain on breathing, temp 38.5°C" style="resize: vertical;"></textarea>
+                        </div>
+
+                        <!-- Additional Clinical Notes -->
+                        <div style="margin-bottom: 28px;">
+                            <label class="ai-label">
+                                <i class="fas fa-clipboard-list" style="color: #8b5cf6;"></i>
+                                Additional Clinical Notes <span style="font-weight: 400; color: var(--text-secondary);">(Optional)</span>
+                            </label>
+                            <textarea id="aiClinicalNotes" class="ai-input-field" rows="2" placeholder="Lab results, examination findings, medications..." style="resize: vertical;"></textarea>
+                        </div>
+
+                        <!-- Analyze Button -->
+                        <button class="ai-btn-primary" onclick="analyzePatientWithAI()" id="aiAnalyzeBtn" style="width: 100%;">
+                            <svg class="ai-sparkle" style="width: 22px; height: 22px;" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z"/>
+                            </svg>
+                            Analyze with AI
+                        </button>
+                    </div>
+
+                    <!-- Right Column: Medical AI Chat -->
+                    <div class="ai-section-card" style="display: flex; flex-direction: column;">
+                        <div class="ai-neural-bg"></div>
+                        <div class="ai-section-header" style="display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid rgba(99, 102, 241, 0.1); position: relative;">
+                            <div class="ai-icon-container" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%);">
+                                <div class="ai-icon-inner" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                                    <i class="fas fa-robot" style="color: white; font-size: 20px;"></i>
+                                </div>
+                            </div>
+                            <div style="flex: 1;">
+                                <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: var(--text-primary);">Rx Companion</h3>
+                                <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--text-secondary);">
+                                    <span style="display: inline-flex; align-items: center; gap: 4px;">
+                                        <span style="width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></span>
+                                        Online • Ask anything medical
+                                    </span>
+                                </p>
+                            </div>
+                            <button class="btn btn-sm btn-outline" onclick="clearAIChat()" title="Clear Chat" style="border-radius: 8px; border-color: rgba(139, 92, 246, 0.2);">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+
+                        <!-- Chat Messages Container -->
+                        <div id="aiChatMessages" class="ai-chat-container" style="flex: 1; overflow-y: auto; min-height: 320px; max-height: 420px; padding: 16px; margin-bottom: 20px;">
+                            <!-- Welcome Message -->
+                            <div class="ai-message ai-welcome" style="display: flex; gap: 14px; margin-bottom: 20px;">
+                                <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border-radius: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);">
+                                    <svg class="ai-sparkle" style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="white">
+                                        <path d="M12 3L13.5 9.5L20 11L13.5 12.5L12 19L10.5 12.5L4 11L10.5 9.5L12 3Z"/>
+                                    </svg>
+                                </div>
+                                <div style="background: var(--card-bg); border-radius: 16px; border-top-left-radius: 4px; padding: 16px 20px; max-width: 85%; border: 1px solid rgba(99, 102, 241, 0.15); box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                                    <p style="margin: 0 0 12px 0; color: var(--text-primary); line-height: 1.6; font-size: 14px;">
+                                        ✨ Hello! I'm <strong>Rx Companion</strong>, your intelligent medical assistant. I can help you with:
+                                    </p>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                        <div style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13px;">
+                                            <span style="color: #8b5cf6;">💊</span> Drug dosages
+                                        </div>
+                                        <div style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13px;">
+                                            <span style="color: #10b981;">📋</span> Protocols
+                                        </div>
+                                        <div style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13px;">
+                                            <span style="color: #f59e0b;">⚠️</span> Interactions
+                                        </div>
+                                        <div style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13px;">
+                                            <span style="color: #ef4444;">🏥</span> Guidelines
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Chat Input -->
+                        <div style="display: flex; gap: 12px;">
+                            <input type="text" id="aiChatInput" class="ai-input-field" placeholder="Ask any medical question..." style="flex: 1;" onkeypress="if(event.key === 'Enter') sendAIChatMessage()">
+                            <button class="btn btn-primary" onclick="sendAIChatMessage()" id="aiChatSendBtn" style="padding: 14px 18px; border-radius: 12px; background: linear-gradient(135deg, #10b981, #059669);">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+
+                        <!-- Quick Questions -->
+                        <div style="margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px;">
+                            <button class="ai-chip" onclick="askQuickQuestion('What is the standard dosage of amoxicillin for adults?')">
+                                💊 Amoxicillin dosage
+                            </button>
+                            <button class="ai-chip" onclick="askQuickQuestion('What are the warning signs of sepsis?')">
+                                🚨 Sepsis signs
+                            </button>
+                            <button class="ai-chip" onclick="askQuickQuestion('Hypertension treatment guidelines')">
+                                ❤️ HTN guidelines
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Analysis Results Section -->
+                <div id="aiAnalysisResults" style="display: none; margin-top: 28px;">
+                    <div class="ai-section-card">
+                        <div class="ai-neural-bg"></div>
+                        <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid rgba(99, 102, 241, 0.1); position: relative;">
+                            <div class="ai-icon-container" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);">
+                                <div class="ai-icon-inner" style="background: linear-gradient(135deg, #a855f7 0%, #8b5cf6 100%);">
+                                    <svg class="ai-sparkle" style="width: 22px; height: 22px;" viewBox="0 0 24 24" fill="white">
+                                        <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div style="flex: 1;">
+                                <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: var(--text-primary);">AI Analysis Results</h3>
+                                <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--text-secondary);" id="aiAnalysisTimestamp">Generated just now</p>
+                            </div>
+                            <button class="ai-chip" onclick="copyAnalysisResults()" title="Copy Results">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                            <button class="ai-chip" onclick="printAnalysisResults()" title="Print">
+                                <i class="fas fa-print"></i> Print
+                            </button>
+                        </div>
+
+                        <!-- Results Grid -->
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+                            <!-- Differential Diagnosis -->
+                            <div class="ai-result-card" style="--accent-color: #ef4444;">
+                                <h4 style="margin: 0 0 16px 0; color: #ef4444; display: flex; align-items: center; gap: 10px; font-size: 15px;">
+                                    <div style="width: 32px; height: 32px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-diagnoses" style="font-size: 14px;"></i>
+                                    </div>
+                                    Differential Diagnosis
+                                </h4>
+                                <div id="aiDDxResults" style="color: var(--text-primary); line-height: 1.8; font-size: 14px;">
+                                </div>
+                            </div>
+
+                            <!-- Recommended Workup -->
+                            <div class="ai-result-card" style="--accent-color: #f59e0b;">
+                                <h4 style="margin: 0 0 16px 0; color: #f59e0b; display: flex; align-items: center; gap: 10px; font-size: 15px;">
+                                    <div style="width: 32px; height: 32px; background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-flask" style="font-size: 14px;"></i>
+                                    </div>
+                                    Recommended Workup
+                                </h4>
+                                <div id="aiWorkupResults" style="color: var(--text-primary); line-height: 1.8; font-size: 14px;">
+                                </div>
+                            </div>
+
+                            <!-- Management Suggestions -->
+                            <div class="ai-result-card" style="--accent-color: #10b981;">
+                                <h4 style="margin: 0 0 16px 0; color: #10b981; display: flex; align-items: center; gap: 10px; font-size: 15px;">
+                                    <div style="width: 32px; height: 32px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.05) 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-prescription" style="font-size: 14px;"></i>
+                                    </div>
+                                    Management Suggestions
+                                </h4>
+                                <div id="aiManagementResults" style="color: var(--text-primary); line-height: 1.8; font-size: 14px;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Warnings & Alerts -->
+                        <div id="aiWarningsSection" style="display: none; margin-top: 24px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 16px; padding: 20px; position: relative; overflow: hidden;">
+                            <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: #ef4444;"></div>
+                            <h4 style="margin: 0 0 12px 0; color: #ef4444; display: flex; align-items: center; gap: 10px; font-size: 15px;">
+                                <div style="width: 32px; height: 32px; background: rgba(239, 68, 68, 0.15); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-exclamation-triangle" style="font-size: 14px;"></i>
+                                </div>
+                                ⚠️ Important Warnings
+                            </h4>
+                            <div id="aiWarningsContent" style="color: var(--text-primary); font-size: 14px; line-height: 1.6;"></div>
+                        </div>
+
+                        <!-- Full AI Response (Collapsible) -->
+                        <details style="margin-top: 24px;">
+                            <summary style="cursor: pointer; color: var(--text-secondary); font-size: 14px; padding: 12px 16px; background: var(--bg-secondary); border-radius: 12px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;">
+                                <i class="fas fa-code"></i> View Full AI Response
+                            </summary>
+                            <div id="aiFullResponse" style="background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(99, 102, 241, 0.03) 100%); border-radius: 12px; padding: 20px; margin-top: 12px; white-space: pre-wrap; font-family: 'Monaco', 'Menlo', monospace; font-size: 13px; color: var(--text-primary); max-height: 400px; overflow-y: auto; border: 1px solid rgba(99, 102, 241, 0.1);">
+                            </div>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Settings Modal -->
+        <div class="modal" id="aiSettingsModal">
+            <div class="modal-overlay" onclick="closeAISettingsModal()"></div>
+            <div class="modal-content" style="max-width: 520px; border-radius: 20px; overflow: hidden;">
+                <div style="height: 4px; background: linear-gradient(90deg, #6366f1, #8b5cf6, #a855f7, #8b5cf6, #6366f1); background-size: 200% 100%; animation: ai-border-flow 3s linear infinite;"></div>
+                <div class="modal-header" style="border-bottom: 1px solid rgba(99, 102, 241, 0.1);">
+                    <h2 class="modal-title" style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-cog" style="color: white;"></i>
+                        </div>
+                        Rx Companion Settings
+                    </h2>
+                    <button class="modal-close" onclick="closeAISettingsModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body" style="padding: 28px;">
+                    <!-- API Key section hidden - pre-configured -->
+                    <div class="form-group" style="display: none;">
+                        <label class="ai-label" for="deepseekApiKey">
+                            <i class="fas fa-key" style="color: #8b5cf6;"></i>
+                            API Key
+                        </label>
+                        <div style="display: flex; gap: 12px;">
+                            <input type="password" id="deepseekApiKey" class="ai-input-field" placeholder="Enter your Rx Companion API key...">
+                            <button class="btn btn-outline" onclick="toggleApiKeyVisibility()" title="Show/Hide" style="padding: 14px 16px; border-radius: 12px; border-color: rgba(139, 92, 246, 0.2);">
+                                <i class="fas fa-eye" id="apiKeyToggleIcon"></i>
+                            </button>
+                        </div>
+                        <p style="color: var(--text-secondary); margin-top: 10px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                            <i class="fas fa-info-circle" style="font-size: 11px;"></i>
+                            Contact your administrator to obtain your API key
+                        </p>
+                    </div>
+                    <!-- Status indicator showing AI is ready -->
+                    <div class="form-group" style="margin-bottom: 24px;">
+                        <div style="display: flex; align-items: center; gap: 12px; padding: 16px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 12px;">
+                            <div style="width: 10px; height: 10px; background: #10b981; border-radius: 50%;"></div>
+                            <span style="color: #10b981; font-weight: 500;">Rx Companion is configured and ready</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="ai-label" for="aiModelSelect">
+                            <i class="fas fa-microchip" style="color: #10b981;"></i>
+                            AI Model
+                        </label>
+                        <select id="aiModelSelect" class="ai-input-field" style="cursor: pointer;">
+                            <option value="deepseek-chat">⚡ Rx Standard (Fast & Efficient)</option>
+                            <option value="deepseek-reasoner">🧠 Rx Advanced (Enhanced Reasoning)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-top: 24px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 14px 16px; background: var(--bg-secondary); border-radius: 12px; transition: all 0.3s ease;">
+                            <input type="checkbox" id="aiSaveHistory" checked style="width: 18px; height: 18px; accent-color: #8b5cf6;">
+                            <span style="color: var(--text-primary);">Save chat history locally</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid rgba(99, 102, 241, 0.1); padding: 20px 28px;">
+                    <button class="btn btn-outline" onclick="closeAISettingsModal()" style="border-radius: 12px; border-color: rgba(139, 92, 246, 0.2);">Cancel</button>
+                    <button class="ai-btn-primary" onclick="saveAISettings()" style="padding: 12px 24px;">
+                        <i class="fas fa-save"></i> Save Settings
+                    </button>
                 </div>
             </div>
         </div>
@@ -11961,6 +12641,7 @@
     <script type="module" src="js/ward-nursing.js"></script>
     <script type="module" src="js/imaging.js"></script>
     <script type="module" src="js/telemedicine.js"></script>
+    <script type="module" src="js/ai-insights.js"></script>
     <script src="js/expense.js"></script>
     <script src="js/inventory.js"></script>
     <script src="js/app.js"></script>

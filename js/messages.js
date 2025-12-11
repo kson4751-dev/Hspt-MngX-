@@ -492,76 +492,17 @@ window.sendMessage = async function() {
         
     } catch (error) {
         console.error('❌ Error sending message:', error);
-        alert('Failed to send message. Please try again.');
+        if (window.showToast) window.showToast('Failed to send message. Please try again.', 'error');
         sendBtn.disabled = false;
         sendBtn.innerHTML = originalText;
     }
 };
 
-// Show success notification
+// Show success notification - uses global toast system
 function showSuccessNotification(message) {
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = 'success-notification';
-    notification.innerHTML = `
-        <i class="fas fa-check-circle"></i>
-        <span>${message}</span>
-    `;
-    
-    // Add styles if not exists
-    if (!document.getElementById('notification-styles')) {
-        const style = document.createElement('style');
-        style.id = 'notification-styles';
-        style.textContent = `
-            .success-notification {
-                position: fixed;
-                top: 90px;
-                right: 20px;
-                background: var(--success-color);
-                color: white;
-                padding: 16px 24px;
-                border-radius: 8px;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                font-size: 14px;
-                font-weight: 500;
-                z-index: 10000;
-                animation: slideInRight 0.3s ease, fadeOut 0.3s ease 2.7s;
-            }
-            
-            .success-notification i {
-                font-size: 20px;
-            }
-            
-            @keyframes slideInRight {
-                from {
-                    transform: translateX(400px);
-                    opacity: 0;
-                }
-                to {
-                    transform: translateX(0);
-                    opacity: 1;
-                }
-            }
-            
-            @keyframes fadeOut {
-                to {
-                    opacity: 0;
-                    transform: translateX(400px);
-                }
-            }
-        `;
-        document.head.appendChild(style);
+    if (window.showToast) {
+        window.showToast(message, 'success');
     }
-    
-    document.body.appendChild(notification);
-    
-    // Remove after 3 seconds
-    setTimeout(() => {
-        notification.remove();
-    }, 3000);
 }
 
 // View message

@@ -1,5 +1,101 @@
 // App.js - Main Application Logic
 
+// ==========================================
+// GLOBAL NOTIFICATION SYSTEM
+// ==========================================
+// Simple, clean toast notifications
+
+(function() {
+    // Create container
+    const container = document.createElement('div');
+    container.id = 'toast-container';
+    container.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        pointer-events: none;
+    `;
+    document.body.appendChild(container);
+
+    // Minimal styles
+    const style = document.createElement('style');
+    style.id = 'toast-styles';
+    style.textContent = `
+        .simple-toast {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 18px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            min-width: 280px;
+            max-width: 380px;
+            pointer-events: auto;
+            transform: translateX(110%);
+            transition: transform 0.3s ease;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 14px;
+            color: #333;
+        }
+        .simple-toast.show { transform: translateX(0); }
+        .simple-toast.hide { transform: translateX(110%); }
+        .simple-toast.success { border-left: 4px solid #10b981; }
+        .simple-toast.error { border-left: 4px solid #ef4444; }
+        .simple-toast.warning { border-left: 4px solid #f59e0b; }
+        .simple-toast.info { border-left: 4px solid #3b82f6; }
+        .simple-toast i { font-size: 18px; }
+        .simple-toast.success i { color: #10b981; }
+        .simple-toast.error i { color: #ef4444; }
+        .simple-toast.warning i { color: #f59e0b; }
+        .simple-toast.info i { color: #3b82f6; }
+        .simple-toast span { flex: 1; line-height: 1.4; }
+        .dark-theme .simple-toast { background: #1f2937; color: #f3f4f6; }
+    `;
+    document.head.appendChild(style);
+
+    const icons = {
+        success: 'fa-check-circle',
+        error: 'fa-exclamation-circle',
+        warning: 'fa-exclamation-triangle',
+        info: 'fa-info-circle'
+    };
+
+    function showToast(message, type) {
+        type = type || 'info';
+        
+        const toast = document.createElement('div');
+        toast.className = `simple-toast ${type}`;
+        toast.innerHTML = `<i class="fas ${icons[type]}"></i><span>${message}</span>`;
+        
+        container.appendChild(toast);
+        
+        // Animate in
+        requestAnimationFrame(() => toast.classList.add('show'));
+        
+        // Auto remove after 4 seconds
+        setTimeout(() => {
+            toast.classList.remove('show');
+            toast.classList.add('hide');
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+        
+        // Limit stack
+        const toasts = container.querySelectorAll('.simple-toast');
+        if (toasts.length > 3) toasts[0].remove();
+    }
+
+    // Expose globally
+    window.showToast = showToast;
+    window.showNotification = showToast;
+})();
+
+// ==========================================
+
 // Theme Toggle
 const themeToggle = document.getElementById('themeToggle');
 const body = document.body;
@@ -5118,53 +5214,28 @@ function saveConsultationHistory() {
                 closeConsultationModal();
                 renderDoctorRecords();
             } else {
-                console.error('❌ Failed to save:', result.error);
-                alert('Failed to save consultation history: ' + result.error);
+                console.error('Failed to save:', result.error);
+                if (window.showToast) window.showToast('Failed to save consultation history', 'error');
             }
         }).catch(error => {
             saveBtn.disabled = false;
             saveBtn.innerHTML = originalText;
-            console.error('❌ Error saving to Firebase:', error);
-            alert('Error saving to Firebase: ' + error.message);
+            console.error('Error saving data:', error);
+            if (window.showToast) window.showToast('Error saving data. Please try again.', 'error');
         });
     }).catch(error => {
         saveBtn.disabled = false;
         saveBtn.innerHTML = originalText;
-        console.error('❌ Firebase helpers not available:', error);
-        alert('Failed to load Firebase. Please refresh the page.');
+        console.error('Service not available:', error);
+        if (window.showToast) window.showToast('Service unavailable. Please refresh the page.', 'error');
     });
 }
 
-// Success notification helper
+// Success notification helper - uses global toast system
 function showSuccessNotification(message) {
-    const notification = document.createElement('div');
-    notification.className = 'success-notification';
-    notification.innerHTML = `
-        <i class="fas fa-check-circle"></i>
-        <span>${message}</span>
-    `;
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #10b981;
-        color: white;
-        padding: 16px 24px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-weight: 500;
-        animation: slideIn 0.3s ease-out;
-    `;
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease-out';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
+    if (window.showToast) {
+        window.showToast(message, 'success');
+    }
 }
 
 // Attach to form
@@ -8285,14 +8356,14 @@ function sendToLaboratory() {
         } else {
             // Local fallback
             console.log('Lab request created locally:', labRequest);
-            alert(`Lab request created successfully!\n\nTests requested: ${selectedTests.join(', ')}\n\nNote: Firebase not available, using local storage.`);
+            if (window.showToast) window.showToast('Lab request created successfully!', 'success');
             closeSendToLabModal();
         }
     }).catch(error => {
-        console.error('Firebase not available:', error);
+        console.error('Service error:', error);
         // Local fallback
         console.log('Lab request created locally:', labRequest);
-        alert(`Lab request created successfully!\n\nTests requested: ${selectedTests.join(', ')}\n\nNote: Using local storage.`);
+        if (window.showToast) window.showToast('Lab request created successfully!', 'success');
         closeSendToLabModal();
     });
 }
@@ -8970,79 +9041,11 @@ function confirmSendLabToDoctor() {
     });
 }
 
-// Show success notification
+// Show success notification - uses global toast system
 function showSuccessNotification(message) {
-    showNotification('Success!', message, 'success');
-}
-
-// Generic notification function
-function showNotification(title, message, type = 'success') {
-    const colors = {
-        success: { bg: '#10b981', border: '#059669', icon: 'fa-check-circle' },
-        error: { bg: '#ef4444', border: '#dc2626', icon: 'fa-exclamation-circle' },
-        warning: { bg: '#f59e0b', border: '#d97706', icon: 'fa-exclamation-triangle' },
-        info: { bg: '#3b82f6', border: '#2563eb', icon: 'fa-info-circle' }
-    };
-    
-    const config = colors[type] || colors.success;
-    
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 80px;
-        right: 20px;
-        background: white;
-        color: #1f2937;
-        padding: 18px 20px;
-        border-radius: 12px;
-        border-left: 4px solid ${config.bg};
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
-        z-index: 10000;
-        display: flex;
-        align-items: start;
-        gap: 14px;
-        animation: slideInRight 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        max-width: 420px;
-        min-width: 320px;
-        backdrop-filter: blur(10px);
-        cursor: pointer;
-        transition: all 0.2s ease;
-    `;
-    
-    notification.innerHTML = `
-        <div style="background: ${config.bg}; color: white; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-            <i class="fas ${config.icon}" style="font-size: 18px;"></i>
-        </div>
-        <div style="flex: 1; padding-top: 2px;">
-            <strong style="display: block; margin-bottom: 4px; font-size: 15px; color: #111827;">${title}</strong>
-            <span style="font-size: 13px; color: #6b7280; line-height: 1.5;">${message}</span>
-        </div>
-        <button onclick="this.parentElement.remove(); event.stopPropagation();" style="background: none; border: none; color: #9ca3af; cursor: pointer; font-size: 16px; padding: 4px; flex-shrink: 0; transition: color 0.2s;" onmouseover="this.style.color='#374151'" onmouseout="this.style.color='#9ca3af'">
-            <i class="fas fa-times"></i>
-        </button>
-    `;
-    
-    // Add hover effect
-    notification.onmouseenter = () => {
-        notification.style.transform = 'translateX(-4px)';
-        notification.style.boxShadow = '0 12px 32px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.15)';
-    };
-    notification.onmouseleave = () => {
-        notification.style.transform = 'translateX(0)';
-        notification.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1)';
-    };
-    
-    // Click to dismiss
-    notification.onclick = () => notification.remove();
-    
-    document.body.appendChild(notification);
-    
-    // Auto remove after 3 seconds
-    setTimeout(() => {
-        notification.style.animation = 'slideOutRight 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
-        setTimeout(() => notification.remove(), 400);
-    }, 3000);
+    if (window.showToast) {
+        window.showToast(message, 'success');
+    }
 }
 
 // Send results to doctor (from table action button)
@@ -11825,70 +11828,6 @@ function sendConsultationFeeToBilling(patientData, feeData) {
         showNotification('Failed to add consultation fee to billing', 'error');
         return false;
     }
-}
-
-// Helper function to show notifications
-function showNotification(message, type = 'info') {
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.style.cssText = `
-        position: fixed;
-        top: 90px;
-        right: 20px;
-        background-color: ${type === 'success' ? 'var(--success-color)' : type === 'error' ? 'var(--danger-color)' : 'var(--primary-color)'};
-        color: white;
-        padding: 16px 24px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        z-index: 10001;
-        animation: slideInRight 0.3s ease-out;
-        max-width: 400px;
-        font-family: 'Montserrat', sans-serif;
-        font-size: 14px;
-        font-weight: 500;
-    `;
-    notification.innerHTML = `
-        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
-        ${message}
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Remove after 4 seconds
-    setTimeout(() => {
-        notification.style.animation = 'slideOutRight 0.3s ease-out';
-        setTimeout(() => notification.remove(), 300);
-    }, 4000);
-}
-
-// Add animation styles if not already present
-if (!document.getElementById('notification-animations')) {
-    const style = document.createElement('style');
-    style.id = 'notification-animations';
-    style.textContent = `
-        @keyframes slideInRight {
-            from {
-                transform: translateX(400px);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-        @keyframes slideOutRight {
-            from {
-                transform: translateX(0);
-                opacity: 1;
-            }
-            to {
-                transform: translateX(400px);
-                opacity: 0;
-            }
-        }
-    `;
-    document.head.appendChild(style);
 }
 
 // ==========================================
