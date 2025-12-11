@@ -4962,6 +4962,13 @@ body.dark-theme .module-badge {
     animation: badgePulse 2s ease-in-out infinite;
 }
 
+/* Appointments Badge - Purple Alert */
+#appointmentsBadge {
+    background-color: #8b5cf6 !important;
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
+    animation: appointmentBadgePulse 1.5s ease-in-out infinite;
+}
+
 @keyframes badgePulse {
     0%, 100% {
         box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
@@ -4971,12 +4978,28 @@ body.dark-theme .module-badge {
     }
 }
 
+@keyframes appointmentBadgePulse {
+    0%, 100% {
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(139, 92, 246, 0.1);
+        transform: scale(1.1);
+    }
+}
+
 /* Dark Mode Badge */
 body.dark-theme #labReportsBadge,
 body.dark-theme #imagingReportsBadge,
 body.theme-dark #labReportsBadge,
 body.theme-dark #imagingReportsBadge {
     background-color: #ef4444 !important;
+}
+
+body.dark-theme #appointmentsBadge,
+body.theme-dark #appointmentsBadge {
+    background-color: #8b5cf6 !important;
 }
 
 .btn {
@@ -16115,6 +16138,161 @@ body.theme-dark input[type="password"]::placeholder {
 .telemedicine-patient-result-item:hover {
     background: var(--bg-secondary) !important;
 }
+
+/* ========== APPOINTMENT REMINDERS STYLES ========== */
+
+/* Reminder Modal Stats */
+.reminder-stat-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.reminder-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Reminder Action Buttons */
+.reminder-action-btn {
+    transition: all 0.2s ease;
+}
+
+.reminder-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Reminder Item Styles */
+.reminder-item {
+    transition: all 0.2s ease;
+}
+
+.reminder-item:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Reminder Urgency Animations */
+@keyframes pulse-border {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(231, 76, 60, 0);
+    }
+}
+
+.reminder-now {
+    animation: pulse-border 1.5s ease-in-out infinite;
+}
+
+.reminder-urgent {
+    border-left-color: #f39c12 !important;
+}
+
+.reminder-soon {
+    border-left-color: #3498db !important;
+}
+
+/* Reminders List Scrollbar */
+#remindersList {
+    max-height: 400px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color) var(--bg-color);
+}
+
+#remindersList::-webkit-scrollbar {
+    width: 6px;
+}
+
+#remindersList::-webkit-scrollbar-track {
+    background: var(--bg-color);
+    border-radius: 3px;
+}
+
+#remindersList::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 3px;
+}
+
+#remindersList::-webkit-scrollbar-thumb:hover {
+    background: #2874a6;
+}
+
+/* Reminder Badge in Header */
+#remindersBadge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    background: #e74c3c;
+    border-radius: 10px;
+    border: 2px solid var(--sidebar-bg);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: white;
+    padding: 0 4px;
+    line-height: 1;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    animation: badgePulse 1.5s ease-in-out infinite;
+}
+
+/* Dark Theme Adjustments for Reminders */
+body.dark-theme .reminder-item,
+body.theme-dark .reminder-item {
+    background: var(--sidebar-bg) !important;
+}
+
+body.dark-theme .reminder-section,
+body.theme-dark .reminder-section {
+    background: var(--sidebar-bg);
+    border-color: var(--border-color);
+}
+
+/* Responsive Reminders */
+@media (max-width: 768px) {
+    #remindersModal .imaging-modal {
+        max-width: 100%;
+        margin: 10px;
+    }
+    
+    #remindersModal .reminder-stat-card {
+        padding: 12px;
+    }
+    
+    #remindersModal .reminder-stat-card > div:first-child {
+        font-size: 20px !important;
+    }
+    
+    .reminder-item {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 12px !important;
+    }
+    
+    .reminder-item > div:last-child {
+        width: 100%;
+        flex-direction: row !important;
+        justify-content: space-between;
+    }
+}
+
+@media (max-width: 480px) {
+    #remindersModal .imaging-modal-body > div:first-child {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    
+    #remindersModal .reminder-action-btn {
+        padding: 8px 12px !important;
+        font-size: 11px !important;
+    }
+}
+
+/* ========== END APPOINTMENT REMINDERS STYLES ========== */
 
 /* Animation */
 @keyframes slideIn {

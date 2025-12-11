@@ -12,6 +12,11 @@ let unsubscribeChat = null;
 let unreadMessages = {}; // Track unread count per appointment
 let messageListeners = {}; // Track listeners for each appointment
 
+// Reminder tracking
+let reminderIntervals = {}; // Store intervals for each appointment reminder
+let reminderCheckInterval = null; // Main interval for checking reminders
+let sentReminders = {}; // Track which reminders have been sent { appointmentId: { '30min': true, '15min': true, 'now': true } }
+
 // WebRTC variables
 let localStream = null;
 let remoteStream = null;
@@ -140,6 +145,9 @@ export function initTelemedicineModule() {
     // Set up patient search
     setupPatientSearch();
     
+    // Initialize reminder system
+    initReminders();
+    
     console.log('✅ Telemedicine Module initialized successfully');
     console.log('🔄 Real-time sync enabled for all data');
 }
@@ -189,6 +197,9 @@ function setupRealtimeListener() {
                 
                 // Setup message listeners for all appointments
                 setupMessageListeners();
+                
+                // Update Doctor module badge on appointment changes
+                updateDoctorBadgeFromAppointments();
             },
             (error) => {
                 console.error('❌ Listener error:', error);
@@ -1877,6 +1888,520 @@ window.printAppointmentReceipt = function(appointmentId) {
     }
 };
 
+// ==================== APPOINTMENT REMINDERS ====================
+
+// Show reminders modal
+window.showRemindersModal = function() {
+    document.getElementById('remindersModal').style.display = 'flex';
+    renderRemindersList();
+    startReminderChecker();
+};
+
+// Close reminders modal
+window.closeRemindersModal = function() {
+    document.getElementById('remindersModal').style.display = 'none';
+};
+
+// Render reminders list
+function renderRemindersList() {
+    const container = document.getElementById('remindersList');
+    if (!container) return;
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+    
+    // Filter scheduled appointments (not completed or cancelled)
+    const scheduledAppointments = appointments.filter(a => 
+        a.status === 'Scheduled' || a.status === 'In Progress'
+    );
+    
+    // Sort by date
+    scheduledAppointments.sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate));
+    
+    // Calculate stats
+    let todayCount = 0;
+    let upcoming30 = 0;
+    let startingNow = 0;
+    let activeReminders = 0;
+    
+    scheduledAppointments.forEach(apt => {
+        const aptDate = new Date(apt.scheduledDate);
+        const minutesUntil = (aptDate - now) / (1000 * 60);
+        
+        if (aptDate >= today && aptDate < tomorrow) todayCount++;
+        if (minutesUntil > 0 && minutesUntil <= 30) upcoming30++;
+        if (minutesUntil <= 5 && minutesUntil >= -10) startingNow++;
+        if (apt.reminderEnabled !== false) activeReminders++;
+    });
+    
+    // Update stats
+    document.getElementById('remindersTodayCount').textContent = todayCount;
+    document.getElementById('remindersUpcoming30').textContent = upcoming30;
+    document.getElementById('remindersOverdue').textContent = startingNow;
+    document.getElementById('remindersActiveCount').textContent = activeReminders;
+    
+    // Update badge on main telemedicine reminders button
+    const badge = document.getElementById('remindersBadge');
+    if (badge) {
+        const urgentCount = upcoming30 + startingNow;
+        if (urgentCount > 0) {
+            badge.textContent = urgentCount;
+            badge.style.display = 'flex';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+    
+    // Update badge on Doctor module appointments button
+    updateDoctorAppointmentsBadge(todayCount, upcoming30, startingNow);
+    
+    if (scheduledAppointments.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                <i class="fas fa-calendar-check" style="font-size: 48px; margin-bottom: 16px; display: block; opacity: 0.3;"></i>
+                <p style="font-size: 14px;">No scheduled appointments</p>
+                <p style="font-size: 12px; margin-top: 8px;">Schedule a consultation to see reminders here</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    
+    scheduledAppointments.forEach(appointment => {
+        const aptDate = new Date(appointment.scheduledDate);
+        const minutesUntil = Math.round((aptDate - now) / (1000 * 60));
+        const hoursUntil = Math.round(minutesUntil / 60);
+        const isReminderEnabled = appointment.reminderEnabled !== false;
+        
+        // Determine urgency
+        let urgencyClass = '';
+        let urgencyLabel = '';
+        let urgencyIcon = 'fa-clock';
+        
+        if (minutesUntil <= 0 && minutesUntil >= -60) {
+            urgencyClass = 'reminder-now';
+            urgencyLabel = 'NOW';
+            urgencyIcon = 'fa-exclamation-circle';
+        } else if (minutesUntil > 0 && minutesUntil <= 15) {
+            urgencyClass = 'reminder-urgent';
+            urgencyLabel = `${minutesUntil} min`;
+            urgencyIcon = 'fa-bell';
+        } else if (minutesUntil > 15 && minutesUntil <= 30) {
+            urgencyClass = 'reminder-soon';
+            urgencyLabel = `${minutesUntil} min`;
+            urgencyIcon = 'fa-bell';
+        } else if (minutesUntil > 30 && minutesUntil <= 60) {
+            urgencyLabel = `${minutesUntil} min`;
+        } else if (hoursUntil > 0 && hoursUntil < 24) {
+            urgencyLabel = `${hoursUntil} hr`;
+        } else {
+            const days = Math.round(hoursUntil / 24);
+            urgencyLabel = days === 1 ? 'Tomorrow' : `${days} days`;
+        }
+        
+        // Format date/time
+        const dateStr = aptDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const timeStr = aptDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        
+        // Check which reminders were sent
+        const remindersSent = sentReminders[appointment.id] || {};
+        
+        html += `
+            <div class="reminder-item ${urgencyClass}" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; display: flex; justify-content: space-between; align-items: center; gap: 16px; ${urgencyClass === 'reminder-now' ? 'border-left: 4px solid #e74c3c; animation: pulse-border 1.5s infinite;' : urgencyClass === 'reminder-urgent' ? 'border-left: 4px solid #f39c12;' : urgencyClass === 'reminder-soon' ? 'border-left: 4px solid #3498db;' : ''}">
+                <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                        <div style="width: 40px; height: 40px; background: ${urgencyClass === 'reminder-now' ? '#e74c3c' : urgencyClass === 'reminder-urgent' ? '#f39c12' : 'var(--primary-color)'}; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas ${urgencyIcon}" style="color: white; font-size: 16px;"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; color: var(--text-primary); font-size: 14px;">${appointment.patientName}</div>
+                            <div style="font-size: 12px; color: var(--text-secondary);">${appointment.patientNumber} • ${appointment.consultationType || 'General'}</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); margin-left: 50px;">
+                        <span><i class="fas fa-user-md"></i> ${appointment.doctorName || 'TBA'}</span>
+                        <span><i class="fas fa-calendar"></i> ${dateStr}</span>
+                        <span><i class="fas fa-clock"></i> ${timeStr}</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 8px; margin-left: 50px;">
+                        ${remindersSent['30min'] ? '<span style="font-size: 10px; background: #27ae60; color: white; padding: 2px 8px; border-radius: 10px;">30min ✓</span>' : ''}
+                        ${remindersSent['15min'] ? '<span style="font-size: 10px; background: #27ae60; color: white; padding: 2px 8px; border-radius: 10px;">15min ✓</span>' : ''}
+                        ${remindersSent['now'] ? '<span style="font-size: 10px; background: #27ae60; color: white; padding: 2px 8px; border-radius: 10px;">Now ✓</span>' : ''}
+                    </div>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                    <div style="background: ${urgencyClass === 'reminder-now' ? '#e74c3c' : urgencyClass === 'reminder-urgent' ? '#f39c12' : urgencyClass === 'reminder-soon' ? '#3498db' : 'var(--bg-color)'}; color: ${urgencyClass ? 'white' : 'var(--text-primary)'}; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;">
+                        ${urgencyLabel}
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                        <button onclick="sendSingleReminder('${appointment.id}')" title="Send Reminder Now" style="padding: 8px 12px; background: #9b59b6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 11px;">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                        <button onclick="toggleReminder('${appointment.id}', ${!isReminderEnabled})" title="${isReminderEnabled ? 'Disable Reminder' : 'Enable Reminder'}" style="padding: 8px 12px; background: ${isReminderEnabled ? '#27ae60' : '#95a5a6'}; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 11px;">
+                            <i class="fas fa-${isReminderEnabled ? 'bell' : 'bell-slash'}"></i>
+                        </button>
+                        <button onclick="window.startVideoCall('${appointment.id}')" title="Start Call" style="padding: 8px 12px; background: var(--primary-color); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 11px;">
+                            <i class="fas fa-video"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// Start reminder checker (runs every minute)
+function startReminderChecker() {
+    // Clear existing interval
+    if (reminderCheckInterval) {
+        clearInterval(reminderCheckInterval);
+    }
+    
+    // Initial check
+    checkAndSendReminders();
+    
+    // Check every 30 seconds
+    reminderCheckInterval = setInterval(() => {
+        checkAndSendReminders();
+        renderRemindersList(); // Update UI
+    }, 30000);
+    
+    console.log('🔔 Reminder checker started');
+}
+
+// Check and send reminders
+async function checkAndSendReminders() {
+    const now = new Date();
+    
+    for (const appointment of appointments) {
+        // Skip if not scheduled or reminder disabled
+        if (appointment.status !== 'Scheduled' || appointment.reminderEnabled === false) {
+            continue;
+        }
+        
+        const aptDate = new Date(appointment.scheduledDate);
+        const minutesUntil = Math.round((aptDate - now) / (1000 * 60));
+        
+        // Initialize sent reminders tracking
+        if (!sentReminders[appointment.id]) {
+            sentReminders[appointment.id] = {};
+        }
+        
+        // 30 minute reminder
+        if (minutesUntil <= 30 && minutesUntil > 28 && !sentReminders[appointment.id]['30min']) {
+            await sendAppointmentReminder(appointment, '30min');
+            sentReminders[appointment.id]['30min'] = true;
+        }
+        
+        // 15 minute reminder
+        if (minutesUntil <= 15 && minutesUntil > 13 && !sentReminders[appointment.id]['15min']) {
+            await sendAppointmentReminder(appointment, '15min');
+            sentReminders[appointment.id]['15min'] = true;
+        }
+        
+        // Now reminder (at time or slightly after)
+        if (minutesUntil <= 2 && minutesUntil >= -5 && !sentReminders[appointment.id]['now']) {
+            await sendAppointmentReminder(appointment, 'now');
+            sentReminders[appointment.id]['now'] = true;
+        }
+    }
+}
+
+// Send appointment reminder notification
+async function sendAppointmentReminder(appointment, reminderType) {
+    const aptDate = new Date(appointment.scheduledDate);
+    const timeStr = aptDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = aptDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    
+    let title, message, notificationType;
+    
+    switch (reminderType) {
+        case '30min':
+            title = '🔔 Appointment in 30 Minutes';
+            message = `Telemedicine consultation with ${appointment.patientName} (${appointment.patientNumber}) is scheduled for ${timeStr}. Doctor: ${appointment.doctorName || 'TBA'}`;
+            notificationType = 'info';
+            break;
+        case '15min':
+            title = '⏰ Appointment in 15 Minutes';
+            message = `Upcoming consultation with ${appointment.patientName} (${appointment.patientNumber}) at ${timeStr}. Please prepare for the video call. Type: ${appointment.consultationType || 'General'}`;
+            notificationType = 'warning';
+            break;
+        case 'now':
+            title = '🚨 Appointment Starting NOW';
+            message = `Video consultation with ${appointment.patientName} (${appointment.patientNumber}) should start now! Patient is waiting. Doctor: ${appointment.doctorName || 'TBA'}`;
+            notificationType = 'error';
+            break;
+    }
+    
+    try {
+        // Send to general notification system
+        if (window.createNotification) {
+            // Get all staff user IDs (doctors, reception, admin)
+            const usersToNotify = await getStaffUserIds();
+            
+            for (const userId of usersToNotify) {
+                await window.createNotification(
+                    userId,
+                    notificationType,
+                    title,
+                    message,
+                    'fa-video',
+                    {
+                        appointmentId: appointment.id,
+                        patientName: appointment.patientName,
+                        patientNumber: appointment.patientNumber,
+                        scheduledTime: appointment.scheduledDate,
+                        reminderType: reminderType,
+                        module: 'telemedicine'
+                    }
+                );
+            }
+            
+            console.log(`✅ ${reminderType} reminder sent for appointment ${appointment.id}`);
+        }
+        
+        // Also show browser notification if permitted
+        if (Notification.permission === 'granted') {
+            new Notification(title, {
+                body: message,
+                icon: '/images/logo.png',
+                tag: `telemedicine-${appointment.id}-${reminderType}`
+            });
+        }
+        
+        // Update UI
+        renderRemindersList();
+        
+    } catch (error) {
+        console.error('❌ Error sending reminder:', error);
+    }
+}
+
+// Get staff user IDs for notifications
+async function getStaffUserIds() {
+    try {
+        // Get current user ID
+        const storageType = localStorage.getItem('userId') ? localStorage : sessionStorage;
+        const currentUserId = storageType.getItem('userId');
+        
+        // Return current user at minimum
+        const userIds = currentUserId ? [currentUserId] : [];
+        
+        // Try to get all staff users from Firebase
+        const usersRef = collection(db, 'users');
+        const snapshot = await getDocs(usersRef);
+        
+        snapshot.forEach(doc => {
+            const user = doc.data();
+            // Include doctors, reception, and admin
+            if (['doctor', 'reception', 'admin', 'nurse'].includes(user.role?.toLowerCase())) {
+                if (!userIds.includes(doc.id)) {
+                    userIds.push(doc.id);
+                }
+            }
+        });
+        
+        // If no users found, use current user
+        if (userIds.length === 0 && currentUserId) {
+            userIds.push(currentUserId);
+        }
+        
+        return userIds;
+    } catch (error) {
+        console.error('Error getting staff users:', error);
+        // Fallback to current user
+        const storageType = localStorage.getItem('userId') ? localStorage : sessionStorage;
+        const currentUserId = storageType.getItem('userId');
+        return currentUserId ? [currentUserId] : [];
+    }
+}
+
+// Toggle reminder for appointment
+window.toggleReminder = async function(appointmentId, enabled) {
+    try {
+        const appointmentRef = doc(db, 'telemedicine_appointments', appointmentId);
+        await updateDoc(appointmentRef, {
+            reminderEnabled: enabled
+        });
+        
+        // Update local appointment
+        const apt = appointments.find(a => a.id === appointmentId);
+        if (apt) {
+            apt.reminderEnabled = enabled;
+        }
+        
+        console.log(`✅ Reminder ${enabled ? 'enabled' : 'disabled'} for appointment ${appointmentId}`);
+        renderRemindersList();
+        
+    } catch (error) {
+        console.error('❌ Error toggling reminder:', error);
+        alert('Failed to update reminder setting');
+    }
+};
+
+// Send single reminder manually
+window.sendSingleReminder = async function(appointmentId) {
+    const appointment = appointments.find(a => a.id === appointmentId);
+    if (!appointment) {
+        alert('Appointment not found');
+        return;
+    }
+    
+    try {
+        await sendAppointmentReminder(appointment, 'now');
+        alert('✅ Reminder sent successfully!');
+    } catch (error) {
+        console.error('Error sending reminder:', error);
+        alert('Failed to send reminder');
+    }
+};
+
+// Enable all reminders
+window.enableAllReminders = async function() {
+    try {
+        let count = 0;
+        
+        for (const appointment of appointments) {
+            if (appointment.status === 'Scheduled' && appointment.reminderEnabled === false) {
+                const appointmentRef = doc(db, 'telemedicine_appointments', appointment.id);
+                await updateDoc(appointmentRef, {
+                    reminderEnabled: true
+                });
+                appointment.reminderEnabled = true;
+                count++;
+            }
+        }
+        
+        renderRemindersList();
+        alert(`✅ Enabled reminders for ${count} appointments`);
+        
+    } catch (error) {
+        console.error('Error enabling reminders:', error);
+        alert('Failed to enable reminders');
+    }
+};
+
+// Send immediate reminders for upcoming appointments
+window.sendImmediateReminders = async function() {
+    const now = new Date();
+    let count = 0;
+    
+    for (const appointment of appointments) {
+        if (appointment.status !== 'Scheduled') continue;
+        
+        const aptDate = new Date(appointment.scheduledDate);
+        const minutesUntil = (aptDate - now) / (1000 * 60);
+        
+        // Send for appointments within the next hour
+        if (minutesUntil > -30 && minutesUntil <= 60) {
+            await sendAppointmentReminder(appointment, 'now');
+            count++;
+        }
+    }
+    
+    alert(`✅ Sent ${count} immediate reminders`);
+};
+
+// Refresh reminders
+window.refreshReminders = function() {
+    renderRemindersList();
+    checkAndSendReminders();
+    alert('✅ Reminders refreshed');
+};
+
+// Request notification permission
+async function requestNotificationPermission() {
+    if ('Notification' in window) {
+        if (Notification.permission === 'default') {
+            const permission = await Notification.requestPermission();
+            console.log('Notification permission:', permission);
+        }
+    }
+}
+
+// Initialize reminders when telemedicine module loads
+function initReminders() {
+    console.log('🔔 Initializing appointment reminders...');
+    
+    // Request notification permission
+    requestNotificationPermission();
+    
+    // Start reminder checker
+    startReminderChecker();
+    
+    console.log('✅ Reminder system initialized');
+}
+
+// Update Doctor Module Appointments Badge
+function updateDoctorAppointmentsBadge(todayCount, upcoming30, startingNow) {
+    const appointmentsBadge = document.getElementById('appointmentsBadge');
+    if (!appointmentsBadge) return;
+    
+    // Show badge if there are appointments today or urgent ones
+    const urgentCount = upcoming30 + startingNow;
+    const displayCount = urgentCount > 0 ? urgentCount : todayCount;
+    
+    if (displayCount > 0) {
+        appointmentsBadge.textContent = displayCount;
+        appointmentsBadge.style.display = 'flex';
+        
+        // Change color based on urgency
+        if (startingNow > 0) {
+            // Red for appointments starting now
+            appointmentsBadge.style.backgroundColor = '#ef4444';
+            appointmentsBadge.style.animation = 'appointmentBadgePulse 0.8s ease-in-out infinite';
+        } else if (upcoming30 > 0) {
+            // Orange for appointments in next 30 min
+            appointmentsBadge.style.backgroundColor = '#f59e0b';
+            appointmentsBadge.style.animation = 'appointmentBadgePulse 1.2s ease-in-out infinite';
+        } else {
+            // Purple for today's appointments
+            appointmentsBadge.style.backgroundColor = '#8b5cf6';
+            appointmentsBadge.style.animation = 'appointmentBadgePulse 2s ease-in-out infinite';
+        }
+        
+        console.log(`📅 Doctor appointments badge updated: ${displayCount} (urgent: ${urgentCount}, today: ${todayCount})`);
+    } else {
+        appointmentsBadge.style.display = 'none';
+    }
+}
+
+// Make update function globally available for external calls
+window.updateDoctorAppointmentsBadge = updateDoctorAppointmentsBadge;
+
+// Helper function to update Doctor badge from appointments data
+function updateDoctorBadgeFromAppointments() {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+    
+    // Filter scheduled appointments
+    const scheduledAppointments = appointments.filter(a => 
+        a.status === 'Scheduled' || a.status === 'In Progress'
+    );
+    
+    let todayCount = 0;
+    let upcoming30 = 0;
+    let startingNow = 0;
+    
+    scheduledAppointments.forEach(apt => {
+        const aptDate = new Date(apt.scheduledDate);
+        const minutesUntil = (aptDate - now) / (1000 * 60);
+        
+        if (aptDate >= today && aptDate < tomorrow) todayCount++;
+        if (minutesUntil > 0 && minutesUntil <= 30) upcoming30++;
+        if (minutesUntil <= 5 && minutesUntil >= -10) startingNow++;
+    });
+    
+    updateDoctorAppointmentsBadge(todayCount, upcoming30, startingNow);
+}
+
+// ==================== END APPOINTMENT REMINDERS ====================
+
 // Cleanup on page unload
 window.addEventListener('beforeunload', () => {
     if (unsubscribeTelemedicine) {
@@ -1891,6 +2416,12 @@ window.addEventListener('beforeunload', () => {
         if (unsubscribe) unsubscribe();
     });
     messageListeners = {};
+    
+    // Cleanup reminder interval
+    if (reminderCheckInterval) {
+        clearInterval(reminderCheckInterval);
+        reminderCheckInterval = null;
+    }
     
     closeVideoCall();
 });
