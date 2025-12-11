@@ -145,6 +145,62 @@
             50% { opacity: 0.6; }
         }
 
+        /* AI Copilot Button Styles */
+        .ai-insights-btn {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .ai-insights-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .ai-insights-btn .copilot-icon {
+            width: 20px;
+            height: 20px;
+            overflow: visible;
+        }
+
+        .ai-insights-btn .copilot-icon .sparkle-path {
+            fill: url(#copilot-gradient);
+            transform-origin: center;
+            animation: sparkle-breathe 3s ease-in-out infinite;
+        }
+
+        .ai-insights-btn:hover .copilot-icon .sparkle-path {
+            animation: sparkle-pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes sparkle-breathe {
+            0%, 100% { 
+                opacity: 1;
+            }
+            50% { 
+                opacity: 0.7;
+            }
+        }
+
+        @keyframes sparkle-pulse {
+            0%, 100% { 
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% { 
+                opacity: 0.85;
+                transform: scale(0.95);
+            }
+        }
+
         .chart-container {
             position: relative;
             height: 300px;
@@ -333,6 +389,25 @@
                 </svg>
                 <svg class="theme-icon moon-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M17.5 11.18C17.3178 12.2054 16.8808 13.1683 16.2293 13.9812C15.5778 14.7941 14.7326 15.4313 13.7718 15.8373C12.811 16.2432 11.7655 16.4053 10.7254 16.3095C9.68531 16.2137 8.68494 15.8628 7.81471 15.2884C6.94447 14.714 6.22975 13.9336 5.73385 13.0158C5.23795 12.098 4.97633 11.0714 4.97215 10.0275C4.96797 8.98366 5.22134 7.9552 5.70883 7.03329C6.19632 6.11137 6.90423 5.32524 7.76999 4.74366C6.95427 4.92731 6.19063 5.29244 5.53566 5.81349C4.88068 6.33453 4.35059 7.00003 3.98667 7.75959C3.62276 8.51915 3.43456 9.35276 3.43657 10.1968C3.43858 11.0408 3.63078 11.8735 3.9988 12.6313C4.36682 13.3891 4.90064 14.0523 5.55875 14.5702C6.21685 15.0881 6.98272 15.4493 7.79996 15.6285C8.61721 15.8078 9.46538 15.8007 10.2794 15.6078C11.0933 15.4149 11.8534 15.0408 12.5032 14.5124C13.1531 13.9839 13.6767 13.3139 14.0365 12.5533" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+            <button class="icon-button ai-insights-btn" onclick="navigateToModule('ai-insights')" title="AI Insights">
+                <svg class="copilot-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="copilot-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#6366f1">
+                                <animate attributeName="stop-color" values="#6366f1;#8b5cf6;#a855f7;#6366f1" dur="4s" repeatCount="indefinite"/>
+                            </stop>
+                            <stop offset="50%" stop-color="#8b5cf6">
+                                <animate attributeName="stop-color" values="#8b5cf6;#a855f7;#6366f1;#8b5cf6" dur="4s" repeatCount="indefinite"/>
+                            </stop>
+                            <stop offset="100%" stop-color="#a855f7">
+                                <animate attributeName="stop-color" values="#a855f7;#6366f1;#8b5cf6;#a855f7" dur="4s" repeatCount="indefinite"/>
+                            </stop>
+                        </linearGradient>
+                    </defs>
+                    <!-- Main sparkle icon -->
+                    <path class="sparkle-path" d="M12 3L13.5 9.5L20 11L13.5 12.5L12 19L10.5 12.5L4 11L10.5 9.5L12 3Z"/>
                 </svg>
             </button>
             <div class="notification-menu">
@@ -533,6 +608,10 @@
             <a href="#emergency" class="nav-item emergency" data-module="emergency">
                 <i class="fas fa-ambulance"></i>
                 <span class="nav-text">Emergency</span>
+            </a>
+            <a href="#ai-insights" class="nav-item" data-module="ai-insights">
+                <i class="fas fa-robot"></i>
+                <span class="nav-text">AI Insights</span>
             </a>
         </nav>
     </aside>
@@ -8287,6 +8366,34 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Insights Module -->
+        <div class="module" id="ai-insights-module">
+            <div class="module-header">
+                <div style="flex: 1;">
+                    <h1 class="module-title" style="color: var(--primary-color);">
+                        <i class="fas fa-robot"></i>
+                        AI Insights
+                    </h1>
+                    <p class="module-description">Intelligent analytics, predictions, and recommendations powered by AI</p>
+                </div>
+                <div class="dashboard-actions">
+                    <button class="btn btn-primary" onclick="refreshAIInsights()">
+                        <i class="fas fa-sync-alt"></i>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <div class="dashboard-content">
+                <!-- AI Insights Content Placeholder -->
+                <div style="text-align: center; padding: 80px 40px; color: var(--text-secondary);">
+                    <i class="fas fa-robot" style="font-size: 64px; margin-bottom: 20px; display: block; color: var(--primary-color); opacity: 0.5;"></i>
+                    <h2 style="margin-bottom: 10px; color: var(--text-primary);">AI Insights Coming Soon</h2>
+                    <p style="max-width: 500px; margin: 0 auto;">This module will provide intelligent analytics, predictive insights, and AI-powered recommendations for hospital operations.</p>
                 </div>
             </div>
         </div>
